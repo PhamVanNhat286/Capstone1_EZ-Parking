@@ -16,11 +16,13 @@ export default function RootLayout({
 }) {
   return (
     <html lang="vi">
-      <body className="min-h-screen pb-20 bg-slate-50 font-sans">
+      <body className="h-screen bg-slate-50 font-sans flex items-start justify-center overflow-hidden">
         <ToastContainer />
         <AuthGuard>
-          <main className="max-w-md mx-auto min-h-screen bg-white shadow-xl relative overflow-hidden pb-16">
-            {children}
+          <main className="w-full max-w-[430px] h-screen flex flex-col bg-white shadow-xl overflow-hidden">
+            <div className="flex-1 overflow-y-auto h-full">
+              {children}
+            </div>
             <BottomNav />
           </main>
         </AuthGuard>

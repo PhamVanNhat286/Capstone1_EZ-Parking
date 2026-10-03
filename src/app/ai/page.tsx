@@ -106,7 +106,7 @@ export default function AIPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F7F8FC] flex flex-col h-[100dvh]">
+    <div className="bg-[#F7F8FC] flex flex-col h-full">
       {/* Header */}
       <div className="bg-white px-4 py-3 flex items-center justify-between border-b border-slate-100 sticky top-0 z-20 shadow-sm shrink-0">
         <button onClick={handleClear} className="w-10 h-10 flex items-center justify-center -ml-2 text-slate-400 active:scale-95">

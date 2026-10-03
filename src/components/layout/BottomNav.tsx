@@ -28,7 +28,7 @@ export default function BottomNav() {
   }
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 max-w-[430px] mx-auto bg-white/90 backdrop-blur-md border-t border-slate-100 flex justify-around items-center pt-3 pb-[calc(12px+env(safe-area-inset-bottom))] px-4 z-50 shadow-[0_-4px_24px_rgba(0,0,0,0.02)]">
+    <div className="w-full bg-white/90 backdrop-blur-md border-t border-slate-100 flex justify-around items-center pt-3 pb-[calc(12px+env(safe-area-inset-bottom))] px-4 z-10 shadow-[0_-4px_24px_rgba(0,0,0,0.02)] shrink-0">
       {navItems.map((item) => {
         const Icon = item.icon;
         const isActive = pathname === item.href;

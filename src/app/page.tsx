@@ -18,7 +18,7 @@ const normalize = (str: string) =>
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase();
 
-type FilterType = "all" | "sedan" | "suv" | "ev" | "availableNow";
+type FilterType = "all" | "nearest" | "ev" | "availableNow";
 
 function ExploreContent() {
   const router = useRouter();
@@ -75,14 +75,14 @@ function ExploreContent() {
       );
     }
 
-    // Sort & Filter based on vehicle type
-    if (filter !== "all") {
+    // Sort & Filter
+    if (filter === "nearest") {
+      result.sort((a, b) => a.distance - b.distance);
+    } else if (filter !== "all") {
       result.sort((a, b) => {
         let aAvail = 0;
         let bAvail = 0;
-        if (filter === "sedan") { aAvail = a.available.sedan; bAvail = b.available.sedan; }
-        else if (filter === "suv") { aAvail = a.available.suv; bAvail = b.available.suv; }
-        else if (filter === "ev") { aAvail = a.available.ev; bAvail = b.available.ev; }
+        if (filter === "ev") { aAvail = a.available.ev; bAvail = b.available.ev; }
         else if (filter === "availableNow") { aAvail = a.available.total; bAvail = b.available.total; }
 
         if (aAvail === 0 && bAvail > 0) return 1;
@@ -95,8 +95,6 @@ function ExploreContent() {
   }, [debouncedSearch, filter]);
 
   const getAvailableCount = (lot: Lot) => {
-    if (filter === "sedan") return lot.available.sedan;
-    if (filter === "suv") return lot.available.suv;
     if (filter === "ev") return lot.available.ev;
     return lot.available.total;
   };
@@ -108,37 +106,32 @@ function ExploreContent() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F7F8FC] pb-32">
-      {/* Header */}
-      <div className="sticky top-0 bg-white/80 backdrop-blur-xl z-30 px-4 py-3 flex items-center justify-between border-b border-slate-100">
+    <div className="bg-[#F7F8FC] pb-6">
+      {/* Header — blue */}
+      <div className="sticky top-0 bg-[#2B4BD1] z-30 px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-2 relative">
-          <button 
+          <button
             onTouchStart={handleTouchStart}
             onTouchEnd={handleTouchEnd}
             onMouseDown={handleTouchStart}
             onMouseUp={handleTouchEnd}
             onMouseLeave={handleTouchEnd}
             onClick={() => setSheetContent("area")}
-            className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-full transition active:scale-95"
+            className="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 px-3 py-1.5 rounded-full transition active:scale-95"
           >
-            <MapPin size={16} className="text-[#2B4BD1]" />
-            <span className="font-bold text-slate-800 text-sm">{area}</span>
-            <ChevronDown size={14} className="text-slate-500" />
+            <MapPin size={16} className="text-white" />
+            <span className="font-bold text-white text-sm">{area}</span>
+            <ChevronDown size={14} className="text-white/70" />
           </button>
         </div>
-        <div className="flex items-center gap-4">
-          <button 
+        <div className="flex items-center">
+          <button
             onClick={() => setSheetContent("notif")}
-            className="relative text-slate-600 hover:text-slate-900 min-w-[44px] min-h-[44px] flex items-center justify-center -mr-2 active:scale-95 transition-transform"
+            className="relative text-white min-w-[44px] min-h-[44px] flex items-center justify-center active:scale-95 transition-transform"
           >
             <Bell size={22} />
-            <span className="absolute top-2 right-2.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white" />
+            <span className="absolute top-2 right-2.5 w-2.5 h-2.5 bg-red-400 rounded-full border-2 border-[#2B4BD1]" />
           </button>
-          <Link href="/ho-so" className="active:scale-95 transition-transform">
-            <div className="w-[40px] h-[40px] rounded-full bg-blue-100 flex items-center justify-center text-[#2B4BD1] overflow-hidden">
-              <User size={18} />
-            </div>
-          </Link>
         </div>
       </div>
 
@@ -160,7 +153,7 @@ function ExploreContent() {
               className="w-full bg-white border border-slate-200 rounded-2xl py-4 pl-12 pr-14 text-[16px] font-medium text-slate-900 placeholder-slate-400 shadow-[0_2px_12px_rgba(0,0,0,0.03)] focus:outline-none focus:ring-2 focus:ring-[#2B4BD1]/20 focus:border-[#2B4BD1] transition-all"
             />
             {search.length > 0 && (
-              <button 
+              <button
                 onClick={() => router.push(`/ai?q=${encodeURIComponent(search)}`)}
                 className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 bg-blue-50 text-[#2B4BD1] rounded-xl flex items-center justify-center active:scale-95 transition-transform"
               >
@@ -170,12 +163,11 @@ function ExploreContent() {
           </div>
         </motion.div>
 
-        {/* Chips */}
+        {/* Chips — Tất cả | Gần nhất | EV Sạc | Còn trống ngay */}
         <div className="flex gap-2 overflow-x-auto pb-4 -mx-4 px-4 scrollbar-hide mb-2">
-          <Chip active={filter === "all"} onClick={() => setFilter("all")} label={vi.home.filters.all} />
-          <Chip active={filter === "sedan"} onClick={() => setFilter("sedan")} label={vi.home.filters.sedan} />
-          <Chip active={filter === "suv"} onClick={() => setFilter("suv")} label={vi.home.filters.suv} />
-          <Chip active={filter === "ev"} onClick={() => setFilter("ev")} label={vi.home.filters.ev} />
+          <Chip active={filter === "all"}         onClick={() => setFilter("all")}         label={vi.home.filters.all} />
+          <Chip active={filter === "nearest"}     onClick={() => setFilter("nearest")}     label="Gần nhất" />
+          <Chip active={filter === "ev"}          onClick={() => setFilter("ev")}          label={vi.home.filters.ev} />
           <Chip active={filter === "availableNow"} onClick={() => setFilter("availableNow")} label={vi.home.filters.availableNow} />
         </div>
 
@@ -215,7 +207,7 @@ function ExploreContent() {
 
         <div className="space-y-4">
           <AnimatePresence mode="popLayout">
-            {filteredLots.map((lot, idx) => {
+            {filteredLots.map((lot) => {
               const count = getAvailableCount(lot);
               const isEmpty = count === 0;
               return (
@@ -225,20 +217,24 @@ function ExploreContent() {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: isEmpty ? 0.5 : 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.95 }}
-                  transition={{ duration: 0.4, staggerChildren: 0.1 }}
+                  transition={{ duration: 0.4 }}
                 >
                   <Link href={`/bai/${lot.id}`}>
-                    <div className="bg-white rounded-[20px] shadow-[0_8px_24px_rgba(0,0,0,0.04)] overflow-hidden active:scale-[0.98] transition-transform border border-slate-100/50">
-                      {/* Image Header */}
-                      <div className={clsx("h-[120px] bg-gradient-to-br relative p-3 flex flex-col justify-between", lot.gradient)}>
-                        <div className="flex justify-end">
-                          <div className="bg-white/95 backdrop-blur-sm px-2.5 py-1.5 rounded-full flex items-center gap-1.5 shadow-sm">
-                            <div className={clsx("w-2 h-2 rounded-full", isEmpty ? "bg-red-500" : "bg-emerald-500")} />
-                            <span className={clsx("text-xs font-bold font-mono tabular-nums", isEmpty ? "text-red-600" : "text-emerald-700")}>
-                              {count}
-                            </span>
-                            <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">{vi.lotCard.available}</span>
-                          </div>
+                    <div className="bg-white rounded-[20px] shadow-[0_8px_24px_rgba(0,0,0,0.06)] overflow-hidden active:scale-[0.98] transition-transform border border-slate-100/50">
+                      {/* Real photo header */}
+                      <div className="h-[140px] relative overflow-hidden">
+                        <img
+                          src={lot.image}
+                          alt={lot.name}
+                          className="w-full h-full object-cover"
+                        />
+                        {/* dark overlay */}
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/10 to-transparent" />
+                        {/* available badge */}
+                        <div className="absolute top-3 right-3 bg-white/95 backdrop-blur-sm px-2.5 py-1.5 rounded-full flex items-center gap-1.5 shadow-sm">
+                          <div className={clsx("w-2 h-2 rounded-full", isEmpty ? "bg-red-500" : "bg-emerald-500")} />
+                          <span className={clsx("text-xs font-bold tabular-nums", isEmpty ? "text-red-600" : "text-emerald-700")}>{count}</span>
+                          <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">{vi.lotCard.available}</span>
                         </div>
                       </div>
 
@@ -248,15 +244,6 @@ function ExploreContent() {
                         <p className="text-xs font-medium text-slate-500 flex items-center gap-1 mb-4">
                           <MapPin size={12} /> {lot.district} • {vi.formatDistance(lot.distance)}
                         </p>
-
-                        {/* Capacity Bar */}
-                        <div className="mb-3">
-                          <div className="h-2.5 bg-slate-100 rounded-full flex overflow-hidden">
-                            <motion.div initial={{ width: 0 }} whileInView={{ width: `${(lot.available.total / lot.total) * 100}%` }} viewport={{ once: true }} className="bg-emerald-500" />
-                            <motion.div initial={{ width: 0 }} whileInView={{ width: `${(lot.holding / lot.total) * 100}%` }} viewport={{ once: true }} className="bg-amber-400" />
-                            <motion.div initial={{ width: 0 }} whileInView={{ width: `${(lot.occupied / lot.total) * 100}%` }} viewport={{ once: true }} className="bg-red-500" />
-                          </div>
-                        </div>
 
                         {/* Types breakdown */}
                         <div className="flex gap-4 mb-4">

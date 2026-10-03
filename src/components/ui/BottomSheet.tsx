@@ -26,13 +26,15 @@ export default function BottomSheet({ isOpen, onClose, title, children }: Bottom
     <AnimatePresence>
       {isOpen && (
         <>
+          {/* Overlay — covers full container including nav */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 max-w-md mx-auto"
+            className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[100] max-w-[430px] mx-auto"
           />
+          {/* Sheet panel */}
           <motion.div
             drag="y"
             dragConstraints={{ top: 0, bottom: 0 }}
@@ -44,7 +46,7 @@ export default function BottomSheet({ isOpen, onClose, title, children }: Bottom
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
             transition={{ type: "spring", damping: 25, stiffness: 200 }}
-            className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white rounded-t-[32px] z-50 flex flex-col max-h-[85vh] shadow-[0_-8px_30px_rgba(0,0,0,0.1)]"
+            className="fixed bottom-0 left-0 right-0 max-w-[430px] mx-auto bg-white rounded-t-[32px] z-[101] flex flex-col max-h-[90vh] shadow-[0_-8px_30px_rgba(0,0,0,0.15)]"
           >
             <div className="flex justify-center pt-3 pb-2 shrink-0 cursor-grab active:cursor-grabbing">
               <div className="w-12 h-1.5 bg-slate-200 rounded-full" />
@@ -60,7 +62,7 @@ export default function BottomSheet({ isOpen, onClose, title, children }: Bottom
               </button>
             </div>
             
-            <div className="overflow-y-auto px-6 py-6 pb-[calc(24px+env(safe-area-inset-bottom))]">
+            <div className="overflow-y-auto px-6 py-6 pb-8">
               {children}
             </div>
           </motion.div>

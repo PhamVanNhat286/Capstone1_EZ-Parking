@@ -119,7 +119,7 @@ export default function SpotDetailsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
+    <div className="h-full bg-slate-50 flex flex-col">
       {/* Header */}
       <div className="bg-white px-4 py-3 flex items-center justify-between border-b border-slate-100 z-10 sticky top-0">
         <button onClick={() => router.push("/")} className="w-10 h-10 flex items-center justify-center -ml-2 text-slate-600 active:scale-95 transition-transform">
@@ -166,8 +166,8 @@ export default function SpotDetailsPage() {
       </div>
 
       {/* Map Content */}
-      <div className="flex-1 relative overflow-hidden bg-slate-100">
-        <div className="absolute inset-0 p-6 flex flex-col justify-center">
+      <div className="flex-1 overflow-y-auto bg-slate-100">
+        <div className="p-6 flex flex-col">
           
           <div className="text-center mb-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center justify-center gap-2">
             Lối vào <div className="w-8 h-0.5 bg-slate-300 rounded-full" />
@@ -184,7 +184,7 @@ export default function SpotDetailsPage() {
                   !spot.match && "opacity-30 grayscale", // Dim non-matching
                   spot.status === "empty" ? "bg-white border-slate-200" :
                   spot.status === "holding" ? "bg-amber-100 border-amber-300" :
-                  "bg-slate-200 border-slate-300 opacity-60 cursor-not-allowed",
+                  "bg-red-100 border-red-300 cursor-not-allowed",
                   spot.id === activeBooking?.spotId && "ring-4 ring-[#2B4BD1]/50 border-[#2B4BD1] !opacity-100" // Highlight if we are holding it
                 )}
               >
@@ -195,7 +195,7 @@ export default function SpotDetailsPage() {
 
                 {/* Icons */}
                 {spot.type === "ev" && <BatteryCharging size={12} className={clsx("absolute bottom-2", spot.status === "empty" ? "text-emerald-500" : "text-slate-400")} />}
-                {spot.status !== "empty" && <CarFront size={24} className="absolute text-slate-400/50" />}
+                {spot.status !== "empty" && <CarFront size={24} className="absolute text-red-400/70" />}
 
                 {/* Suggestion Label */}
                 {bestMatch?.id === spot.id && (

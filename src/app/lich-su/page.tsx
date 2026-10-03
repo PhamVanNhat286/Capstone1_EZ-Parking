@@ -44,7 +44,7 @@ export default function HistoryPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-24">
+    <div className="bg-slate-50 pb-6">
       {/* Header */}
       <div className="bg-[#2B4BD1] pt-12 pb-6 px-6 text-white sticky top-0 z-20 shadow-md">
         <h1 className="text-2xl font-black mb-6">Lịch sử</h1>
