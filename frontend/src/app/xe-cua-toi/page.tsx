@@ -14,10 +14,10 @@ export default function VehiclesPage() {
   const [sheet, setSheet] = useState<"none" | "add" | "edit" | "delete">("none");
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
 
-  // Form states
   const [formName, setFormName] = useState("");
   const [formPlate, setFormPlate] = useState("");
   const [formType, setFormType] = useState<"Sedan" | "SUV" | "EV">("Sedan");
+  const [formEvBodyType, setFormEvBodyType] = useState<"Sedan" | "SUV">("SUV");
   const [formDefault, setFormDefault] = useState(false);
   const [plateError, setPlateError] = useState("");
 
@@ -25,6 +25,7 @@ export default function VehiclesPage() {
     setFormName("");
     setFormPlate("");
     setFormType("Sedan");
+    setFormEvBodyType("SUV");
     setFormDefault(false);
     setPlateError("");
   };
@@ -34,6 +35,7 @@ export default function VehiclesPage() {
     setFormName(v.name);
     setFormPlate(v.plate);
     setFormType(v.type);
+    setFormEvBodyType(v.evBodyType || "SUV");
     setFormDefault(!!v.isPrimary);
     setPlateError("");
     setSheet("edit");
@@ -69,6 +71,7 @@ export default function VehiclesPage() {
         name: formName,
         plate: upPlate,
         type: formType,
+        evBodyType: formType === "EV" ? formEvBodyType : undefined,
         isPrimary: formDefault || vehicles.length === 0
       };
       addVehicle(newV);
@@ -78,7 +81,8 @@ export default function VehiclesPage() {
       updateVehicle(selectedVehicle.id, {
         name: formName,
         plate: upPlate,
-        type: formType
+        type: formType,
+        evBodyType: formType === "EV" ? formEvBodyType : undefined,
       });
       if (formDefault) setDefaultVehicle(selectedVehicle.id);
       addToast("Đã cập nhật xe", "success");
@@ -130,7 +134,9 @@ export default function VehiclesPage() {
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="font-mono text-xs font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded">{v.plate}</span>
-                  <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">{v.type}</span>
+                  <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">
+                    {v.type === "EV" ? `EV (${v.evBodyType || "SUV"})` : v.type}
+                  </span>
                 </div>
               </div>
 
@@ -191,11 +197,35 @@ export default function VehiclesPage() {
                     formType === t ? "bg-[#2B4BD1] text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
                   )}
                 >
-                  {t}
+                  {t === "EV" ? "⚡ Xe điện (EV)" : t}
                 </button>
               ))}
             </div>
           </div>
+
+          {formType === "EV" && (
+            <div className="bg-blue-50/70 dark:bg-blue-950/30 p-3 rounded-[14px] border border-blue-100 dark:border-blue-900/40">
+              <label className="text-xs font-bold text-blue-900 dark:text-blue-300 mb-1.5 block">
+                Kiểu dáng xe điện (để xác định kích thước ô đỗ thông thường)
+              </label>
+              <div className="flex gap-2">
+                {(["Sedan", "SUV"] as const).map(bt => (
+                  <button
+                    type="button"
+                    key={bt}
+                    onClick={() => setFormEvBodyType(bt)}
+                    className={clsx("flex-1 py-2 rounded-[10px] font-bold text-xs transition-colors border",
+                      formEvBodyType === bt 
+                        ? "bg-[#2B4BD1] text-white border-[#2B4BD1]" 
+                        : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700"
+                    )}
+                  >
+                    Dáng {bt} {bt === "Sedan" ? "(VD: Model 3)" : "(VD: VF8, e34)"}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           <button 
             onClick={() => setFormDefault(!formDefault)}

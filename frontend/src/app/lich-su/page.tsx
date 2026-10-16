@@ -20,8 +20,32 @@ export default function HistoryPage() {
   }, [history, filter]);
 
   const totalSpent = useMemo(() => {
-    return history.filter(b => b.status === "completed").length * 50000;
-  }, [history]);
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+
+    const isThisMonth = (ts?: number) => {
+      if (!ts) return true;
+      const d = new Date(ts);
+      return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+    };
+
+    // 1. Chi tiêu từ lịch sử:
+    // - completed: Hoàn tất lượt đỗ (-50.000 ₫)
+    // - forfeited: Mất cọc do quá thời gian đến bãi (-50.000 ₫)
+    const historySpent = history
+      .filter(b => isThisMonth(b.createdAt) && (b.status === "completed" || b.status === "forfeited"))
+      .reduce((sum, b) => sum + ((b as any).amount || (b as any).deposit || 50000), 0);
+
+    // 2. Chi tiêu từ đặt chỗ đang hoạt động (Đã thanh toán cọc hoặc Đang đỗ trong tháng này)
+    const activeSpent = (
+      activeBooking && 
+      (activeBooking.status === "paid" || activeBooking.status === "entered") && 
+      isThisMonth(activeBooking.createdAt)
+    ) ? 50000 : 0;
+
+    return historySpent + activeSpent;
+  }, [history, activeBooking]);
 
   const getStatusInfo = (status: string) => {
     switch (status) {

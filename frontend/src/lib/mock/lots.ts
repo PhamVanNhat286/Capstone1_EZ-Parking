@@ -1,8 +1,11 @@
 export type Lot = {
   id: string;
   name: string;
+  address: string;
   district: string;
-  distance: number;
+  latitude: number;
+  longitude: number;
+  distance?: number;
   total: number;
   available: {
     total: number;
@@ -22,12 +25,14 @@ export const lots: Lot[] = [
   {
     id: "hai-chau-a",
     name: "Bãi Hải Châu A",
+    address: "15 Lê Duẩn, Hải Châu, Đà Nẵng",
     district: "Hải Châu",
-    distance: 0.6,
+    latitude: 16.0718,
+    longitude: 108.2222,
     total: 80,
-    available: { total: 24, sedan: 10, suv: 10, ev: 4 },
-    holding: 6,
-    occupied: 50,
+    available: { total: 14, sedan: 9, suv: 2, ev: 2 },
+    holding: 2,
+    occupied: 4,
     price: 20000,
     labels: ["Có EV", "Có mái che", "24/7"],
     gradient: "from-blue-500 to-cyan-400",
@@ -36,12 +41,14 @@ export const lots: Lot[] = [
   {
     id: "cau-rong",
     name: "Bãi Cầu Rồng",
+    address: "Đường Trần Hưng Đạo, Sơn Trà, Đà Nẵng (Chân Cầu Rồng)",
     district: "Sơn Trà",
-    distance: 1.8,
+    latitude: 16.061,
+    longitude: 108.227,
     total: 120,
     available: { total: 9, sedan: 5, suv: 4, ev: 0 },
-    holding: 4,
-    occupied: 107,
+    holding: 1,
+    occupied: 5,
     price: 15000,
     labels: ["24/7"],
     gradient: "from-amber-500 to-orange-400",
@@ -49,13 +56,15 @@ export const lots: Lot[] = [
   },
   {
     id: "san-bay-t1",
-    name: "Sân bay Đà Nẵng T1 – Dài hạn",
+    name: "Sân bay Đà Nẵng T1",
+    address: "Ga T1, Sân bay Quốc tế Đà Nẵng, Q. Hải Châu",
     district: "Hải Châu",
-    distance: 3.2,
+    latitude: 16.0538,
+    longitude: 108.1995,
     total: 340,
-    available: { total: 120, sedan: 60, suv: 50, ev: 10 },
-    holding: 15,
-    occupied: 205,
+    available: { total: 16, sedan: 10, suv: 4, ev: 2 },
+    holding: 1,
+    occupied: 3,
     price: 12000,
     labels: ["Có EV", "Ngoài trời", "24/7"],
     gradient: "from-emerald-500 to-teal-400",

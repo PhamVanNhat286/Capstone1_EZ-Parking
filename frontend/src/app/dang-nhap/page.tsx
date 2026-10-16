@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { Lock, Mail, Eye, EyeOff } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { loginApi, registerApi } from "@/lib/api";
 import { useStore } from "@/store";
 import { clsx } from "clsx";
 import { motion, AnimatePresence } from "framer-motion";
@@ -15,10 +16,13 @@ export default function AuthPage() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [emailError, setEmailError] = useState("");
   const [pwdError, setPwdError] = useState("");
+  const [confirmPwdError, setConfirmPwdError] = useState("");
   
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [shake, setShake] = useState(false);
 
@@ -38,8 +42,15 @@ export default function AuthPage() {
     return "";
   };
 
+  const validateConfirmPassword = (val: string) => {
+    if (!val) return "Vui lòng xác nhận mật khẩu";
+    if (val !== password) return "Mật khẩu xác nhận không khớp";
+    return "";
+  };
+
   const handleBlurEmail = () => setEmailError(validateEmail(email));
   const handleBlurPwd = () => setPwdError(validatePassword(password));
+  const handleBlurConfirmPwd = () => setConfirmPwdError(validateConfirmPassword(confirmPassword));
 
   const triggerShake = () => {
     setShake(true);
@@ -50,21 +61,67 @@ export default function AuthPage() {
     e.preventDefault();
     const eErr = validateEmail(email);
     const pErr = validatePassword(password);
+    const cErr = activeTab === "register" ? validateConfirmPassword(confirmPassword) : "";
     
-    if (eErr || pErr) {
+    if (eErr || pErr || cErr) {
       setEmailError(eErr);
       setPwdError(pErr);
+      if (activeTab === "register") setConfirmPwdError(cErr);
       triggerShake();
       return;
     }
 
     setIsLoading(true);
-    // Simulate API call 600ms
-    await new Promise((r) => setTimeout(r, 600));
-    
-    login();
-    addToast(activeTab === "login" ? "Đăng nhập thành công!" : "Tạo tài khoản thành công!", "success");
-    router.push("/");
+    try {
+      if (activeTab === "login") {
+        const res = await loginApi(email, password);
+        if (res.success && res.data) {
+          if (typeof window !== "undefined") {
+            localStorage.setItem("ezspace_token", res.data.token);
+          }
+          login({
+            name: res.data.user.full_name,
+            email: res.data.user.email,
+            phone: res.data.user.phone,
+            role: res.data.user.role,
+            token: res.data.token,
+          });
+          addToast("Đăng nhập thành công!", "success");
+          router.push("/");
+        } else {
+          addToast(res.message || "Email hoặc mật khẩu không chính xác", "error");
+          triggerShake();
+        }
+      } else {
+        const res = await registerApi({
+          full_name: email.split("@")[0] || "Khách hàng",
+          email,
+          password,
+        });
+        if (res.success && res.data) {
+          if (typeof window !== "undefined") {
+            localStorage.setItem("ezspace_token", res.data.token);
+          }
+          login({
+            name: res.data.user.full_name,
+            email: res.data.user.email,
+            phone: res.data.user.phone,
+            role: res.data.user.role,
+            token: res.data.token,
+          });
+          addToast("Đăng ký tài khoản thành công!", "success");
+          router.push("/");
+        } else {
+          addToast(res.message || "Đăng ký thất bại", "error");
+          triggerShake();
+        }
+      }
+    } catch (err) {
+      addToast("Không thể kết nối đến máy chủ Backend", "error");
+      triggerShake();
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleSocial = async (provider: string) => {
@@ -108,6 +165,8 @@ export default function AuthPage() {
                 setActiveTab(tab as any);
                 setEmailError("");
                 setPwdError("");
+                setConfirmPassword("");
+                setConfirmPwdError("");
               }}
               className={clsx(
                 "flex-1 py-3 text-sm font-bold relative z-10 transition-colors",
@@ -206,6 +265,50 @@ export default function AuthPage() {
               )}
             </AnimatePresence>
           </div>
+
+          {/* Confirm Password - only for register */}
+          <AnimatePresence>
+            {activeTab === "register" && (
+              <motion.div
+                key="confirm-password"
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.25 }}
+              >
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                    <Lock size={20} className={confirmPwdError ? "text-red-400" : "text-slate-400"} />
+                  </div>
+                  <input
+                    type={showConfirmPassword ? "text" : "password"}
+                    value={confirmPassword}
+                    onChange={(e) => { setConfirmPassword(e.target.value); setConfirmPwdError(""); }}
+                    onBlur={handleBlurConfirmPwd}
+                    placeholder="Xác nhận mật khẩu"
+                    className={clsx(
+                      "w-full bg-slate-50 border rounded-[16px] py-4 pl-12 pr-12 text-sm font-medium text-slate-900 placeholder-slate-400 focus:outline-none transition-all",
+                      confirmPwdError ? "border-red-400 ring-2 ring-red-100 bg-red-50/50" : "border-slate-200 focus:border-[#2B4BD1] focus:ring-2 focus:ring-[#2B4BD1]/20"
+                    )}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-400 hover:text-slate-600"
+                  >
+                    {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                  </button>
+                </div>
+                <AnimatePresence>
+                  {confirmPwdError && (
+                    <motion.p initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="text-red-500 text-xs font-bold mt-1.5 pl-2">
+                      {confirmPwdError}
+                    </motion.p>
+                  )}
+                </AnimatePresence>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {activeTab === "login" && (
             <div className="text-right pb-1">

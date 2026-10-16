@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, use } from "react";
-import { ChevronLeft, MapPin, CreditCard, ChevronRight, CarFront, AlertCircle, Plus, Info, Clock, ArrowRight } from "lucide-react";
+import { ChevronLeft, MapPin, CarFront, Clock, ArrowRight } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useStore } from "@/store";
 import { clsx } from "clsx";
@@ -19,7 +19,6 @@ export default function CheckoutPage({ params }: { params: Promise<{ id: string 
   const [timeLeft, setTimeLeft] = useState(-1);
   const [sheet, setSheet] = useState<"none" | "expired" | "leave">("none");
   const [selectedHours, setSelectedHours] = useState(2);
-  const [selectedVehicle, setSelectedVehicle] = useState(vehicles.find(v => v.isPrimary)?.id || vehicles[0].id);
   const [slideX, setSlideX] = useState(0);
 
   useEffect(() => {
@@ -60,8 +59,7 @@ export default function CheckoutPage({ params }: { params: Promise<{ id: string 
     return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
   };
 
-  const activeVehicle = vehicles.find(v => v.id === selectedVehicle);
-  const isMismatch = activeVehicle && activeVehicle.type.toLowerCase() === "suv" && id === "A2"; // Mock mismatch
+  const bookedVehicle = vehicles.find(v => v.id === activeBooking.vehicleId) || vehicles.find(v => v.isPrimary) || vehicles[0];
 
   return (
     <div className="min-h-screen bg-slate-50 pb-32">
@@ -83,9 +81,22 @@ export default function CheckoutPage({ params }: { params: Promise<{ id: string 
           <div className="flex justify-between items-start mb-4">
             <div>
               <h2 className="text-lg font-black text-slate-900 mb-1">Bãi Hải Châu A</h2>
-              <p className="text-xs font-medium text-slate-500 flex items-center gap-1">
-                <MapPin size={12} /> Ô đỗ {id}
-              </p>
+              <div className="text-xs font-medium text-slate-500 flex items-center gap-2 flex-wrap">
+                <span className="flex items-center gap-1">
+                  <MapPin size={12} /> Ô đỗ <strong className="text-slate-800">{id}</strong>
+                </span>
+                {bookedVehicle && (
+                  <>
+                    <span>•</span>
+                    <span className="flex items-center gap-1 font-semibold text-slate-700">
+                      <CarFront size={13} className="text-[#2B4BD1]" /> {bookedVehicle.name}
+                      <span className="font-mono text-[11px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-600 font-bold ml-0.5">
+                        {bookedVehicle.plate}
+                      </span>
+                    </span>
+                  </>
+                )}
+              </div>
             </div>
             <button onClick={() => router.push("/bai/hai-chau-a")} className="bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-bold active:scale-95 transition-transform">
               Đổi ô
@@ -109,38 +120,6 @@ export default function CheckoutPage({ params }: { params: Promise<{ id: string 
               ))}
             </div>
           </div>
-        </div>
-
-        {/* Vehicle Selection */}
-        <div>
-          <h3 className="font-bold text-slate-900 mb-3 px-1">Xe của bạn</h3>
-          <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2 px-1">
-            {vehicles.map(v => (
-              <button
-                key={v.id}
-                onClick={() => setSelectedVehicle(v.id)}
-                className={clsx(
-                  "p-3 rounded-[16px] border text-left shrink-0 w-[140px] transition-all active:scale-95 relative overflow-hidden",
-                  selectedVehicle === v.id ? "bg-[#2B4BD1] border-[#2B4BD1] text-white shadow-md shadow-[#2B4BD1]/30" : "bg-white border-slate-200 text-slate-800"
-                )}
-              >
-                <CarFront size={20} className={clsx("mb-2", selectedVehicle === v.id ? "text-blue-200" : "text-slate-400")} />
-                <div className="font-bold text-sm truncate">{v.name}</div>
-                <div className={clsx("text-[10px] font-medium font-mono mt-1", selectedVehicle === v.id ? "text-blue-100" : "text-slate-500")}>{v.plate}</div>
-              </button>
-            ))}
-            <button onClick={() => router.push("/xe-cua-toi")} className="p-3 rounded-[16px] border border-dashed border-slate-300 text-center shrink-0 w-[100px] flex flex-col items-center justify-center text-slate-500 active:scale-95 bg-white">
-              <Plus size={20} className="mb-2" />
-              <span className="text-[10px] font-bold">Thêm xe</span>
-            </button>
-          </div>
-          
-          {isMismatch && (
-            <div className="mt-2 flex items-start gap-2 bg-red-50 p-3 rounded-[12px] border border-red-100 text-red-700">
-              <AlertCircle size={16} className="mt-0.5 shrink-0" />
-              <span className="text-xs font-medium">Ô này là loại Sedan, xe SUV của bạn có thể không vừa. Hãy cân nhắc Đổi ô.</span>
-            </div>
-          )}
         </div>
 
         {/* Payment Methods */}

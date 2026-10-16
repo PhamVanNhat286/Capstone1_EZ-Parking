@@ -7,6 +7,7 @@ export type Vehicle = {
   type: "Sedan" | "SUV" | "EV";
   name: string;
   isPrimary?: boolean;
+  evBodyType?: "Sedan" | "SUV"; // Dáng xe của xe điện (Sedan hoặc SUV)
 };
 
 export type BookingStatus = "holding" | "paid" | "entered" | "completed" | "forfeited" | "cancelled";
@@ -35,7 +36,7 @@ export type AIMessage = {
 };
 
 type StoreState = {
-  user: { name: string; phone: string; isLoggedIn: boolean } | null;
+  user: { name: string; phone: string; email?: string; token?: string; role?: string; isLoggedIn: boolean } | null;
   vehicles: Vehicle[];
   activeBooking: Booking | null;
   history: Booking[];
@@ -55,7 +56,7 @@ type StoreState = {
   clearAiMessages: () => void;
 
   // Actions
-  login: () => void;
+  login: (userData?: { name?: string; phone?: string; email?: string; token?: string; role?: string }) => void;
   logout: () => void;
   holdSpot: (lotId: string, spotId: string, vehicleId: string) => void;
   isDemo: boolean;
@@ -82,6 +83,7 @@ export const useStore = create<StoreState>()(
       vehicles: [
         { id: "v1", name: "Toyota Fortuner", plate: "43A-123.45", type: "SUV", isPrimary: true },
         { id: "v2", name: "Honda Civic", plate: "43A-678.90", type: "Sedan" },
+        { id: "v3", name: "VinFast VF8", plate: "43E-999.88", type: "EV", evBodyType: "SUV" },
       ],
       activeBooking: null,
       history: [],
@@ -107,8 +109,23 @@ export const useStore = create<StoreState>()(
       clearAiMessages: () => set({ aiMessages: [] }),
 
       setDemo: (val) => set({ isDemo: val }),
-      login: () => set({ user: { name: "Nhat Nguyen", phone: "+84 987 654 321", isLoggedIn: true } }),
-      logout: () => set({ user: null }),
+      login: (userData) =>
+        set({
+          user: {
+            name: userData?.name || "Nguyen Van A",
+            phone: userData?.phone || "0905123456",
+            email: userData?.email || "customer@ezspace.vn",
+            token: userData?.token,
+            role: userData?.role || "customer",
+            isLoggedIn: true,
+          },
+        }),
+      logout: () => {
+        if (typeof window !== "undefined") {
+          localStorage.removeItem("ezspace_token");
+        }
+        set({ user: null });
+      },
       
       holdSpot: (lotId, spotId, vehicleId) => {
         const newBooking: Booking = {

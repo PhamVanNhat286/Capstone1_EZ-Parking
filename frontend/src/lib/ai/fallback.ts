@@ -9,7 +9,24 @@ type AIResponse = {
 const normalize = (str: string) => 
   str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
-export const getFallbackResponse = (query: string): AIResponse => {
+export function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371; // km
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c * 10) / 10;
+}
+
+export const getFallbackResponse = (
+  query: string,
+  userLocation?: { latitude: number; longitude: number }
+): AIResponse => {
   const norm = normalize(query);
   
   // Rules
@@ -29,7 +46,7 @@ export const getFallbackResponse = (query: string): AIResponse => {
   let budget = Infinity;
   if (budgetMatch) {
     let num = parseInt(budgetMatch[1], 10);
-    if (num < 1000) num *= 1000; // "30k" -> 30000
+    if (num < 1000) num *= 1000;
     budget = num;
   }
 
@@ -54,7 +71,13 @@ export const getFallbackResponse = (query: string): AIResponse => {
   }
 
   // Determine filtering
-  let filtered = lots.filter(l => l.available.total > 0);
+  let filtered = lots.filter(l => l.available.total > 0).map(l => {
+    let dist = l.distance;
+    if (userLocation && l.latitude && l.longitude) {
+      dist = calculateDistance(userLocation.latitude, userLocation.longitude, l.latitude, l.longitude);
+    }
+    return { ...l, distance: dist };
+  });
   
   if (isSUV) filtered = filtered.filter(l => l.available.suv > 0);
   if (isEV) filtered = filtered.filter(l => l.available.ev > 0);
@@ -69,15 +92,16 @@ export const getFallbackResponse = (query: string): AIResponse => {
   if (isCheap) {
     filtered.sort((a, b) => a.price - b.price);
   } else if (isNear) {
-    filtered.sort((a, b) => a.distance - b.distance);
+    filtered.sort((a, b) => (a.distance ?? 999) - (b.distance ?? 999));
   }
 
   // Results
   if (filtered.length > 0) {
     const lot = filtered[0];
+    let distText = lot.distance !== undefined ? ` (cách bạn ~${lot.distance} km)` : "";
     let reason = "Bãi đỗ phù hợp nhất với yêu cầu của bạn.";
     if (isCheap) reason = "Bãi đỗ rẻ nhất có chỗ trống.";
-    else if (isNear) reason = "Bãi đỗ gần bạn nhất hiện tại.";
+    else if (isNear) reason = `Bãi đỗ gần bạn nhất hiện tại${distText}.`;
     else if (isAirport) reason = "Bãi đỗ sân bay có chỗ trống.";
     
     if (budget < Infinity) {
@@ -90,23 +114,14 @@ export const getFallbackResponse = (query: string): AIResponse => {
     else if (isSedan) tab = "Sedan";
 
     return {
-      text: `Mình tìm thấy bãi đỗ phù hợp cho bạn. ${lot.name} hiện đang có ${lot.available.total} chỗ trống.`,
+      text: `Mình tìm thấy bãi đỗ phù hợp cho bạn. ${lot.name}${distText} hiện đang có ${lot.available.total} chỗ trống.`,
       cards: [{ lotId: lot.id, reason, tab }],
       chips: ["Xem bãi khác", "Hỏi về hoàn cọc"]
     };
   }
 
-  // Out of scope / Not found
-  if (isSUV || isEV || isSedan || isEmpty || isAirport || isCheap || isNear || budget < Infinity) {
-    return {
-      text: "Hiện chưa có bãi phù hợp với điều kiện của bạn. Bạn thử nới lỏng yêu cầu xem sao nhé.",
-      chips: ["Bãi gần nhất", "Tất cả bãi"]
-    };
-  }
-
-  // Catch all
   return {
-    text: "Xin lỗi, mình chỉ có thể hỗ trợ các vấn đề về tìm bãi đỗ xe, giá cả, và chính sách cọc. Bạn có muốn tìm bãi đỗ không?",
-    chips: ["Tìm chỗ rẻ nhất", "Tìm bãi có sạc EV"]
+    text: "Rất tiếc, mình không tìm thấy bãi đỗ nào khớp hoàn toàn với yêu cầu của bạn lúc này. Bạn thử tìm kiếm với tiêu chí khác xem sao nhé!",
+    chips: ["Xem tất cả bãi", "Bãi còn chỗ"]
   };
 };

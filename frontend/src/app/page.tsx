@@ -8,6 +8,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { clsx } from "clsx";
 import { vi } from "@/lib/i18n/vi";
 import { lots, Lot } from "@/lib/mock/lots";
+import { getLotsApi } from "@/lib/api";
 import { useStore } from "@/store";
 import BottomSheet from "@/components/ui/BottomSheet";
 import { ChevronDown } from "lucide-react";
@@ -34,7 +35,17 @@ function ExploreContent() {
   const isDemo = useStore((s) => s.isDemo);
   const setDemo = useStore((s) => s.setDemo);
 
+  const [lotsList, setLotsList] = useState<Lot[]>(lots);
   const [timeLeft, setTimeLeft] = useState(0);
+
+  // Lấy dữ liệu thật từ Backend API
+  useEffect(() => {
+    getLotsApi().then((data) => {
+      if (data && data.length > 0) {
+        setLotsList(data);
+      }
+    });
+  }, []);
 
   // Long press logic
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -57,42 +68,46 @@ function ExploreContent() {
 
   useEffect(() => {
     if (!activeBooking) return;
-    const interval = setInterval(() => {
-      const remaining = Math.max(0, Math.floor((activeBooking.holdExpiresAt - Date.now()) / 1000));
+    const updateTimer = () => {
+      const isPaid = activeBooking.status === "paid";
+      const targetExpiry = isPaid && activeBooking.arrivalExpiresAt
+        ? activeBooking.arrivalExpiresAt
+        : activeBooking.holdExpiresAt;
+      const remaining = Math.max(0, Math.floor((targetExpiry - Date.now()) / 1000));
       setTimeLeft(remaining);
-    }, 1000);
+    };
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000);
     return () => clearInterval(interval);
   }, [activeBooking]);
 
   const filteredLots = useMemo(() => {
-    let result = [...lots];
+    let result = [...lotsList];
 
     // Search
     if (debouncedSearch) {
       const q = normalize(debouncedSearch);
       result = result.filter(
-        (l) => normalize(l.name).includes(q) || normalize(l.district).includes(q)
+        (l) => 
+          normalize(l.name).includes(q) || 
+          normalize(l.district).includes(q) || 
+          (l.address && normalize(l.address).includes(q))
       );
     }
 
     // Sort & Filter
     if (filter === "nearest") {
-      result.sort((a, b) => a.distance - b.distance);
-    } else if (filter !== "all") {
-      result.sort((a, b) => {
-        let aAvail = 0;
-        let bAvail = 0;
-        if (filter === "ev") { aAvail = a.available.ev; bAvail = b.available.ev; }
-        else if (filter === "availableNow") { aAvail = a.available.total; bAvail = b.available.total; }
-
-        if (aAvail === 0 && bAvail > 0) return 1;
-        if (bAvail === 0 && aAvail > 0) return -1;
-        return bAvail - aAvail;
-      });
+      result.sort((a, b) => ((a.distance ?? 0) - (b.distance ?? 0)));
+    } else if (filter === "ev") {
+      result = result.filter((l) => l.available.ev > 0);
+      result.sort((a, b) => b.available.ev - a.available.ev);
+    } else if (filter === "availableNow") {
+      result = result.filter((l) => l.available.total > 0);
+      result.sort((a, b) => b.available.total - a.available.total);
     }
 
     return result;
-  }, [debouncedSearch, filter]);
+  }, [debouncedSearch, filter, lotsList]);
 
   const getAvailableCount = (lot: Lot) => {
     if (filter === "ev") return lot.available.ev;
@@ -180,21 +195,55 @@ function ExploreContent() {
               exit={{ opacity: 0, height: 0, marginBottom: 0 }}
               className="overflow-hidden"
             >
-              <Link href={`/ve/${activeBooking.id}`}>
-                <div className="bg-orange-50 border border-orange-100 rounded-[20px] p-4 flex items-center gap-3 active:scale-[0.98] transition-transform">
-                  <div className="w-12 h-12 rounded-full border-4 border-orange-200 flex items-center justify-center shrink-0 relative">
-                    <svg className="absolute inset-0 w-full h-full -rotate-90">
-                      <circle cx="20" cy="20" r="18" fill="none" stroke="#f97316" strokeWidth="4" strokeDasharray="113" strokeDashoffset={113 - (113 * timeLeft) / 600} className="transition-all duration-1000 linear" />
-                    </svg>
-                    <span className="text-orange-600 font-bold text-[10px] tabular-nums">{formatTimer(timeLeft)}</span>
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="font-bold text-orange-900 text-sm mb-0.5">{vi.home.activeBooking.title}</h3>
-                    <p className="text-xs font-medium text-orange-700/80">Ô {activeBooking.spotId} • Bãi Hải Châu A</p>
-                  </div>
-                  <ChevronRight size={20} className="text-orange-400" />
-                </div>
-              </Link>
+              {(() => {
+                const isPaid = activeBooking.status === "paid";
+                const isEntered = activeBooking.status === "entered";
+                const totalDuration = isPaid ? 1200 : 600;
+                const LOT_NAMES: Record<string, string> = {
+                  "1": "Bãi Hải Châu A",
+                  "hai-chau-a": "Bãi Hải Châu A",
+                  "2": "Bãi Cầu Rồng",
+                  "cau-rong": "Bãi Cầu Rồng",
+                  "3": "Sân bay Đà Nẵng T1",
+                  "san-bay-t1": "Sân bay Đà Nẵng T1",
+                };
+                const bookedLot = lotsList.find(l => String(l.id).toLowerCase() === String(activeBooking.lotId).toLowerCase());
+                const bookedLotName = bookedLot?.name || LOT_NAMES[String(activeBooking.lotId).toLowerCase()] || "Bãi đỗ xe";
+                const targetUrl = activeBooking.status === "holding" ? `/dat-cho/${activeBooking.spotId}` : `/ve/${activeBooking.id}`;
+                const title = isEntered 
+                  ? "Đang đỗ xe trong bãi" 
+                  : isPaid 
+                  ? "Thời gian đến bãi (Đã cọc)" 
+                  : "Đang giữ ô (Chờ cọc)";
+
+                return (
+                  <Link href={targetUrl}>
+                    <div className="bg-orange-50 border border-orange-100 rounded-[20px] p-4 flex items-center gap-3 active:scale-[0.98] transition-transform">
+                      <div className="w-12 h-12 rounded-full border-4 border-orange-200 flex items-center justify-center shrink-0 relative">
+                        <svg className="absolute inset-0 w-full h-full -rotate-90">
+                          <circle 
+                            cx="20" 
+                            cy="20" 
+                            r="18" 
+                            fill="none" 
+                            stroke="#f97316" 
+                            strokeWidth="4" 
+                            strokeDasharray="113" 
+                            strokeDashoffset={113 - (113 * Math.min(timeLeft, totalDuration)) / totalDuration} 
+                            className="transition-all duration-1000 linear" 
+                          />
+                        </svg>
+                        <span className="text-orange-600 font-bold text-[10px] tabular-nums">{formatTimer(timeLeft)}</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-bold text-orange-900 text-sm mb-0.5 truncate">{title}</h3>
+                        <p className="text-xs font-medium text-orange-700/80 truncate">Ô {activeBooking.spotId} • {bookedLotName}</p>
+                      </div>
+                      <ChevronRight size={20} className="text-orange-400 shrink-0" />
+                    </div>
+                  </Link>
+                );
+              })()}
             </motion.div>
           )}
         </AnimatePresence>
@@ -241,8 +290,9 @@ function ExploreContent() {
                       {/* Content */}
                       <div className="p-4">
                         <h3 className="text-[17px] font-bold text-slate-900 mb-1 leading-tight">{lot.name}</h3>
-                        <p className="text-xs font-medium text-slate-500 flex items-center gap-1 mb-4">
-                          <MapPin size={12} /> {lot.district} • {vi.formatDistance(lot.distance)}
+                        <p className="text-xs font-medium text-slate-500 flex items-center gap-1.5 mb-4 truncate">
+                          <MapPin size={13} className="text-[#2B4BD1] shrink-0" />
+                          <span className="truncate">{lot.address || `${lot.district}, Đà Nẵng`}</span>
                         </p>
 
                         {/* Types breakdown */}
