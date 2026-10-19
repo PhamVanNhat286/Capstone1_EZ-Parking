@@ -19,8 +19,12 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // Kiểm tra email đã tồn tại chưa
-    const existingUser = await query("SELECT id FROM users WHERE email = $1;", [email]);
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanPhone = phone ? phone.trim().replace(/\s+/g, "") : null;
+    const cleanName = full_name.trim();
+
+    // Kiểm tra email đã tồn tại chưa (không phân biệt hoa thường)
+    const existingUser = await query("SELECT id FROM users WHERE LOWER(email) = $1;", [cleanEmail]);
     if (existingUser.rows.length > 0) {
       res.status(409).json({
         success: false,
@@ -30,8 +34,8 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     }
 
     // Kiểm tra số điện thoại (nếu có cung cấp)
-    if (phone) {
-      const existingPhone = await query("SELECT id FROM users WHERE phone = $1;", [phone]);
+    if (cleanPhone) {
+      const existingPhone = await query("SELECT id FROM users WHERE phone = $1;", [cleanPhone]);
       if (existingPhone.rows.length > 0) {
         res.status(409).json({
           success: false,
@@ -51,7 +55,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       VALUES ($1, $2, $3, $4, $5, 'active')
       RETURNING id, full_name, email, phone, role, status, created_at;
     `;
-    const result = await query(insertSql, [full_name, email, phone || null, passwordHash, role]);
+    const result = await query(insertSql, [cleanName, cleanEmail, cleanPhone, passwordHash, role]);
     const newUser = result.rows[0];
 
     // Tạo token JWT
@@ -91,12 +95,19 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // Tìm tài khoản theo email
-    const userRes = await query("SELECT * FROM users WHERE email = $1;", [email]);
+    const cleanAccount = email.trim();
+    const cleanEmail = cleanAccount.toLowerCase();
+    const cleanPhone = cleanAccount.replace(/\s+/g, "");
+
+    // Tìm tài khoản theo email (không phân biệt chữ hoa thường) hoặc số điện thoại
+    const userRes = await query(
+      "SELECT * FROM users WHERE LOWER(email) = $1 OR phone = $2;",
+      [cleanEmail, cleanPhone]
+    );
     if (userRes.rows.length === 0) {
       res.status(401).json({
         success: false,
-        message: "Email hoặc mật khẩu không chính xác",
+        message: "Email / Số điện thoại hoặc mật khẩu không chính xác",
       });
       return;
     }

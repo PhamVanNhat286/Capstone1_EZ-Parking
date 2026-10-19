@@ -57,6 +57,7 @@ type StoreState = {
 
   // Actions
   login: (userData?: { name?: string; phone?: string; email?: string; token?: string; role?: string }) => void;
+  updateUser: (data: Partial<{ name: string; phone: string; email: string }>) => void;
   logout: () => void;
   holdSpot: (lotId: string, spotId: string, vehicleId: string) => void;
   isDemo: boolean;
@@ -120,6 +121,10 @@ export const useStore = create<StoreState>()(
             isLoggedIn: true,
           },
         }),
+      updateUser: (data) =>
+        set((state) => ({
+          user: state.user ? { ...state.user, ...data } : null,
+        })),
       logout: () => {
         if (typeof window !== "undefined") {
           localStorage.removeItem("ezspace_token");

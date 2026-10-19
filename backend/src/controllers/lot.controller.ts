@@ -69,8 +69,8 @@ const SLUG_TO_ID: Record<string, number> = {
   "san-bay-t1": 3,
 };
 
-const resolveLotId = (rawId: string | number): number => {
-  const str = String(rawId).toLowerCase();
+const resolveLotId = (rawId: string | string[] | number | undefined): number => {
+  const str = String(Array.isArray(rawId) ? rawId[0] : rawId).toLowerCase();
   if (SLUG_TO_ID[str]) return SLUG_TO_ID[str];
   const num = parseInt(str, 10);
   return isNaN(num) ? 1 : num;
