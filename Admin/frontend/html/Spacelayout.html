@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>EZ-Space Admin Portal — Space Layout</title>
+<link rel="stylesheet" href="../css/base.css" />
+<link rel="stylesheet" href="../css/space-layout.css" />
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <!-- ===================== SIDEBAR ===================== -->
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-logo">P</div>
+      <div>
+        <p class="brand-name">EZ-Space</p>
+        <p class="brand-sub">ADMIN PORTAL</p>
+      </div>
+    </div>
+    <nav class="nav">
+      <a class="nav-item" href="Dashboard.html"><i data-lucide="layout-dashboard"></i> Dashboard</a>
+      <a class="nav-item active" href="SpaceLayout.html"><i data-lucide="layers"></i> Space Layout</a>
+      <a class="nav-item" href="PricingRules.html"><i data-lucide="tag"></i> Pricing Rules</a>
+      <a class="nav-item" href="RevenueReport.html"><i data-lucide="bar-chart-2"></i> Revenue Report</a>
+      <a class="nav-item" href="Settings.html"><i data-lucide="settings"></i> Settings</a>
+    </nav>
+    <div class="sidebar-status">
+      <div class="capacity-widget-head">
+        <span>Lot Capacity</span>
+        <span class="pill green">Optimal</span>
+      </div>
+      <div class="progress-track"><div class="progress-fill" style="width:74%"></div></div>
+      <p class="stat-note" style="margin-top:6px;">312 / 420 Bays In Use</p>
+    </div>
+  </aside>
+
+  <!-- ===================== MAIN ===================== -->
+  <div class="main">
+    <header class="topbar">
+      <div class="search-box">
+        <i data-lucide="search" style="color:#94a3b8;width:15px;height:15px;"></i>
+        <input placeholder="Search lot bays, tickets, reservations..." />
+      </div>
+      <div class="topbar-right">
+        <div class="bell-wrap"><i data-lucide="bell"></i><span class="bell-dot"></span></div>
+        <div class="profile">
+          <div class="avatar">AM</div>
+          <div>
+            <p class="profile-name">Alex Morgan</p>
+            <p class="profile-role">Lot Supervisor</p>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="content">
+      <div class="breadcrumb" style="text-transform:uppercase;letter-spacing:0.03em;">
+        Downtown Lot A <i data-lucide="chevron-right" style="width:11px;height:11px;"></i>
+        Floor 2 Blueprint <i data-lucide="chevron-right" style="width:11px;height:11px;"></i>
+        <span class="current">Slot Grid Editor</span>
+      </div>
+
+      <div class="page-header">
+        <div class="page-title-row">
+          <h1 class="page-title" style="font-size:22px;">Space Layout Configuration</h1>
+          <span class="pill green"><span class="dot green"></span>Live Sync Active</span>
+        </div>
+      </div>
+
+      <div class="layout-toolbar-row">
+        <button class="btn"><i data-lucide="ruler" style="width:14px;height:14px;"></i> Blueprint Grid</button>
+        <button class="btn"><i data-lucide="flame" style="width:14px;height:14px;"></i> Occupancy Heatmap</button>
+        <button class="btn"><i data-lucide="undo-2" style="width:14px;height:14px;"></i> Revert Draft</button>
+        <button class="btn primary"><i data-lucide="upload" style="width:14px;height:14px;"></i> Publish Layout (v2.4)</button>
+      </div>
+
+      <div class="layout-toolbar-row">
+        <button class="btn primary" id="tool-select"><i data-lucide="mouse-pointer-2" style="width:14px;height:14px;"></i> Select (V)</button>
+        <button class="btn"><i data-lucide="square-plus" style="width:14px;height:14px;"></i> Add Bay Block</button>
+        <button class="btn"><i data-lucide="milestone" style="width:14px;height:14px;"></i> Drive Lane</button>
+        <button class="btn"><i data-lucide="gauge" style="width:14px;height:14px;"></i> Barrier Gate</button>
+        <button class="btn"><i data-lucide="video" style="width:14px;height:14px;"></i> CCTV Sensor</button>
+      </div>
+
+      <div class="layout-toolbar-row">
+        <div class="zoom-control">
+          <button><i data-lucide="minus" style="width:13px;height:13px;"></i></button>
+          100%
+          <button><i data-lucide="plus" style="width:13px;height:13px;"></i></button>
+        </div>
+        <button class="btn"><i data-lucide="scan" style="width:13px;height:13px;"></i> Reset View</button>
+      </div>
+
+      <div class="layout-body">
+        <!-- ============ CANVAS ============ -->
+        <div class="card canvas-card">
+
+          <div class="info-banner">
+            <div class="info-banner-icon"><i data-lucide="layout-grid" style="width:15px;height:15px;"></i></div>
+            <div>
+              <div class="info-banner-title">DOWNTOWN LOT A &middot; FLOOR 2 &middot; ARCHITECTURAL GRID</div>
+              <p class="info-banner-sub">North Wing Underground Structural Slab &middot; High Throughput Terminal</p>
+              <div class="info-tags">
+                <span class="info-tag"><span class="dot green"></span>Gate #2 Access Point</span>
+                <span class="info-tag"><span class="dot green"></span>Camera P-2 Calibrated</span>
+                <span class="info-tag"><i data-lucide="move-vertical" style="width:11px;height:11px;"></i>Height Clearance: 3.2m</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="bay-section-head">
+            <p class="bay-row-label">BAY ROW A &mdash; STANDARD &amp; COMPACT SLOTS</p>
+            <span class="bay-row-count">6 Slots Configured (A1 - A6)</span>
+          </div>
+          <div class="bay-grid" id="bay-row-a"></div>
+
+          <div class="aisle-banner">
+            <div class="aisle-banner-left">
+              <div class="aisle-banner-icon"><i data-lucide="milestone" style="width:14px;height:14px;color:#fff;"></i></div>
+              <div>
+                <div class="aisle-banner-title">DRIVE AISLE 02 <span class="flow">&rarr; ONE-WAY TRAFFIC FLOW &rarr;</span></div>
+                <p class="aisle-banner-sub">Dual sensor lanes with automated in-ground induction loops</p>
+              </div>
+            </div>
+            <div class="aisle-banner-tags">
+              <span><i data-lucide="move-horizontal" style="width:11px;height:11px;"></i> Clearance: 2.8m</span>
+              <span><i data-lucide="gauge" style="width:11px;height:11px;"></i> Max Speed: 10 km/h</span>
+            </div>
+          </div>
+
+          <div class="bay-section-head">
+            <p class="bay-row-label">BAY ROW B &mdash; HIGH CAPACITY &amp; EV BAYS</p>
+            <span class="bay-row-count">6 Slots Configured (B1 - B6)</span>
+          </div>
+          <div class="bay-grid" id="bay-row-b"></div>
+
+          <div class="canvas-legend">
+            <span><span class="legend-swatch free"></span>Vacant / Ready (4)</span>
+            <span><span class="legend-swatch occupied"></span>Occupied (3)</span>
+            <span><span class="legend-swatch holding"></span>Reserved / Holding (1)</span>
+            <span><span class="legend-swatch ev"></span>EV Fast Charger (2)</span>
+          </div>
+          <div class="inspected-tag"><i data-lucide="check-square" style="width:13px;height:13px;"></i> Inspected Bay (A3)</div>
+
+          <div class="canvas-footer">
+            <span>GRID: 0.5m x 0.5m SNAP</span>
+            <span>TOTAL SURFACE: 1,420 m&sup2;</span>
+          </div>
+        </div>
+
+        <!-- ============ INSPECTOR ============ -->
+        <div class="card inspector-card">
+          <div class="inspector-heading-row">
+            <div class="inspector-heading">
+              <i data-lucide="check-circle-2" style="width:14px;height:14px;color:var(--emerald-500);"></i> Slot Properties
+            </div>
+            <span class="pill indigo">Slot <span id="inspector-badge-id">A3</span></span>
+          </div>
+          <p class="inspector-heading" style="font-size:11px;font-weight:400;color:var(--slate-400);margin-top:-10px;">
+            Inspector for currently focused layout element
+          </p>
+
+          <div class="inspector-slot-badge">
+            <div class="inspector-slot-id" id="inspector-id">A3</div>
+            <div>
+              <div class="inspector-slot-name-row">
+                <span class="inspector-slot-name">Standard SUV Bay</span>
+                <span class="pill green">READY</span>
+              </div>
+              <div class="inspector-slot-sub">Zone: Downtown Lot A &middot; Basement Level B2</div>
+            </div>
+          </div>
+
+          <div class="field-group">
+            <span class="field-label">SLOT ID</span>
+            <div class="field-with-icon">
+              <input class="field-input" value="A3" />
+              <i data-lucide="pencil" style="width:14px;height:14px;"></i>
+            </div>
+            <span class="field-note">Identifier must be unique across Floor 2 partitions</span>
+          </div>
+
+          <div class="field-group">
+            <span class="field-label">VEHICLE TYPE &amp; CLASSIFICATION</span>
+            <select class="field-select">
+              <option>SUV (Wide Clearance Bay - 2.8m)</option>
+              <option>Sedan / Hatchback (Standard)</option>
+              <option>EV (Electric Vehicle)</option>
+            </select>
+          </div>
+
+          <div class="field-group">
+            <div class="field-side-row">
+              <span class="field-label">BASE HOURLY RATE (VND)</span>
+              <span class="field-side-note">Standard Tier</span>
+            </div>
+            <div class="rate-display">
+              <span class="value">20,000</span>
+              <span class="unit">VND / hr</span>
+            </div>
+          </div>
+
+          <div class="toggle-row">
+            <div>
+              <p class="toggle-text">Enable Peak-Hour Surcharge</p>
+              <p class="toggle-sub">Auto-apply smart pricing during peak traffic</p>
+            </div>
+            <label class="switch">
+              <input type="checkbox" checked />
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <div class="peak-rate-box">
+            <div>
+              <div class="label">Calculated Peak Rate</div>
+              <div class="value">25,000 &#273; /hr</div>
+            </div>
+            <span class="pill amber">Active Spike</span>
+          </div>
+          <span class="field-note" style="margin-top:-8px;">+25% peak multiplier between 11:00 - 13:30 &amp; 17:00 - 19:30 weekdays</span>
+
+          <div class="field-group">
+            <span class="field-label">ATTACHED IOT TELEMETRY</span>
+            <div class="iot-card">
+              <div class="iot-icon"><i data-lucide="radio" style="width:15px;height:15px;"></i></div>
+              <div style="flex:1;">
+                <div class="iot-name">Ultrasonic #US-A03</div>
+                <div class="iot-sub">Online &middot; 99.8% Accuracy</div>
+              </div>
+              <span class="pill green">PING 12ms</span>
+            </div>
+          </div>
+
+          <div class="inspector-actions">
+            <button class="btn" style="justify-content:center;"><i data-lucide="copy" style="width:13px;height:13px;"></i> Duplicate Slot Configuration</button>
+            <button class="btn danger" style="justify-content:center;" id="delete-slot-btn"><i data-lucide="trash-2" style="width:13px;height:13px;"></i> Delete Slot (<span id="delete-slot-id">A3</span>)</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ BOTTOM MINI STATS ============ -->
+      <div class="mini-stat-grid">
+        <div class="card mini-stat-card">
+          <div class="mini-stat-icon indigo"><i data-lucide="rotate-cw" style="width:16px;height:16px;"></i></div>
+          <div>
+            <div class="mini-stat-label">Turnover Velocity</div>
+            <div class="mini-stat-value">3.4 hr / bay</div>
+            <div class="mini-stat-note up">+18% faster than Floor 1</div>
+          </div>
+        </div>
+        <div class="card mini-stat-card">
+          <div class="mini-stat-icon emerald"><i data-lucide="zap" style="width:16px;height:16px;"></i></div>
+          <div>
+            <div class="mini-stat-label">EV Station Utilization</div>
+            <div class="mini-stat-value">89.2%</div>
+            <div class="mini-stat-note">Active &middot; 14 Sessions Today</div>
+          </div>
+        </div>
+        <div class="card mini-stat-card">
+          <div class="mini-stat-icon amber"><i data-lucide="trending-up" style="width:16px;height:16px;"></i></div>
+          <div>
+            <div class="mini-stat-label">Surplus Peak Revenue</div>
+            <div class="mini-stat-value">1,840,000 &#273;</div>
+            <div class="mini-stat-note">Calculated dynamic margin</div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<script>
+  // ---------- Bay card data (would come from the layout API) ----------
+  const bayRowA = [
+    { id: 'A1', status: 'free', statusLabel: 'Vacant', icon: 'car', line1: '2.5m x 5.0m', rate: '20,000 &#273;/h' },
+    { id: 'A2', status: 'occupied', statusLabel: 'Occupied', icon: 'car', line1: '51F-889.12', line2: 'Standard Sedan', line3: 'Since 08:45 AM' },
+    { id: 'A3', status: 'selected', statusLabel: 'ACTIVE', icon: 'car', line1: '2.8m x 5.2m', rateAdjust: '+25% Rate', rate: '25,000 &#273;/hr', peak: true },
+    { id: 'A4', status: 'holding', statusLabel: 'Holding', icon: 'clock', line1: 'Res. 14:30', line2: 'Hold Window 15m', rate: '20,000 &#273;/h' },
+    { id: 'A5', status: 'free', statusLabel: 'Vacant', icon: 'car', line1: '2.5m x 5.0m', rate: '20,000 &#273;/h' },
+    { id: 'A6', status: 'free', statusLabel: 'Vacant', icon: 'car', line1: 'Compact Fleet', rate: '20,000 &#273;/h' },
+  ];
+  const bayRowB = [
+    { id: 'B1', status: 'occupied', statusLabel: 'Occupied', icon: 'car', line1: '43A-123.45', line2: 'Large SUV Bay', rate: '25,000 &#273;/h' },
+    { id: 'B2', status: 'free', statusLabel: 'Vacant', icon: 'car', line1: 'Large SUV Bay', rate: '25,000 &#273;/h' },
+    { id: 'B3', status: 'free', statusLabel: 'Vacant', icon: 'car', line1: 'Standard Slot', rate: '20,000 &#273;/h' },
+    { id: 'B4', status: 'occupied', statusLabel: 'Occupied', icon: 'car', line1: '29B-482.19', line2: 'Standard Slot', rate: '20,000 &#273;/h' },
+    { id: 'B5', status: 'ev', statusLabel: 'Avail', icon: 'battery-charging', line1: '22kW Fast Plug', line2: 'CCS2 / Type 2 Plug', rate: '35,000 &#273;/h' },
+    { id: 'B6', status: 'ev', statusLabel: 'Avail', icon: 'battery-charging', line1: '22kW Fast Plug', line2: 'CCS2 / Type 2 Plug', rate: '35,000 &#273;/h' },
+  ];
+
+  function renderBayCard(s) {
+    const lines = [s.line1, s.line2, s.line3].filter(Boolean)
+      .map(l => `<div class="bay-card-line2">${l}</div>`).join('');
+    return `
+      <div class="bay-card ${s.status}" data-id="${s.id}">
+        ${s.peak ? '<span class="peak-badge">Peak</span>' : ''}
+        <div class="bay-card-head">
+          <span class="bay-id">${s.id}</span>
+          <span class="bay-card-status ${s.status}"><span class="dot ${s.status === 'free' ? 'green' : s.status === 'occupied' ? 'rose' : s.status === 'holding' ? 'amber' : s.status === 'ev' ? 'green' : 'green'}" style="${s.status === 'selected' ? 'background:var(--indigo-500);' : ''}"></span>${s.statusLabel}</span>
+        </div>
+        <div class="bay-card-icon"><i data-lucide="${s.icon}" style="width:16px;height:16px;"></i></div>
+        ${s.line1 && !s.line2 && !s.line3 ? `<div class="bay-card-line1">${s.line1}</div>` : lines}
+        ${s.rateAdjust ? `<div class="rate-adjust">${s.rateAdjust}</div>` : ''}
+        ${s.rate ? `<div class="bay-card-rate">${s.rate}</div>` : ''}
+      </div>
+    `;
+  }
+
+  function renderBayRow(containerId, slots) {
+    document.getElementById(containerId).innerHTML = slots.map(renderBayCard).join('');
+  }
+  renderBayRow('bay-row-a', bayRowA);
+  renderBayRow('bay-row-b', bayRowB);
+
+  // Clicking a bay card highlights it and updates the inspector panel
+  document.querySelectorAll('.bay-grid').forEach(grid => {
+    grid.addEventListener('click', (e) => {
+      const card = e.target.closest('.bay-card');
+      if (!card) return;
+      document.querySelectorAll('.bay-card').forEach(c => c.classList.remove('selected'));
+      card.classList.add('selected');
+      document.getElementById('inspector-id').textContent = card.dataset.id;
+      document.getElementById('inspector-badge-id').textContent = card.dataset.id;
+      document.getElementById('delete-slot-id').textContent = card.dataset.id;
+    });
+  });
+
+  lucide.createIcons();
+</script>
+</body>
+</html>

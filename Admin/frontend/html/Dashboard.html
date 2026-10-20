@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>EZ-Space Admin Portal</title>
+<link rel="stylesheet" href="../css/base.css" />
+<link rel="stylesheet" href="../css/Dashboard.css" />
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <!-- ===================== SIDEBAR ===================== -->
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-logo">P</div>
+      <div>
+        <p class="brand-name">EZ-Space</p>
+        <p class="brand-sub">ADMIN PORTAL</p>
+      </div>
+    </div>
+    <nav class="nav" id="nav-list">
+      <a class="nav-item active" href="Dashboard.html"><i data-lucide="layout-dashboard"></i> Dashboard</a>
+      <a class="nav-item" href="SpaceLayout.html"><i data-lucide="layers"></i> Space Layout</a>
+      <a class="nav-item" href="PricingRules.html"><i data-lucide="tag"></i> Pricing Rules</a>
+      <a class="nav-item" href="RevenueReport.html"><i data-lucide="bar-chart-2"></i> Revenue Report</a>
+      <a class="nav-item" href="Settings.html"><i data-lucide="settings"></i> Settings</a>
+    </nav>
+    <div class="sidebar-status">
+      <div class="status-row">
+        <span>System Status</span>
+        <span class="online-tag"><span class="dot green"></span>Online</span>
+      </div>
+      <p class="stat-note" style="margin-bottom:6px;">Occupancy 84% (420/500)</p>
+      <div class="progress-track"><div class="progress-fill" style="width:84%"></div></div>
+    </div>
+  </aside>
+
+  <!-- ===================== MAIN ===================== -->
+  <div class="main">
+    <header class="topbar">
+      <div class="search-box">
+        <i data-lucide="search" style="color:#94a3b8;width:15px;height:15px;"></i>
+        <input id="search-input" placeholder="Search lots, reservations, drivers..." />
+      </div>
+      <div class="topbar-right">
+        <div class="bell-wrap"><i data-lucide="bell"></i><span class="bell-dot"></span></div>
+        <div class="profile">
+          <div class="avatar">AM</div>
+          <div>
+            <p class="profile-name">Alex Morgan</p>
+            <p class="profile-role">Lot Supervisor</p>
+          </div>
+          <i data-lucide="chevron-down" style="width:14px;height:14px;color:#94a3b8;"></i>
+        </div>
+      </div>
+    </header>
+
+    <main class="content">
+
+      <!-- ================= VIEW: OVERVIEW DASHBOARD ================= -->
+      <section id="view-dashboard" class="view">
+        <div class="page-header">
+          <div>
+            <div class="page-title-row">
+              <h1 class="page-title">Overview Dashboard</h1>
+              <span class="pill green"><span class="dot green"></span>Downtown Lot A &bull; Live Telemetry: Active</span>
+            </div>
+            <p class="page-sub">Real-time throughput, occupancy distribution, and financial pacing.</p>
+          </div>
+          <div class="controls-row">
+            <button class="btn"><i data-lucide="calendar" style="width:14px;height:14px;"></i> Today, Oct 24, 2024 <i data-lucide="chevron-down" style="width:13px;height:13px;"></i></button>
+            <button class="btn primary"><i data-lucide="download" style="width:14px;height:14px;"></i> Export Report</button>
+          </div>
+        </div>
+
+        <div class="grid-4">
+          <div class="card stat-card">
+            <div class="stat-top">
+              <span class="stat-label">TOTAL REVENUE TODAY</span>
+              <span class="stat-icon"><i data-lucide="dollar-sign" style="width:13px;height:13px;"></i></span>
+            </div>
+            <div class="stat-value">$1,250</div>
+            <div class="stat-delta"><span class="up"><i data-lucide="trending-up" style="width:13px;height:13px;"></i>+16.2%</span> vs. yesterday ($1,094.50)</div>
+            <div class="spark-box">
+              <svg viewBox="0 0 120 32" preserveAspectRatio="none" width="100%" height="100%">
+                <polyline points="0,26 20,22 40,20 60,10 80,4 100,12 120,18" fill="none" stroke="#22c55e" stroke-width="2"/>
+                <polygon points="0,26 20,22 40,20 60,10 80,4 100,12 120,18 120,32 0,32" fill="#dcfce7" opacity="0.6"/>
+              </svg>
+            </div>
+          </div>
+
+          <div class="card stat-card">
+            <div class="stat-top">
+              <span class="stat-label">CURRENT OCCUPANCY</span>
+              <span class="stat-icon"><i data-lucide="layers" style="width:13px;height:13px;"></i></span>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;">
+              <div>
+                <div class="stat-value">85%</div>
+                <p class="stat-note">170 / 200 bays filled</p>
+              </div>
+              <svg width="56" height="56" viewBox="0 0 56 56">
+                <circle cx="28" cy="28" r="24" fill="none" stroke="#e2e8f0" stroke-width="6"/>
+                <circle cx="28" cy="28" r="24" fill="none" stroke="#4f46e5" stroke-width="6"
+                  stroke-dasharray="150.8" stroke-dashoffset="22.6" stroke-linecap="round"
+                  transform="rotate(-90 28 28)"/>
+              </svg>
+            </div>
+          </div>
+
+          <div class="card stat-card">
+            <div class="stat-top">
+              <span class="stat-label">ACTIVE HOLDS</span>
+              <span class="stat-icon amber"><i data-lucide="clock" style="width:13px;height:13px;"></i></span>
+            </div>
+            <div class="stat-value">12</div>
+            <span class="pill amber" style="align-self:flex-start;">Pacing Fast</span>
+            <div class="stat-delta"><i data-lucide="info" style="width:12px;height:12px;"></i> Avg hold duration: 7.4 min</div>
+            <p class="stat-note">App reservations awaiting bay entry</p>
+          </div>
+
+          <div class="card stat-card">
+            <div class="stat-top">
+              <span class="stat-label">NO-SHOWS</span>
+              <span class="stat-icon rose"><i data-lucide="user-x" style="width:13px;height:13px;"></i></span>
+            </div>
+            <div class="stat-value">3</div>
+            <span class="pill rose" style="align-self:flex-start;"><i data-lucide="alert-triangle" style="width:11px;height:11px;"></i>Alert Active</span>
+            <p class="stat-note">$45.00 retained via card hold</p>
+          </div>
+        </div>
+
+        <div class="grid-3">
+          <div class="card">
+            <div class="card-heading">
+              <div>
+                <h2 class="card-title">Revenue Trends (Last 7 Days)</h2>
+                <p class="card-subtitle">Gross spot fees versus upfront deposit reserves</p>
+              </div>
+              <div class="segment" id="range-segment">
+                <button class="active" data-range="Hourly">Hourly</button>
+                <button data-range="Daily">Daily</button>
+                <button data-range="Weekly">Weekly</button>
+              </div>
+            </div>
+
+            <div class="legend-chart">
+              <span><span class="line-swatch" style="background:#4f46e5;"></span>Gross Revenue</span>
+              <span><span class="line-swatch" style="background:#22c55e;"></span>Deposit Reserves</span>
+            </div>
+
+            <div class="chart-box">
+              <svg viewBox="0 0 560 220" preserveAspectRatio="none" width="100%" height="100%">
+                <defs>
+                  <linearGradient id="grossFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#4f46e5" stop-opacity="0.25"/>
+                    <stop offset="100%" stop-color="#4f46e5" stop-opacity="0"/>
+                  </linearGradient>
+                </defs>
+                <!-- grid lines -->
+                <g stroke="#f1f5f9" stroke-width="1">
+                  <line x1="0" y1="40" x2="560" y2="40"/>
+                  <line x1="0" y1="90" x2="560" y2="90"/>
+                  <line x1="0" y1="140" x2="560" y2="140"/>
+                  <line x1="0" y1="190" x2="560" y2="190"/>
+                </g>
+                <!-- deposit reserves (dashed) -->
+                <polyline points="0,170 90,155 180,140 270,120 360,95 450,110 540,130"
+                  fill="none" stroke="#22c55e" stroke-width="2" stroke-dasharray="5 4"/>
+                <!-- gross revenue -->
+                <polygon points="0,200 90,175 180,150 270,95 360,30 450,80 540,120 540,220 0,220"
+                  fill="url(#grossFill)"/>
+                <polyline points="0,200 90,175 180,150 270,95 360,30 450,80 540,120"
+                  fill="none" stroke="#4f46e5" stroke-width="2.5"/>
+                <circle cx="360" cy="30" r="4" fill="#4f46e5"/>
+              </svg>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:11px;color:#94a3b8;padding:0 4px;">
+              <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+            </div>
+
+            <div class="callout">
+              <p><i data-lucide="trending-up" style="width:12px;height:12px;vertical-align:-2px;"></i> Weekly throughput accelerated with +22% MoM growth across downtown business sectors.</p>
+              <div style="text-align:right;">
+                <p style="margin:0;font-size:11px;color:#94a3b8;">Optimal Pricing</p>
+                <p style="margin:0;font-size:14px;font-weight:600;color:#1e293b;">$4.50 / hr</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-heading">
+              <div>
+                <h2 class="card-title">Live Parking Status <span class="dot green"></span></h2>
+                <p class="card-subtitle">Floor 2 &bull; Zone A &amp; B</p>
+              </div>
+              <button class="btn" style="padding:6px 8px;"><i data-lucide="sliders-horizontal" style="width:12px;height:12px;"></i></button>
+            </div>
+
+            <div class="legend-inline">
+              <span><span class="dot green"></span>Empty: 24</span>
+              <span><span class="dot amber"></span>Holding: 12</span>
+              <span><span class="dot rose"></span>Occupied: 164</span>
+            </div>
+
+            <p class="lane-label">Lane A &middot; Standard Compact</p>
+            <div class="spot-grid" id="lane-a"></div>
+
+            <div class="aisle-divider"><span class="line"></span>One-way Drive Aisle 02<span class="line"></span></div>
+
+            <p class="lane-label">Lane B &middot; High Clearance</p>
+            <div class="spot-grid" id="lane-b"></div>
+
+            <p class="lane-label">EV Fast Charge Row &middot; 4 Dedicated Bays</p>
+            <div class="spot-grid" id="lane-ev"></div>
+
+            <div class="parking-actions">
+              <button class="btn">Hold Release</button>
+              <button class="btn">Manual Override</button>
+              <button class="btn primary full"><i data-lucide="camera" style="width:13px;height:13px;"></i> Camera Feed P-2</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card table-card">
+          <div class="table-header">
+            <div>
+              <h2 class="card-title">Live Bay Telemetry &amp; Recent Transactions</h2>
+              <p class="card-subtitle">Streaming optical recognition and mobile reservation transactions</p>
+            </div>
+            <div class="controls-row">
+              <button class="btn"><i data-lucide="sliders-horizontal" style="width:13px;height:13px;"></i> Filter Events</button>
+              <button class="btn"><span class="dot green"></span> Auto-sync (3s)</button>
+            </div>
+          </div>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>SPACE / BAY</th><th>EVENT TYPE</th><th>VEHICLE IDENTIFIER</th>
+                  <th>METHOD / CHANNEL</th><th>TIMESTAMP</th><th>STATUS &amp; SETTLEMENT</th><th>ACTION</th>
+                </tr>
+              </thead>
+              <tbody id="telemetry-body"></tbody>
+            </table>
+          </div>
+          <div class="table-footer">
+            <span>Showing 4 of 389 events tracked today</span>
+            <div class="pagination">
+              <button class="page-btn">Previous</button>
+              <button class="page-btn active">1</button>
+              <button class="page-btn">2</button>
+              <button class="page-btn">3</button>
+              <button class="page-btn">Next</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<script>
+  // ---------- Segmented control toggle (visual only) ----------
+  document.querySelectorAll('.segment').forEach(seg => {
+    seg.querySelectorAll('button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        seg.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+      });
+    });
+  });
+
+  // ---------- Data (would normally come from the Node/Express API) ----------
+  const laneA = [
+    { id: 'A1', status: 'free', note: '30m' },
+    { id: 'A2', status: 'free', note: 'Free' },
+    { id: 'A3', status: 'occupied', note: '08:22' },
+    { id: 'A4', status: 'free', note: 'Free' },
+    { id: 'A5', status: 'free', note: '45m' },
+    { id: 'A6', status: 'occupied', note: '04:10' },
+    { id: 'A7', status: 'free', note: '20m' },
+    { id: 'A8', status: 'occupied', note: 'Full' },
+  ];
+  const laneB = [
+    { id: 'B1', status: 'occupied', note: '55m' },
+    { id: 'B2', status: 'occupied', note: '14m' },
+    { id: 'B3', status: 'occupied', note: '17:00' },
+    { id: 'B4', status: 'occupied', note: '65m' },
+    { id: 'B5', status: 'free', note: 'Free' },
+    { id: 'B6', status: 'free', note: 'Free' },
+    { id: 'B7', status: 'occupied', note: 'Full' },
+    { id: 'B8', status: 'occupied', note: 'Full' },
+  ];
+  const laneEV = [
+    { id: 'E1', status: 'ready', note: 'Ready' },
+    { id: 'E2', status: 'charging', note: 'Charging 92%' },
+    { id: 'E3', status: 'charging', note: 'Charging 41%' },
+    { id: 'E4', status: 'ready', note: 'Ready' },
+  ];
+
+  function renderSpots(containerId, spots) {
+    const el = document.getElementById(containerId);
+    el.innerHTML = spots.map(s => `
+      <div class="spot ${s.status}">
+        <i data-lucide="car" style="width:13px;height:13px;"></i>
+        <span class="spot-id">${s.id}</span>
+        <span class="spot-note">${s.note}</span>
+      </div>
+    `).join('');
+  }
+  renderSpots('lane-a', laneA);
+  renderSpots('lane-b', laneB);
+  renderSpots('lane-ev', laneEV);
+
+  const telemetry = [
+    { space: 'A3', zone: 'Floor 2 &bull; Compact', zoneColor: '#4f46e5', event: 'Hold Confirmed', eventClass: 'pill amber',
+      vehicle: 'Toyota Fortuner (Black)', method: 'VNPay Mobile QR', time: '2 min ago',
+      status: '$3.00 Security Hold', statusSub: 'Authorized #VN-8831', statusColor: '#334155' },
+    { space: 'B4', zone: 'Floor 2 &bull; High Clr', zoneColor: '#6366f1', event: 'Vehicle Parked', eventClass: 'pill indigo',
+      vehicle: '51K-892.41', method: 'LPR Barrier Gate #2', time: '6 min ago',
+      status: 'Clock Running (0.1h)', statusSub: 'Validated Entry', statusColor: '#334155' },
+    { space: 'A2', zone: 'Floor 2 &bull; Compact', zoneColor: '#4f46e5', event: 'Checkout Completed', eventClass: 'pill green',
+      vehicle: '30F-138.90', method: 'Apple Pay &bull; FastLane', time: '11 min ago',
+      status: '$8.50 Paid (2.1 hrs)', statusSub: 'Gate Exited &bull; Auto-barrier', statusColor: '#334155' },
+    { space: 'B8', zone: 'Floor 2 &bull; High Clr', zoneColor: '#6366f1', event: 'Hold Expired (No-Show)', eventClass: 'pill rose',
+      vehicle: 'User #99281 (Unmatched)', method: 'EZ Space iOS App', time: '19 min ago',
+      status: '$15.00 Penalty Retained', statusSub: 'Space Released to Queue', statusColor: '#f43f5e' },
+  ];
+
+  document.getElementById('telemetry-body').innerHTML = telemetry.map(t => `
+    <tr>
+      <td>
+        <span class="cell-flag">
+          <span class="flag-dot" style="background:${t.zoneColor}"></span>
+          <span><div>${t.space}</div><div class="cell-sub">${t.zone}</div></span>
+        </span>
+      </td>
+      <td><span class="${t.eventClass}">${t.event}</span></td>
+      <td>${t.vehicle}</td>
+      <td>${t.method}</td>
+      <td style="color:#94a3b8;">${t.time}</td>
+      <td><div style="color:${t.statusColor};font-weight:500;">${t.status}</div><div class="cell-sub">${t.statusSub}</div></td>
+      <td><i data-lucide="more-vertical" style="width:15px;height:15px;color:#94a3b8;cursor:pointer;"></i></td>
+    </tr>
+  `).join('');
+
+  lucide.createIcons();
+</script>
+</body>
+</html>
