@@ -1,7 +1,7 @@
 "use client";
 
-import { use, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, ArrowRight, ChevronDown, CircleHelp, Clock3, Compass, ExternalLink, Info, LocateFixed, MapPin, Navigation2, QrCode, RefreshCw, ShieldCheck, Ticket, X, ZoomIn, ZoomOut } from "lucide-react";
 import { getLotByIdApi } from "@/lib/api";
 import { lots } from "@/lib/mock/lots";
@@ -9,8 +9,8 @@ import { useStore } from "@/store";
 
 const formatTime = (seconds: number) => `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
 
-export default function NavigationPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params);
+export default function NavigationPage() {
+  const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const active = useStore((s) => s.activeBooking);
   const history = useStore((s) => s.history);

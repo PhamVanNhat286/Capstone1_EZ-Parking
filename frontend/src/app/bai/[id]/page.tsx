@@ -8,14 +8,12 @@ import {
   ChevronLeft, Clock3, Heart, MapPin, Minus, Navigation2, Plus,
   RefreshCw, Sparkles, X, Zap,
 } from "lucide-react";
-import { clsx } from "clsx";
 import { getLotByIdApi, getLotSlotsApi } from "@/lib/api";
 import { lots } from "@/lib/mock/lots";
+import { clsx } from "clsx";
 import { useStore, type Vehicle } from "@/store";
+import ParkingSpotCard, { type Spot, type Kind, type Status } from "@/components/parking/ParkingSpotCard";
 
-type Kind = "sedan" | "suv" | "ev";
-type Status = "empty" | "occupied" | "holding" | "disabled";
-type Spot = { id: string; type: Kind; status: Status; rowIndex?: number; colIndex?: number; nearExit?: boolean };
 const money = (n: number) => Math.round(n).toLocaleString("vi-VN") + "đ";
 const DEPOSIT = 50000;
 
@@ -204,35 +202,10 @@ export default function ParkingMapPage() {
   function renderSpot(s: Spot | null, side: "left" | "right") {
     if (!s) return <div className="h-[80px]" />;
     const visible = (area === "all" || area === side) && (filter === "all" || s.type === filter);
-    const match = isSuitable(s, car, needsCharging);
-    const free = s.status === "empty";
-    const chosen = selected?.id === s.id;
-    const recommended = best?.id === s.id && !selected;
-    return <button type="button" key={s.id} disabled={!visible} onClick={() => pickSpot(s)}
-      className={clsx("relative h-[80px] w-full rounded-xl border-2 p-2 flex flex-col justify-between text-left transition shadow-sm",
-        free ? "bg-emerald-50 border-emerald-400" : s.status === "occupied" ? "bg-rose-50 border-rose-300"
-          : s.status === "holding" ? "bg-amber-50 border-amber-400" : "bg-slate-200 border-slate-300",
-        !visible || (free && !match) ? "opacity-30 grayscale" : "",
-        free && match && visible && "hover:scale-[1.03] active:scale-95",
-        chosen && "!border-blue-600 ring-[3px] ring-blue-300 scale-[1.04] z-10 !opacity-100 !grayscale-0",
-        recommended && "ring-2 ring-blue-500 shadow-blue-200 shadow-lg")}
-    >
-      {recommended && <span className="absolute -top-2.5 left-1 bg-blue-600 text-white rounded-full px-2 py-0.5 text-[8px] font-bold whitespace-nowrap flex gap-1 items-center"><Sparkles size={9}/> GỢI Ý</span>}
-      <div className="flex items-start justify-between gap-1"><b className="text-[12px] text-slate-900">{s.id}</b>
-        <span className={clsx("text-[9px] font-bold px-1.5 py-0.5 rounded-full",
-          free ? "bg-emerald-100 text-emerald-700" : s.status === "occupied" ? "bg-rose-100 text-rose-700"
-            : s.status === "holding" ? "bg-amber-100 text-amber-700" : "bg-slate-300 text-slate-600")}
-        >{free ? "Trống" : s.status === "occupied" ? "Đã đỗ" : s.status === "holding" ? "Đang giữ" : "Bảo trì"}</span></div>
-      {free ? <span className="flex items-center justify-center gap-1 text-[11px] font-bold text-emerald-800">
-        {s.type === "ev" && <Zap size={12}/>} {nameOf(s.type)}</span>
-        : s.status === "disabled" ? <X size={21} className="self-center text-slate-400"/>
-        : <div className={clsx("self-center w-7 h-8 rounded-md border flex flex-col items-center justify-around",
-          s.status === "occupied" ? "bg-rose-400 border-rose-500" : "bg-amber-400 border-amber-500")}>
-          <span className="w-5 h-1 rounded bg-slate-700/40"/><span className="w-4 h-2 rounded bg-white/60"/></div>}
-      <div className="flex justify-between text-[9px] text-slate-500 font-semibold">
-        <span>{s.nearExit ? "↗ Gần lối ra" : ""}</span>{free && <span className="font-extrabold text-emerald-700">{Math.round(lot.price / 1000)}k/h</span>}
-      </div>
-    </button>;
+    return <ParkingSpotCard key={s.id} spot={s} visible={visible}
+      compatible={isSuitable(s, car, needsCharging)} selected={selected?.id === s.id}
+      recommended={best?.id === s.id && !selected} pricePerHour={lot.price}
+      onSelect={() => pickSpot(s)} />;
   }
 
   return <div className="h-full min-h-[530px] flex flex-col bg-slate-100 text-slate-800 overflow-hidden">

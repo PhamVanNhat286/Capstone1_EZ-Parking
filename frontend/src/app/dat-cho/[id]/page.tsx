@@ -1,7 +1,7 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, Building2, CalendarClock, CarFront, Check, ChevronRight, Clock3, CreditCard, Info, MapPin, Minus, Plus, ShieldCheck, Wallet, X } from "lucide-react";
 import { getLotByIdApi } from "@/lib/api";
 import { lots } from "@/lib/mock/lots";
@@ -12,8 +12,8 @@ const money = (n: number) => Math.max(0, Math.round(n)).toLocaleString("vi-VN") 
 const clock = (seconds: number) => `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
 type Method = "vnpay" | "momo" | "card";
 
-export default function CheckoutPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params);
+export default function CheckoutPage() {
+  const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const booking = useStore((s) => s.activeBooking);
   const vehicles = useStore((s) => s.vehicles);

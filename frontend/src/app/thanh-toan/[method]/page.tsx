@@ -1,7 +1,7 @@
 "use client";
 
-import { Suspense, use, useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { AlertCircle, ArrowLeft, ArrowRight, Banknote, Check, CheckCircle2, ChevronDown, CircleHelp, Clock3, Copy, CreditCard, Download, ExternalLink, Info, LoaderCircle, MapPin, QrCode, RefreshCw, ShieldCheck, Smartphone, Ticket, Wallet, X, XCircle } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { getLotByIdApi } from "@/lib/api";
@@ -50,12 +50,12 @@ function CopyButton({ value, label = "Sao chép" }: { value: string; label?: str
   return <button type="button" title={label} aria-label={label} onClick={copy} className="text-blue-600 p-1 rounded-lg hover:bg-blue-50"><Copy size={16}/></button>;
 }
 
-export default function PaymentFlowPage({ params }: { params: Promise<{ method: string }> }) {
-  return <Suspense fallback={<div className="min-h-full grid place-items-center text-slate-500">Đang tải thanh toán...</div>}><PaymentContent params={params}/></Suspense>;
+export default function PaymentFlowPage() {
+  return <Suspense fallback={<div className="min-h-full grid place-items-center text-slate-500">Đang tải thanh toán...</div>}><PaymentContent/></Suspense>;
 }
 
-function PaymentContent({ params }: { params: Promise<{ method: string }> }) {
-  const { method } = use(params);
+function PaymentContent() {
+  const { method } = useParams<{ method: string }>();
   const router = useRouter();
   const query = useSearchParams();
   const booking = useStore((s) => s.activeBooking);

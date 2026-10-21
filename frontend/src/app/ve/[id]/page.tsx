@@ -1,7 +1,7 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, ArrowRight, BadgeCheck, Building2, CalendarClock, CarFront, CheckCircle2, ChevronDown, CircleHelp, Clock3, Copy, Download, Expand, Info, MapPin, Navigation, QrCode, Share2, ShieldCheck, Ticket, X, XCircle } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { getLotByIdApi } from "@/lib/api";
@@ -12,8 +12,8 @@ const DEPOSIT = 50_000;
 const money = (n: number) => Math.max(0, n).toLocaleString("vi-VN") + "đ";
 const timer = (sec: number) => `${String(Math.floor(sec / 60)).padStart(2, "0")}:${String(sec % 60).padStart(2, "0")}`;
 
-export default function TicketPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params);
+export default function TicketPage() {
+  const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const activeBooking = useStore((s) => s.activeBooking);
   const history = useStore((s) => s.history);
