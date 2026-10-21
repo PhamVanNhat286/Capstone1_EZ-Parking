@@ -119,9 +119,68 @@ export async function registerApi(data: { full_name: string; email: string; phon
   return res.json();
 }
 
+export async function sendOtpApi(email: string, purpose: string) {
+  const res = await fetch(`${API_BASE_URL}/auth/send-otp`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, purpose }),
+  });
+  return res.json();
+}
+
+export async function verifyOtpApi(email: string, otp_code: string, purpose: string) {
+  const res = await fetch(`${API_BASE_URL}/auth/verify-otp`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, otp_code, purpose }),
+  });
+  return res.json();
+}
+
+export async function checkExistsApi(data: { email?: string; phone?: string }) {
+  const res = await fetch(`${API_BASE_URL}/auth/check-exists`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  return res.json();
+}
+
+
 export async function getMeApi(token: string) {
   const res = await fetch(`${API_BASE_URL}/auth/me`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   return res.json();
 }
+
+export async function updateProfileApi(
+  token: string,
+  data: { full_name?: string; email?: string; phone?: string }
+) {
+  const res = await fetch(`${API_BASE_URL}/auth/profile`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(data),
+  });
+  return res.json();
+}
+
+export async function changePasswordApi(
+  token: string,
+  data: { old_password: string; new_password: string }
+) {
+  const res = await fetch(`${API_BASE_URL}/auth/change-password`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(data),
+  });
+  return res.json();
+}
+

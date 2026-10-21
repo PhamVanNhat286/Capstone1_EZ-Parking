@@ -26,7 +26,7 @@ import {
   Info,
   UserCheck,
 } from "lucide-react";
-import { loginApi, registerApi } from "@/lib/api";
+import { loginApi, registerApi, sendOtpApi, verifyOtpApi, checkExistsApi } from "@/lib/api";
 import { useStore } from "@/store";
 
 export default function AuthPage() {
@@ -41,6 +41,7 @@ export default function AuthPage() {
 
   // Register Wizard Step: 1 | 2
   const [regStep, setRegStep] = useState<number>(1);
+  const [isCheckingAccount, setIsCheckingAccount] = useState<boolean>(false);
 
   // Form States
   const [loginData, setLoginData] = useState({
@@ -63,6 +64,72 @@ export default function AuthPage() {
   const [showRegPassword, setShowRegPassword] = useState(false);
   const [showRegConfirm, setShowRegConfirm] = useState(false);
 
+  // OTP State
+  const [otpCode, setOtpCode] = useState("");
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpVerified, setOtpVerified] = useState(false);
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [otpCooldown, setOtpCooldown] = useState(0);
+
+  // OTP Cooldown timer
+  const startCooldown = () => {
+    setOtpCooldown(60);
+    const interval = setInterval(() => {
+      setOtpCooldown((prev) => {
+        if (prev <= 1) { clearInterval(interval); return 0; }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  // Handle Send OTP
+  const handleSendOtp = async () => {
+    if (!regData.email.trim() || !/\S+@\S+\.\S+/.test(regData.email)) {
+      setErrors({ email: "Vui lòng nhập email hợp lệ trước khi gửi mã" });
+      return;
+    }
+    setOtpLoading(true);
+    try {
+      const res = await sendOtpApi(regData.email.trim().toLowerCase(), "REGISTER");
+      if (res.success) {
+        setOtpSent(true);
+        setOtpVerified(false);
+        setOtpCode("");
+        startCooldown();
+        addToast("Mã OTP đã được gửi đến email của bạn!", "success");
+      } else {
+        addToast(res.message || "Không thể gửi OTP", "error");
+      }
+    } catch {
+      addToast("Lỗi kết nối, không thể gửi OTP", "error");
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  // Handle Verify OTP
+  const handleVerifyOtp = async () => {
+    if (otpCode.length !== 6) {
+      setErrors({ otp: "Mã OTP phải đủ 6 chữ số" });
+      return;
+    }
+    setOtpLoading(true);
+    try {
+      const res = await verifyOtpApi(regData.email.trim().toLowerCase(), otpCode, "REGISTER");
+      if (res.success) {
+        setOtpVerified(true);
+        setErrors({});
+        addToast("Xác thực email thành công!", "success");
+      } else {
+        setErrors({ otp: res.message || "Mã OTP không chính xác" });
+      }
+    } catch {
+      setErrors({ otp: "Lỗi kết nối khi xác thực OTP" });
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
   // UI Feedback State: 'idle' | 'loading' | 'success'
   const [status, setStatus] = useState<"idle" | "loading" | "success">("idle");
   const [successMsg, setSuccessMsg] = useState("");
@@ -80,28 +147,28 @@ export default function AuthPage() {
         width: "0%",
       };
     }
-    let score = 0;
-    if (pass.length >= 6) score += 1;
-    if (pass.length >= 8) score += 1;
+    if (pass.length < 8) {
+      return {
+        score: 1,
+        text: "Yếu (tối thiểu 8 ký tự)",
+        color: "bg-rose-500",
+        textColor: "text-rose-600",
+        width: "25%",
+      };
+    }
+    let score = 1;
+    if (pass.length >= 10) score += 1;
     if (/[A-Z]/.test(pass) && /[a-z]/.test(pass)) score += 1;
     if (/[0-9]/.test(pass)) score += 1;
     if (/[^A-Za-z0-9]/.test(pass)) score += 1;
 
     if (score <= 2) {
       return {
-        score: 1,
-        text: "Yếu",
-        color: "bg-rose-500",
-        textColor: "text-rose-600",
-        width: "33%",
-      };
-    } else if (score <= 3) {
-      return {
         score: 2,
         text: "Trung bình",
         color: "bg-amber-500",
         textColor: "text-amber-600",
-        width: "66%",
+        width: "60%",
       };
     } else {
       return {
@@ -166,12 +233,15 @@ export default function AuthPage() {
   };
 
   // Handle Register Step 1 Next
-  const handleRegisterNext = (e: React.FormEvent) => {
+  const handleRegisterNext = async (e: React.FormEvent) => {
     e.preventDefault();
     const errs: Record<string, string> = {};
     if (!regData.fullName.trim()) errs.fullName = "Vui lòng nhập họ và tên";
     if (!regData.email.trim() || !/\S+@\S+\.\S+/.test(regData.email)) {
       errs.email = "Email không hợp lệ";
+    }
+    if (!otpVerified) {
+      errs.otp = "Vui lòng xác thực email bằng mã OTP trước khi tiếp tục";
     }
     if (
       !regData.phone.trim() ||
@@ -179,8 +249,8 @@ export default function AuthPage() {
     ) {
       errs.phone = "Số điện thoại không hợp lệ (9-11 số)";
     }
-    if (!regData.password || regData.password.length < 6) {
-      errs.password = "Mật khẩu phải từ 6 ký tự trở lên";
+    if (!regData.password || regData.password.length < 8) {
+      errs.password = "Mật khẩu phải từ 8 ký tự trở lên";
     }
     if (regData.password !== regData.confirmPassword) {
       errs.confirmPassword = "Mật khẩu xác nhận không khớp";
@@ -191,6 +261,27 @@ export default function AuthPage() {
       return;
     }
     setErrors({});
+    setIsCheckingAccount(true);
+
+    try {
+      const res = await checkExistsApi({
+        email: regData.email.trim(),
+        phone: regData.phone.trim(),
+      });
+
+      if (!res.success) {
+        setIsCheckingAccount(false);
+        const field = res.field || (res.message?.toLowerCase().includes("email") ? "email" : "phone");
+        setErrors({ [field]: res.message });
+        addToast(res.message, "error");
+        return;
+      }
+    } catch {
+      console.warn("Không thể kiểm tra trùng lặp qua API");
+    } finally {
+      setIsCheckingAccount(false);
+    }
+
     setRegStep(2);
   };
 
@@ -971,24 +1062,97 @@ export default function AuthPage() {
                         <input
                           type="email"
                           value={regData.email}
-                          onChange={(e) =>
-                            setRegData({ ...regData, email: e.target.value })
-                          }
+                          onChange={(e) => {
+                            setRegData({ ...regData, email: e.target.value });
+                            setOtpSent(false);
+                            setOtpVerified(false);
+                            setOtpCode("");
+                          }}
                           placeholder="minh.nguyen@gmail.com"
                           className={`w-full pl-9 pr-3 py-2.5 rounded-xl text-xs border outline-none ${
-                            errors.email ? "border-rose-500" : ""
+                            errors.email ? "border-rose-500" : otpVerified ? "border-emerald-500" : ""
                           } ${
                             isDark
                               ? "bg-slate-900/90 border-slate-700 text-white placeholder-slate-500"
                               : "bg-white border-slate-200 text-slate-900 placeholder-slate-400 focus:border-blue-600 focus:ring-1 focus:ring-blue-100 shadow-sm"
                           }`}
                         />
+                        {otpVerified && (
+                          <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
+                            <CheckCircle2 size={15} className="text-emerald-500" />
+                          </div>
+                        )}
                       </div>
                       {errors.email && (
                         <p className="text-[10px] text-rose-500 mt-0.5 font-medium">
                           {errors.email}
                         </p>
                       )}
+
+                      {/* OTP Input Section */}
+                      <div className="mt-2 space-y-2">
+                        {/* Send OTP Button */}
+                        {!otpVerified && (
+                          <div className="flex gap-2">
+                            <div className="relative flex-1">
+                              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                                <ShieldCheck size={15} />
+                              </div>
+                              <input
+                                type="text"
+                                value={otpCode}
+                                onChange={(e) => {
+                                  const val = e.target.value.replace(/\D/g, "").slice(0, 6);
+                                  setOtpCode(val);
+                                  setErrors({ ...errors, otp: "" });
+                                }}
+                                placeholder={otpSent ? "Nhập mã 6 số" : "Gửi mã OTP trước"}
+                                disabled={!otpSent}
+                                maxLength={6}
+                                className={`w-full pl-9 pr-3 py-2.5 rounded-xl text-xs border outline-none ${
+                                  errors.otp ? "border-rose-500" : ""
+                                } ${
+                                  isDark
+                                    ? "bg-slate-900/90 border-slate-700 text-white placeholder-slate-500 disabled:opacity-40"
+                                    : "bg-white border-slate-200 text-slate-900 placeholder-slate-400 focus:border-blue-600 focus:ring-1 focus:ring-blue-100 shadow-sm disabled:bg-slate-50 disabled:text-slate-400"
+                                }`}
+                              />
+                            </div>
+                            <button
+                              type="button"
+                              onClick={otpSent && otpCode.length === 6 ? handleVerifyOtp : handleSendOtp}
+                              disabled={otpLoading || (otpCooldown > 0 && !otpSent) || (otpCooldown > 0 && otpCode.length < 6)}
+                              className={`shrink-0 px-3 py-2.5 rounded-xl text-[10px] font-bold transition active:scale-95 flex items-center gap-1 whitespace-nowrap ${
+                                otpSent && otpCode.length === 6
+                                  ? "bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm"
+                                  : "bg-blue-600 text-white hover:bg-blue-700 shadow-sm disabled:opacity-50"
+                              }`}
+                            >
+                              {otpLoading ? (
+                                <Loader2 size={12} className="animate-spin" />
+                              ) : otpSent && otpCode.length === 6 ? (
+                                <><ShieldCheck size={12} /> Xác nhận</>
+                              ) : otpCooldown > 0 ? (
+                                `${otpCooldown}s`
+                              ) : (
+                                <><Mail size={12} /> {otpSent ? "Gửi lại" : "Gửi mã"}</>
+                              )}
+                            </button>
+                          </div>
+                        )}
+
+                        {/* OTP Verified badge */}
+                        {otpVerified && (
+                          <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-50 border border-emerald-200">
+                            <CheckCircle2 size={13} className="text-emerald-600 shrink-0" />
+                            <span className="text-[11px] font-semibold text-emerald-700">Email đã xác thực thành công!</span>
+                          </div>
+                        )}
+
+                        {errors.otp && (
+                          <p className="text-[10px] text-rose-500 font-medium">{errors.otp}</p>
+                        )}
+                      </div>
                     </div>
 
                     <div>
@@ -997,7 +1161,7 @@ export default function AuthPage() {
                           isDark ? "text-slate-300" : "text-slate-700"
                         }`}
                       >
-                        Số điện thoại (Nhận mã OTP)
+                        Số điện thoại
                       </label>
                       <div className="relative">
                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
@@ -1046,7 +1210,7 @@ export default function AuthPage() {
                         onChange={(e) =>
                           setRegData({ ...regData, password: e.target.value })
                         }
-                        placeholder="Ít nhất 6 ký tự"
+                        placeholder="Ít nhất 8 ký tự"
                         className={`w-full pl-9 pr-10 py-2.5 rounded-xl text-xs border outline-none ${
                           errors.password ? "border-rose-500" : ""
                         } ${
@@ -1149,10 +1313,20 @@ export default function AuthPage() {
                   {/* Button Next Step */}
                   <button
                     type="submit"
-                    className="w-full min-h-[48px] mt-2 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2 active:scale-95 transition cursor-pointer"
+                    disabled={isCheckingAccount}
+                    className="w-full min-h-[48px] mt-2 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2 active:scale-95 transition cursor-pointer disabled:opacity-60"
                   >
-                    <span>Tiếp tục (Thêm hồ sơ xe)</span>
-                    <ArrowRight size={16} />
+                    {isCheckingAccount ? (
+                      <>
+                        <Loader2 size={16} className="animate-spin" />
+                        <span>Đang kiểm tra...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Tiếp tục</span>
+                        <ArrowRight size={16} />
+                      </>
+                    )}
                   </button>
                 </form>
               )}
