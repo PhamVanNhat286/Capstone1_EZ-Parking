@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { query } from "../config/db";
 import { AuthRequest } from "../middlewares/auth.middleware";
+import { sendOtpEmail } from "../services/email.service";
 
 const JWT_SECRET = process.env.JWT_SECRET || "ezspace_jwt_secret_capstone_2026";
 
@@ -15,6 +16,14 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       res.status(400).json({
         success: false,
         message: "Họ tên, email và mật khẩu là bắt buộc",
+      });
+      return;
+    }
+
+    if (password.length < 8) {
+      res.status(400).json({
+        success: false,
+        message: "Mật khẩu phải có ít nhất 8 ký tự",
       });
       return;
     }
@@ -206,6 +215,380 @@ export const getMe = async (req: AuthRequest, res: Response): Promise<void> => {
     res.status(500).json({
       success: false,
       message: "Lỗi server khi lấy thông tin người dùng",
+    });
+  }
+};
+
+// PUT /api/auth/profile - Cập nhật thông tin tài khoản (Họ tên, email, số điện thoại)
+export const updateProfile = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ success: false, message: "Chưa xác thực" });
+      return;
+    }
+
+    const { full_name, email, phone } = req.body;
+
+    if (!full_name && !email && !phone) {
+      res.status(400).json({
+        success: false,
+        message: "Không có thông tin nào cần cập nhật",
+      });
+      return;
+    }
+
+    const cleanName = full_name !== undefined ? full_name.trim() : null;
+    const cleanEmail = email !== undefined ? email.trim().toLowerCase() : null;
+    const cleanPhone = phone !== undefined ? phone.trim().replace(/\s+/g, "") : null;
+
+    // Nếu có đổi email, kiểm tra trùng lặp với tài khoản khác
+    if (cleanEmail) {
+      const existingEmail = await query(
+        "SELECT id FROM users WHERE LOWER(email) = $1 AND id != $2;",
+        [cleanEmail, req.user.id]
+      );
+      if (existingEmail.rows.length > 0) {
+        res.status(409).json({
+          success: false,
+          message: "Email này đã được sử dụng bởi tài khoản khác",
+        });
+        return;
+      }
+    }
+
+    // Nếu có đổi số điện thoại, kiểm tra trùng lặp với tài khoản khác
+    if (cleanPhone) {
+      const existingPhone = await query(
+        "SELECT id FROM users WHERE phone = $1 AND id != $2;",
+        [cleanPhone, req.user.id]
+      );
+      if (existingPhone.rows.length > 0) {
+        res.status(409).json({
+          success: false,
+          message: "Số điện thoại này đã được sử dụng bởi tài khoản khác",
+        });
+        return;
+      }
+    }
+
+    const updateSql = `
+      UPDATE users
+      SET full_name = COALESCE($1, full_name),
+          email = COALESCE($2, email),
+          phone = COALESCE($3, phone),
+          updated_at = NOW()
+      WHERE id = $4
+      RETURNING id, full_name, email, phone, role, status, updated_at;
+    `;
+    const result = await query(updateSql, [cleanName, cleanEmail, cleanPhone, req.user.id]);
+
+    if (result.rows.length === 0) {
+      res.status(404).json({ success: false, message: "Không tìm thấy người dùng" });
+      return;
+    }
+
+    const updatedUser = result.rows[0];
+
+    res.json({
+      success: true,
+      message: "Cập nhật hồ sơ thành công",
+      data: {
+        user: updatedUser,
+      },
+    });
+  } catch (error) {
+    console.error("Lỗi cập nhật hồ sơ:", error);
+    res.status(500).json({
+      success: false,
+      message: "Lỗi server khi cập nhật hồ sơ",
+    });
+  }
+};
+
+// PUT /api/auth/change-password - Đổi mật khẩu
+export const changePassword = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ success: false, message: "Chưa xác thực" });
+      return;
+    }
+
+    const { old_password, new_password } = req.body;
+
+    if (!old_password || !new_password) {
+      res.status(400).json({
+        success: false,
+        message: "Vui lòng nhập mật khẩu cũ và mật khẩu mới",
+      });
+      return;
+    }
+
+    if (new_password.length < 6) {
+      res.status(400).json({
+        success: false,
+        message: "Mật khẩu mới phải có ít nhất 6 ký tự",
+      });
+      return;
+    }
+
+    // Lấy password_hash hiện tại
+    const userRes = await query("SELECT password_hash FROM users WHERE id = $1;", [req.user.id]);
+    if (userRes.rows.length === 0) {
+      res.status(404).json({ success: false, message: "Không tìm thấy người dùng" });
+      return;
+    }
+
+    const user = userRes.rows[0];
+    const isMatch = await bcrypt.compare(old_password, user.password_hash);
+    if (!isMatch) {
+      res.status(400).json({
+        success: false,
+        message: "Mật khẩu hiện tại không chính xác",
+      });
+      return;
+    }
+
+    // Hash mật khẩu mới
+    const salt = await bcrypt.genSalt(10);
+    const newHash = await bcrypt.hash(new_password, salt);
+
+    await query("UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2;", [
+      newHash,
+      req.user.id,
+    ]);
+
+    res.json({
+      success: true,
+      message: "Đổi mật khẩu thành công",
+    });
+  } catch (error) {
+    console.error("Lỗi đổi mật khẩu:", error);
+    res.status(500).json({
+      success: false,
+      message: "Lỗi server khi đổi mật khẩu",
+    });
+  }
+};
+
+// ============================================================
+// POST /api/auth/send-otp
+// Body: { email, purpose }  purpose: 'FORGOT_PASSWORD' | 'VERIFY_EMAIL'
+// ============================================================
+export const sendOtp = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { email, purpose } = req.body;
+
+    if (!email || !purpose) {
+      res.status(400).json({ success: false, message: "Thiếu email hoặc mục đích" });
+      return;
+    }
+
+    const validPurposes = ["FORGOT_PASSWORD", "VERIFY_EMAIL", "REGISTER"];
+    if (!validPurposes.includes(purpose)) {
+      res.status(400).json({ success: false, message: "Mục đích không hợp lệ" });
+      return;
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+
+    // Nếu gửi OTP để đăng ký tài khoản, kiểm tra trước xem email đã tồn tại chưa
+    if (purpose === "REGISTER") {
+      const existingUser = await query("SELECT id FROM users WHERE LOWER(email) = $1 LIMIT 1;", [cleanEmail]);
+      if (existingUser.rows.length > 0) {
+        res.status(409).json({
+          success: false,
+          message: "Email này đã được sử dụng. Vui lòng đăng nhập hoặc dùng email khác.",
+        });
+        return;
+      }
+    }
+
+    // Chặn spam: kiểm tra xem có OTP nào được gửi trong vòng 60 giây qua không
+    const recentCheck = await query(
+      `SELECT created_at FROM email_otps
+       WHERE email = $1 AND purpose = $2
+       AND created_at > (NOW() - INTERVAL '60 seconds')
+       ORDER BY created_at DESC LIMIT 1;`,
+      [cleanEmail, purpose]
+    );
+
+    if (recentCheck.rows.length > 0) {
+      res.status(429).json({
+        success: false,
+        message: "Vui lòng đợi 60 giây trước khi yêu cầu mã mới",
+      });
+      return;
+    }
+
+    // Vô hiệu hóa tất cả OTP cũ chưa dùng của email này (cùng mục đích)
+    await query(
+      `UPDATE email_otps SET is_used = TRUE
+       WHERE email = $1 AND purpose = $2 AND is_used = FALSE;`,
+      [cleanEmail, purpose]
+    );
+
+    // Sinh mã OTP ngẫu nhiên 6 chữ số
+    const otpCode = String(Math.floor(100000 + Math.random() * 900000));
+
+    // Lưu OTP mới vào DB với TTL 5 phút
+    await query(
+      `INSERT INTO email_otps (email, otp_code, purpose, expires_at)
+       VALUES ($1, $2, $3, NOW() + INTERVAL '5 minutes');`,
+      [cleanEmail, otpCode, purpose]
+    );
+
+    // Gửi email
+    await sendOtpEmail(cleanEmail, otpCode, purpose);
+
+    // Dọn rác: xóa các OTP hết hạn hoặc đã dùng (chạy ngầm, không await)
+    query(`DELETE FROM email_otps WHERE expires_at < NOW() OR is_used = TRUE AND created_at < NOW() - INTERVAL '1 day';`).catch(() => {});
+
+    res.json({
+      success: true,
+      message: `Mã OTP đã được gửi đến ${cleanEmail}. Mã có hiệu lực trong 5 phút.`,
+    });
+  } catch (error) {
+    console.error("Lỗi gửi OTP:", error);
+    res.status(500).json({
+      success: false,
+      message: "Lỗi server khi gửi mã OTP. Kiểm tra lại cấu hình Gmail.",
+    });
+  }
+};
+
+// ============================================================
+// POST /api/auth/verify-otp
+// Body: { email, otp_code, purpose }
+// ============================================================
+export const verifyOtp = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { email, otp_code, purpose } = req.body;
+
+    if (!email || !otp_code || !purpose) {
+      res.status(400).json({ success: false, message: "Thiếu email, mã OTP hoặc mục đích" });
+      return;
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+
+    // Tìm OTP hợp lệ mới nhất của email này
+    const otpRes = await query(
+      `SELECT id, otp_code, expires_at, attempts
+       FROM email_otps
+       WHERE email = $1 AND purpose = $2 AND is_used = FALSE
+       ORDER BY created_at DESC LIMIT 1;`,
+      [cleanEmail, purpose]
+    );
+
+    if (otpRes.rows.length === 0) {
+      res.status(400).json({
+        success: false,
+        message: "Không tìm thấy mã OTP. Vui lòng yêu cầu mã mới.",
+      });
+      return;
+    }
+
+    const otp = otpRes.rows[0];
+
+    // Kiểm tra hết hạn
+    if (new Date() > new Date(otp.expires_at)) {
+      await query(`UPDATE email_otps SET is_used = TRUE WHERE id = $1;`, [otp.id]);
+      res.status(400).json({
+        success: false,
+        message: "Mã OTP đã hết hạn. Vui lòng yêu cầu mã mới.",
+      });
+      return;
+    }
+
+    // Kiểm tra số lần nhập sai
+    if (otp.attempts >= 5) {
+      await query(`UPDATE email_otps SET is_used = TRUE WHERE id = $1;`, [otp.id]);
+      res.status(400).json({
+        success: false,
+        message: "Mã OTP đã bị khóa do nhập sai quá nhiều lần. Vui lòng yêu cầu mã mới.",
+      });
+      return;
+    }
+
+    // Đối chiếu mã
+    if (otp_code !== otp.otp_code) {
+      // Tăng số lần thử sai
+      await query(`UPDATE email_otps SET attempts = attempts + 1 WHERE id = $1;`, [otp.id]);
+      const remaining = 4 - otp.attempts; // attempts hiện tại chưa +1
+      res.status(400).json({
+        success: false,
+        message: `Mã OTP không chính xác. Còn ${remaining} lần thử.`,
+      });
+      return;
+    }
+
+    // Mã đúng: đánh dấu đã dùng
+    await query(`UPDATE email_otps SET is_used = TRUE WHERE id = $1;`, [otp.id]);
+
+    res.json({
+      success: true,
+      message: "Xác thực OTP thành công",
+    });
+  } catch (error) {
+    console.error("Lỗi xác thực OTP:", error);
+    res.status(500).json({
+      success: false,
+      message: "Lỗi server khi xác thực OTP",
+    });
+  }
+};
+
+// ============================================================
+// POST /api/auth/check-exists
+// Body: { email?: string, phone?: string }
+// ============================================================
+export const checkExists = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { email, phone } = req.body;
+
+    if (!email && !phone) {
+      res.status(400).json({
+        success: false,
+        message: "Vui lòng cung cấp email hoặc số điện thoại để kiểm tra",
+      });
+      return;
+    }
+
+    if (email) {
+      const cleanEmail = email.trim().toLowerCase();
+      const existingEmail = await query("SELECT id FROM users WHERE LOWER(email) = $1 LIMIT 1;", [cleanEmail]);
+      if (existingEmail.rows.length > 0) {
+        res.status(409).json({
+          success: false,
+          field: "email",
+          message: "Email này đã được đăng ký tài khoản. Vui lòng đăng nhập hoặc dùng email khác.",
+        });
+        return;
+      }
+    }
+
+    if (phone) {
+      const cleanPhone = phone.trim().replace(/\s+/g, "");
+      const existingPhone = await query("SELECT id FROM users WHERE phone = $1 LIMIT 1;", [cleanPhone]);
+      if (existingPhone.rows.length > 0) {
+        res.status(409).json({
+          success: false,
+          field: "phone",
+          message: "Số điện thoại này đã được sử dụng bởi tài khoản khác.",
+        });
+        return;
+      }
+    }
+
+    res.json({
+      success: true,
+      message: "Email và số điện thoại hợp lệ",
+    });
+  } catch (error) {
+    console.error("Lỗi kiểm tra trùng lặp tài khoản:", error);
+    res.status(500).json({
+      success: false,
+      message: "Lỗi server khi kiểm tra tài khoản",
     });
   }
 };

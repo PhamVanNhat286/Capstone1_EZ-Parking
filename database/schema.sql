@@ -348,7 +348,31 @@ CREATE TABLE manager_history (
 CREATE INDEX idx_manager_history_lot ON manager_history (parking_lot_id);
 
 -- =============================================================
--- 5. AUTO updated_at TRIGGER
+-- 5. OTP VERIFICATION TABLE
+-- =============================================================
+
+-- 5.1 Bang luu ma OTP xac thuc email
+CREATE TABLE email_otps (
+    id          BIGSERIAL       PRIMARY KEY,
+    email       VARCHAR(255)    NOT NULL,
+    otp_code    VARCHAR(6)      NOT NULL,
+    purpose     VARCHAR(50)     NOT NULL,   -- 'FORGOT_PASSWORD' | 'VERIFY_EMAIL' | 'REGISTER'
+    attempts    INT             NOT NULL DEFAULT 0,
+    is_used     BOOLEAN         NOT NULL DEFAULT FALSE,
+    expires_at  TIMESTAMPTZ     NOT NULL,
+    created_at  TIMESTAMPTZ     NOT NULL DEFAULT NOW()
+);
+
+COMMENT ON TABLE  email_otps IS 'Luu tru ma OTP gui qua email. Thay the Redis bang PostgreSQL TTL thu cong.';
+COMMENT ON COLUMN email_otps.purpose   IS 'Muc dich dung ma OTP: FORGOT_PASSWORD, VERIFY_EMAIL, REGISTER.';
+COMMENT ON COLUMN email_otps.attempts  IS 'So lan nguoi dung nhap sai. Qua 5 lan se khoa ma nay.';
+COMMENT ON COLUMN email_otps.expires_at IS 'Thoi diem het han (tao + 5 phut). Backend tu kiem tra.';
+
+CREATE INDEX idx_email_otps_email_purpose ON email_otps (email, purpose);
+CREATE INDEX idx_email_otps_expires       ON email_otps (expires_at) WHERE is_used = FALSE;
+
+-- =============================================================
+-- 6. AUTO updated_at TRIGGER
 -- =============================================================
 CREATE OR REPLACE FUNCTION set_updated_at()
 RETURNS TRIGGER AS $$

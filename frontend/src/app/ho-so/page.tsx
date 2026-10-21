@@ -36,6 +36,7 @@ import {
 import { clsx } from "clsx";
 import { useStore, Vehicle } from "@/store";
 import { lots } from "@/lib/mock/lots";
+import { updateProfileApi, changePasswordApi, getMeApi } from "@/lib/api";
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -96,6 +97,26 @@ export default function ProfilePage() {
   const [nameInput, setNameInput] = useState(currentUser.name);
   const [emailInput, setEmailInput] = useState(currentUser.email || "minh@example.com");
   const [phoneInput, setPhoneInput] = useState(currentUser.phone);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [isSavingPassword, setIsSavingPassword] = useState(false);
+
+  // Sync profile from backend on mount
+  useEffect(() => {
+    const token = user?.token || (typeof window !== "undefined" ? localStorage.getItem("ezspace_token") : null);
+    if (token) {
+      getMeApi(token)
+        .then((res) => {
+          if (res.success && res.data?.user) {
+            updateUser({
+              name: res.data.user.full_name,
+              email: res.data.user.email,
+              phone: res.data.user.phone,
+            });
+          }
+        })
+        .catch(() => {});
+    }
+  }, []);
 
   useEffect(() => {
     if (user) {
@@ -174,15 +195,53 @@ export default function ProfilePage() {
     : "PM";
 
   // Form Handlers
-  const handleSaveProfile = (e: React.FormEvent) => {
+  const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!nameInput.trim()) {
+      showToast("Vui lòng nhập họ và tên");
+      return;
+    }
+
+    setIsSavingProfile(true);
+    const token = user?.token || (typeof window !== "undefined" ? localStorage.getItem("ezspace_token") : null);
+
+    if (token) {
+      try {
+        const res = await updateProfileApi(token, {
+          full_name: nameInput.trim(),
+          email: emailInput.trim(),
+          phone: phoneInput.trim(),
+        });
+
+        if (res.success && res.data?.user) {
+          updateUser({
+            name: res.data.user.full_name,
+            email: res.data.user.email,
+            phone: res.data.user.phone,
+          });
+          setIsSavingProfile(false);
+          setIsEditProfileOpen(false);
+          showToast("Cập nhật hồ sơ thành công!");
+          return;
+        } else if (res.message) {
+          showToast(res.message);
+          setIsSavingProfile(false);
+          return;
+        }
+      } catch (err) {
+        console.error("Lỗi cập nhật hồ sơ backend:", err);
+      }
+    }
+
+    // Fallback cập nhật store nếu không có token
     if (updateUser) {
       updateUser({
-        name: nameInput,
-        email: emailInput,
-        phone: phoneInput,
+        name: nameInput.trim(),
+        email: emailInput.trim(),
+        phone: phoneInput.trim(),
       });
     }
+    setIsSavingProfile(false);
     setIsEditProfileOpen(false);
     showToast("Cập nhật hồ sơ thành công!");
   };
@@ -234,13 +293,39 @@ export default function ProfilePage() {
     else setPasswordStrength("strong");
   };
 
-  const handleSavePassword = (e: React.FormEvent) => {
+  const handleSavePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!oldPassword || !newPassword) return;
     if (newPassword !== confirmPassword) {
       showToast("Mật khẩu xác nhận không khớp!");
       return;
     }
+    if (newPassword.length < 6) {
+      showToast("Mật khẩu mới phải từ 6 ký tự trở lên!");
+      return;
+    }
+
+    setIsSavingPassword(true);
+    const token = user?.token || (typeof window !== "undefined" ? localStorage.getItem("ezspace_token") : null);
+
+    if (token) {
+      try {
+        const res = await changePasswordApi(token, {
+          old_password: oldPassword,
+          new_password: newPassword,
+        });
+
+        if (!res.success) {
+          setIsSavingPassword(false);
+          showToast(res.message || "Đổi mật khẩu thất bại!");
+          return;
+        }
+      } catch (err) {
+        console.error("Lỗi đổi mật khẩu:", err);
+      }
+    }
+
+    setIsSavingPassword(false);
     setOldPassword("");
     setNewPassword("");
     setConfirmPassword("");
@@ -862,9 +947,10 @@ export default function ProfilePage() {
               </div>
               <button
                 type="submit"
-                className="w-full h-12 bg-primary text-white font-bold rounded-xl shadow-glow hover:bg-primary-dark active:scale-95 transition-all mt-4"
+                disabled={isSavingProfile}
+                className="w-full h-12 bg-primary text-white font-bold rounded-xl shadow-glow hover:bg-primary-dark active:scale-95 transition-all mt-4 disabled:opacity-50"
               >
-                Lưu thay đổi
+                {isSavingProfile ? "Đang lưu..." : "Lưu thay đổi"}
               </button>
             </form>
           </div>
@@ -1158,9 +1244,10 @@ export default function ProfilePage() {
               </div>
               <button
                 type="submit"
-                className="w-full h-12 bg-primary text-white font-bold rounded-xl shadow-glow hover:bg-primary-dark active:scale-95 transition-all mt-4"
+                disabled={isSavingPassword}
+                className="w-full h-12 bg-primary text-white font-bold rounded-xl shadow-glow hover:bg-primary-dark active:scale-95 transition-all mt-4 disabled:opacity-50"
               >
-                Cập nhật mật khẩu
+                {isSavingPassword ? "Đang cập nhật..." : "Cập nhật mật khẩu"}
               </button>
             </form>
           </div>

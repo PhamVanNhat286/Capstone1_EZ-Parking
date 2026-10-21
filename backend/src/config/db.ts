@@ -27,3 +27,24 @@ export const testDbConnection = async () => {
     return false;
   }
 };
+
+export const initDbTables = async () => {
+  try {
+    await query(`
+      CREATE TABLE IF NOT EXISTS email_otps (
+        id          BIGSERIAL       PRIMARY KEY,
+        email       VARCHAR(255)    NOT NULL,
+        otp_code    VARCHAR(6)      NOT NULL,
+        purpose     VARCHAR(50)     NOT NULL,
+        attempts    INT             NOT NULL DEFAULT 0,
+        is_used     BOOLEAN         NOT NULL DEFAULT FALSE,
+        expires_at  TIMESTAMPTZ     NOT NULL,
+        created_at  TIMESTAMPTZ     NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_email_otps_email_purpose ON email_otps (email, purpose);
+    `);
+    console.log("[Database] Table 'email_otps' initialized successfully.");
+  } catch (error) {
+    console.error("[Database] Error initializing tables:", error);
+  }
+};
