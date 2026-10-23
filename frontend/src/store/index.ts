@@ -17,6 +17,7 @@ export type Booking = {
   lotId: string;
   spotId: string;
   vehicleId: string;
+  estimatedHours?: number;
   status: BookingStatus;
   holdExpiresAt: number; // timestamp
   arrivalExpiresAt?: number; // timestamp
@@ -59,7 +60,8 @@ type StoreState = {
   login: (userData?: { name?: string; phone?: string; email?: string; token?: string; role?: string }) => void;
   updateUser: (data: Partial<{ name: string; phone: string; email: string }>) => void;
   logout: () => void;
-  holdSpot: (lotId: string, spotId: string, vehicleId: string) => void;
+  holdSpot: (lotId: string, spotId: string, vehicleId: string, estimatedHours?: number) => void;
+  setBookingHours: (hours: number) => void;
   isDemo: boolean;
   setDemo: (val: boolean) => void;
   lastPaymentMethod: "vnpay" | "momo" | "card" | null;
@@ -132,18 +134,25 @@ export const useStore = create<StoreState>()(
         set({ user: null });
       },
       
-      holdSpot: (lotId, spotId, vehicleId) => {
+      holdSpot: (lotId, spotId, vehicleId, estimatedHours = 2) => {
         const newBooking: Booking = {
           id: "EZ-" + Math.floor(Math.random() * 10000),
           lotId,
           spotId,
           vehicleId,
+          estimatedHours,
           status: "holding",
           holdExpiresAt: Date.now() + 10 * 60 * 1000, // 10 minutes from now
           createdAt: Date.now(),
         };
         set({ activeBooking: newBooking });
       },
+
+      setBookingHours: (hours) => set((state) => ({
+        activeBooking: state.activeBooking
+          ? { ...state.activeBooking, estimatedHours: Math.max(1, Math.min(24, hours)) }
+          : null,
+      })),
 
       payDeposit: (method) => {
         const { activeBooking } = get();
