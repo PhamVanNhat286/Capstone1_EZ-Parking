@@ -3,6 +3,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import routes from "./routes";
 import vnpayRouter from './payment/vnpay';
+import momoRouter from './payment/momo';
 
 dotenv.config();
 
@@ -28,5 +29,6 @@ app.get("/", (req, res) => {
 // Main API routes
 app.use("/api", routes);
 app.use('/api/payment', vnpayRouter); 
+app.use('/api/payment', momoRouter);
 
 export default app;
