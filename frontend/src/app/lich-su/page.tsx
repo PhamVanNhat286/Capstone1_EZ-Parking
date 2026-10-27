@@ -41,6 +41,8 @@ const LOT_NAMES: Record<string, { name: string; address: string }> = {
   "san-bay-t1": { name: "Sân bay Đà Nẵng T1", address: "Ga T1, Sân bay Quốc tế Đà Nẵng, Q. Hải Châu" },
 };
 
+const DEPOSIT = 50_000;
+
 
 
 function HistoryContent() {
@@ -118,8 +120,8 @@ function HistoryContent() {
         vehiclePlate: veh.plate,
         vehicleType: veh.type,
         status: b.status,
-        amount: b.status === "cancelled" ? 0 : b.status === "forfeited" ? -35000 : 50000,
-        deposit: 30000,
+        amount: b.status === "cancelled" ? 0 : b.status === "forfeited" ? -DEPOSIT : (b.estimatedHours ? b.estimatedHours * 15000 : DEPOSIT),
+        deposit: DEPOSIT,
         durationText: b.status === "completed" ? "2 giờ" : "Cọc giữ chỗ",
         paymentMethod: b.paymentMethod || "vnpay",
         createdAt: b.createdAt,
@@ -162,7 +164,7 @@ function HistoryContent() {
         (sum, item) =>
           sum + (item.status === "completed" ? item.amount : item.status === "forfeited" ? Math.abs(item.amount) : 0),
         0
-      ) + (activeBooking ? 30000 : 0)
+      ) + (activeBooking && ["paid", "entered"].includes(activeBooking.status) ? DEPOSIT : 0)
     );
   }, [displayHistory, activeBooking]);
 
@@ -363,7 +365,9 @@ function HistoryContent() {
                   </div>
                   <div className="text-right">
                     <div className="text-slate-400 font-medium">Đã cọc</div>
-                    <div className="font-bold text-blue-600">30.000đ</div>
+                    <div className="font-bold text-blue-600">
+                      {activeBooking.status === "holding" ? "Chưa cọc" : `${DEPOSIT.toLocaleString("vi-VN")}đ`}
+                    </div>
                   </div>
                 </div>
 
@@ -684,27 +688,27 @@ function HistoryContent() {
 
                 <div className="flex justify-between text-slate-600">
                   <span>Tiền cọc ban đầu (VNPay)</span>
-                  <span className="font-medium">30.000đ</span>
+                  <span className="font-medium">50.000đ</span>
                 </div>
                 <div className="flex justify-between text-slate-600">
-                  <span>Phí đỗ thực tế (2.5 giờ x 30k)</span>
-                  <span className="font-medium">75.000đ</span>
+                  <span>Phí đỗ thực tế</span>
+                  <span className="font-medium">50.000đ</span>
                 </div>
                 <div className="flex justify-between text-emerald-600">
                   <span>Khấu trừ tiền cọc</span>
-                  <span className="font-medium">-30.000đ</span>
+                  <span className="font-medium">-50.000đ</span>
                 </div>
                 <div className="flex justify-between text-slate-600">
-                  <span>Ưu đãi thành viên Vàng (15%)</span>
-                  <span className="font-medium text-emerald-600">-15.000đ</span>
+                  <span>Ưu đãi thành viên (nếu có)</span>
+                  <span className="font-medium text-emerald-600">0đ</span>
                 </div>
 
                 <div className="pt-2 border-t border-slate-300 flex justify-between items-center text-sm font-bold text-slate-900">
                   <span>Tổng thanh toán:</span>
                   <span className="text-base text-blue-600 font-black">
                     {selectedItem.status === "forfeited"
-                      ? "-35.000đ"
-                      : `${(selectedItem.amount || 60000).toLocaleString("vi-VN")}đ`}
+                      ? `-${DEPOSIT.toLocaleString("vi-VN")}đ`
+                      : `${(selectedItem.amount || DEPOSIT).toLocaleString("vi-VN")}đ`}
                   </span>
                 </div>
               </div>

@@ -85,13 +85,17 @@ Chính sách & Quy định EZ-Space:
 - Loại xe hỗ trợ: Sedan, SUV, Xe điện (EV - có trụ sạc).
 
 YÊU CẦU ĐỊNH DẠNG TRẢ VỀ:
-BẮT BUỘC chỉ trả về đúng định dạng JSON tuân thủ schema sau (tuyệt đối không kèm thẻ markdown \`\`\`json):
+- CHỈ GỢI Ý ĐÚNG 1 BÃI XE PHÙ HỢP NHẤT. Tuyệt đối KHÔNG trả về nhiều bãi trùng lặp.
+- Mảng "cards" CHỈ CHỨA TỐI ĐA 1 PHẦN TỬ DUY NHẤT của bãi tốt nhất (hoặc mảng rỗng [] nếu chỉ chào hỏi hoặc hỏi chính sách chung).
+- "lotId" BẮT BUỘC phải là chính xác một trong 3 id: 'hai-chau-a', 'cau-rong', 'san-bay-t1'.
+
+BẮT BUỘC chỉ trả về đúng định dạng JSON tuân thủ schema sau (tuyệt đối không bọc trong thẻ markdown codeblock):
 {
   "text": "Câu trả lời thân thiện, lịch sự, ngắn gọn và hữu ích bằng tiếng Việt",
   "cards": [
     {
-      "lotId": "id của bãi đỗ xe phù hợp nhất trong danh sách lots (ví dụ: 'hai-chau-a', 'cau-rong', 'san-bay-t1', hoặc để mảng rỗng [] nếu người dùng chỉ chào hỏi hoặc hỏi chính sách chung)",
-      "reason": "Lý do gợi ý bãi này kèm khoảng cách nếu có (ngắn gọn trong 1 câu)",
+      "lotId": "chính xác một trong ba id: 'hai-chau-a', 'cau-rong', 'san-bay-t1'",
+      "reason": "Lý do gợi ý bãi tốt nhất này kèm khoảng cách nếu có (ngắn gọn trong 1 câu)",
       "tab": "Tất cả"
     }
   ]
@@ -130,9 +134,34 @@ BẮT BUỘC chỉ trả về đúng định dạng JSON tuân thủ schema sau 
     try {
       const cleanJson = responseText.replace(/```json/g, "").replace(/```/g, "").trim();
       const parsed = JSON.parse(cleanJson);
+
+      const validLotIds = ["hai-chau-a", "cau-rong", "san-bay-t1"];
+      const rawCards = Array.isArray(parsed.cards) ? parsed.cards : [];
+      const finalCards: any[] = [];
+      const seen = new Set<string>();
+
+      for (const card of rawCards) {
+        let lotId = card.lotId;
+        if (!validLotIds.includes(lotId)) {
+          const match = lots.find(
+            (l) =>
+              l.id === lotId ||
+              l.name.toLowerCase().includes(String(lotId || "").toLowerCase()) ||
+              String(card.reason || "").toLowerCase().includes(l.name.toLowerCase())
+          );
+          lotId = match ? match.id : "cau-rong";
+        }
+        if (!seen.has(lotId)) {
+          seen.add(lotId);
+          finalCards.push({ ...card, lotId });
+        }
+        // ONLY 1 best lot card as requested
+        if (finalCards.length >= 1) break;
+      }
+
       return NextResponse.json({
         text: parsed.text || "Mình đã tìm thấy thông tin bãi đỗ cho bạn.",
-        cards: parsed.cards || [],
+        cards: finalCards,
         chips: parsed.chips || [],
         isFallback: false,
       });

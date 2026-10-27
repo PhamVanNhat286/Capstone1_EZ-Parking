@@ -10,7 +10,7 @@ const JWT_SECRET = process.env.JWT_SECRET || "ezspace_jwt_secret_capstone_2026";
 // POST /api/auth/register - Đăng ký tài khoản mới
 export const register = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { full_name, email, phone, password, role = "customer" } = req.body;
+    const { full_name, email, phone, password, role = "customer", license_plate, vehicle_type, vehicle_name, vehicles } = req.body;
 
     if (!full_name || !email || !password) {
       res.status(400).json({
@@ -74,12 +74,44 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       { expiresIn: "7d" }
     );
 
+    // Nếu người dùng cung cấp thông tin xe khi đăng ký, lưu trực tiếp vào bảng vehicles (hỗ trợ nhiều xe)
+    let initialVehicles: any[] = [];
+    const vehiclesToInsert: Array<{ license_plate: string; vehicle_name?: string; vehicle_type?: string }> =
+      Array.isArray(vehicles) && vehicles.length > 0
+        ? vehicles
+        : (license_plate && String(license_plate).trim() ? [{ license_plate, vehicle_name, vehicle_type }] : []);
+
+    for (let i = 0; i < vehiclesToInsert.length; i++) {
+      const v = vehiclesToInsert[i];
+      if (!v || !v.license_plate || !String(v.license_plate).trim()) continue;
+      const vPlate = String(v.license_plate).trim().toUpperCase();
+      const vType = v.vehicle_type === "SUV" || v.vehicle_type === "EV" ? v.vehicle_type : "Sedan";
+      const vName = v.vehicle_name && String(v.vehicle_name).trim()
+        ? String(v.vehicle_name).trim()
+        : (vType === "SUV" ? "SUV gầm cao" : vType === "EV" ? "Xe điện" : "Sedan cá nhân");
+      const isDefault = i === 0;
+
+      try {
+        const vRes = await query(
+          `INSERT INTO vehicles (user_id, license_plate, vehicle_name, vehicle_type, is_default)
+           VALUES ($1, $2, $3, $4, $5)
+           ON CONFLICT (license_plate) DO UPDATE SET user_id = $1, vehicle_name = $3, vehicle_type = $4, is_default = $5
+           RETURNING id, license_plate, vehicle_name, vehicle_type, is_default, created_at;`,
+          [newUser.id, vPlate, vName, vType, isDefault]
+        );
+        if (vRes.rows[0]) initialVehicles.push(vRes.rows[0]);
+      } catch (vErr) {
+        console.warn("Không thể liên kết xe trong lúc đăng ký:", vErr);
+      }
+    }
+
     res.status(201).json({
       success: true,
       message: "Đăng ký tài khoản thành công",
       data: {
         user: newUser,
         token,
+        vehicles: initialVehicles,
       },
     });
   } catch (error) {
@@ -149,6 +181,15 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       { expiresIn: "7d" }
     );
 
+    // Lấy danh sách xe thực tế của người dùng từ database
+    const vehiclesRes = await query(
+      `SELECT id, license_plate, vehicle_name, vehicle_type, is_default, created_at, updated_at
+       FROM vehicles 
+       WHERE user_id = $1 
+       ORDER BY id ASC;`,
+      [user.id]
+    );
+
     res.json({
       success: true,
       message: "Đăng nhập thành công",
@@ -162,6 +203,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
           status: user.status,
         },
         token,
+        vehicles: vehiclesRes.rows,
       },
     });
   } catch (error) {
@@ -403,6 +445,18 @@ export const sendOtp = async (req: Request, res: Response): Promise<void> => {
       }
     }
 
+    // Nếu gửi OTP để quên mật khẩu, kiểm tra trước xem email có tồn tại không
+    if (purpose === "FORGOT_PASSWORD") {
+      const existingUser = await query("SELECT id FROM users WHERE LOWER(email) = $1 LIMIT 1;", [cleanEmail]);
+      if (existingUser.rows.length === 0) {
+        res.status(404).json({
+          success: false,
+          message: "Email này chưa được đăng ký trong hệ thống EZ-Space.",
+        });
+        return;
+      }
+    }
+
     // Chặn spam: kiểm tra xem có OTP nào được gửi trong vòng 60 giây qua không
     const recentCheck = await query(
       `SELECT created_at FROM email_otps
@@ -592,3 +646,86 @@ export const checkExists = async (req: Request, res: Response): Promise<void> =>
     });
   }
 };
+
+// ============================================================
+// POST /api/auth/reset-password
+// Body: { email, new_password, otp_code? }
+// ============================================================
+export const resetPassword = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { email, new_password, otp_code } = req.body;
+
+    if (!email || !new_password) {
+      res.status(400).json({
+        success: false,
+        message: "Vui lòng cung cấp email và mật khẩu mới",
+      });
+      return;
+    }
+
+    if (new_password.length < 8) {
+      res.status(400).json({
+        success: false,
+        message: "Mật khẩu mới phải từ 8 ký tự trở lên",
+      });
+      return;
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+
+    // Kiểm tra tài khoản người dùng có tồn tại không
+    const userRes = await query("SELECT id FROM users WHERE LOWER(email) = $1 LIMIT 1;", [cleanEmail]);
+    if (userRes.rows.length === 0) {
+      res.status(404).json({
+        success: false,
+        message: "Không tìm thấy tài khoản với email này",
+      });
+      return;
+    }
+
+    // Kiểm tra đã có OTP FORGOT_PASSWORD hợp lệ hoặc đã verify trong vòng 15 phút
+    const otpCheck = await query(
+      `SELECT id FROM email_otps 
+       WHERE email = $1 AND purpose = 'FORGOT_PASSWORD' 
+       AND (
+         (is_used = TRUE AND created_at > (NOW() - INTERVAL '15 minutes'))
+         OR ($2::text IS NOT NULL AND otp_code = $2 AND expires_at > NOW())
+       )
+       LIMIT 1;`,
+      [cleanEmail, otp_code || null]
+    );
+
+    if (otpCheck.rows.length === 0) {
+      res.status(400).json({
+        success: false,
+        message: "Yêu cầu đặt lại mật khẩu không hợp lệ hoặc mã OTP đã hết hạn. Vui lòng gửi lại mã mới.",
+      });
+      return;
+    }
+
+    // Hash mật khẩu mới bằng bcrypt
+    const salt = await bcrypt.genSalt(10);
+    const newHash = await bcrypt.hash(new_password, salt);
+
+    // Cập nhật mật khẩu trong database
+    await query("UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2;", [
+      newHash,
+      userRes.rows[0].id,
+    ]);
+
+    // Đánh dấu toàn bộ OTP FORGOT_PASSWORD cũ đã dùng
+    await query("UPDATE email_otps SET is_used = TRUE WHERE email = $1 AND purpose = 'FORGOT_PASSWORD';", [cleanEmail]);
+
+    res.json({
+      success: true,
+      message: "Đặt lại mật khẩu thành công! Bạn có thể đăng nhập ngay.",
+    });
+  } catch (error) {
+    console.error("Lỗi đặt lại mật khẩu:", error);
+    res.status(500).json({
+      success: false,
+      message: "Lỗi server khi đặt lại mật khẩu",
+    });
+  }
+};
+

@@ -42,3 +42,24 @@ export const authenticateToken = (
     next();
   });
 };
+
+export const optionalAuthenticateToken = (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): void => {
+  const authHeader = req.headers["authorization"];
+  const token = authHeader && authHeader.split(" ")[1];
+
+  if (!token) {
+    return next();
+  }
+
+  const secret = process.env.JWT_SECRET || "ezspace_jwt_secret_capstone_2026";
+  jwt.verify(token, secret, (err, decoded) => {
+    if (!err && decoded) {
+      req.user = decoded as AuthUser;
+    }
+    next();
+  });
+};

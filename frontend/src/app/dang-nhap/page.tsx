@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Signal,
@@ -14,6 +14,7 @@ import {
   Eye,
   EyeOff,
   ArrowRight,
+  ArrowLeft,
   Loader2,
   User,
   Phone,
@@ -25,18 +26,28 @@ import {
   ChevronRight,
   Info,
   UserCheck,
+  Plus,
+  Trash2,
+  RefreshCw,
+  AlertCircle,
+  Clock,
 } from "lucide-react";
-import { loginApi, registerApi, sendOtpApi, verifyOtpApi, checkExistsApi } from "@/lib/api";
+import { loginApi, registerApi, sendOtpApi, verifyOtpApi, checkExistsApi, resetPasswordApi } from "@/lib/api";
 import { useStore } from "@/store";
 
 export default function AuthPage() {
   const router = useRouter();
   const login = useStore((s) => s.login);
   const addToast = useStore((s) => s.addToast);
+  const clearToasts = useStore((s) => s.clearToasts);
   const addVehicle = useStore((s) => s.addVehicle);
 
-  // Screen view: 'login' | 'register'
-  const [view, setView] = useState<"login" | "register">("login");
+  useEffect(() => {
+    clearToasts();
+  }, [clearToasts]);
+
+  // Screen view: 'login' | 'register' | 'forgot'
+  const [view, setView] = useState<"login" | "register" | "forgot">("login");
   const isDark = false;
 
   // Register Wizard Step: 1 | 2
@@ -57,12 +68,47 @@ export default function AuthPage() {
     phone: "",
     password: "",
     confirmPassword: "",
-    licensePlate: "",
-    vehicleType: "sedan" as "sedan" | "suv" | "ev",
     agreeTerms: false,
   });
   const [showRegPassword, setShowRegPassword] = useState(false);
   const [showRegConfirm, setShowRegConfirm] = useState(false);
+
+  // Danh sách xe đăng ký ở Bước 3
+  const [regVehicles, setRegVehicles] = useState<
+    Array<{
+      id: string;
+      licensePlate: string;
+      vehicleName: string;
+      vehicleType: "sedan" | "suv" | "ev";
+    }>
+  >([{ id: "v-1", licensePlate: "", vehicleName: "", vehicleType: "sedan" }]);
+
+  const addVehicleCard = () => {
+    setRegVehicles((prev) => [
+      ...prev,
+      {
+        id: `v-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        licensePlate: "",
+        vehicleName: "",
+        vehicleType: "sedan",
+      },
+    ]);
+  };
+
+  const removeVehicleCard = (id: string) => {
+    if (regVehicles.length <= 1) return;
+    setRegVehicles((prev) => prev.filter((v) => v.id !== id));
+  };
+
+  const updateVehicleField = (
+    id: string,
+    field: "licensePlate" | "vehicleName" | "vehicleType",
+    value: any
+  ) => {
+    setRegVehicles((prev) =>
+      prev.map((v) => (v.id === id ? { ...v, [field]: value } : v))
+    );
+  };
 
   // OTP State
   const [otpCode, setOtpCode] = useState("");
@@ -81,6 +127,18 @@ export default function AuthPage() {
       });
     }, 1000);
   };
+
+  // Forgot Password States
+  const [forgotStep, setForgotStep] = useState<number>(1);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotOtpCode, setForgotOtpCode] = useState("");
+  const [forgotOtpSent, setForgotOtpSent] = useState(false);
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotCooldown, setForgotCooldown] = useState(0);
+  const [forgotNewPassword, setForgotNewPassword] = useState("");
+  const [forgotConfirmPassword, setForgotConfirmPassword] = useState("");
+  const [showForgotNewPass, setShowForgotNewPass] = useState(false);
+  const [showForgotConfirmPass, setShowForgotConfirmPass] = useState(false);
 
   // Handle Send OTP
   const handleSendOtp = async () => {
@@ -120,6 +178,7 @@ export default function AuthPage() {
         setOtpVerified(true);
         setErrors({});
         addToast("Xác thực email thành công!", "success");
+        setRegStep(3);
       } else {
         setErrors({ otp: res.message || "Mã OTP không chính xác" });
       }
@@ -204,13 +263,44 @@ export default function AuthPage() {
       if (res.success && res.data) {
         if (typeof window !== "undefined") {
           localStorage.setItem("ezspace_token", res.data.token);
+
+          // Kích hoạt hỏi quyền vị trí từ trình duyệt ngay trong thao tác đăng nhập
+          if ("geolocation" in navigator) {
+            navigator.geolocation.getCurrentPosition(
+              (pos) => {
+                try {
+                  sessionStorage.setItem(
+                    "ez_gps_coords",
+                    JSON.stringify({ lat: pos.coords.latitude, lng: pos.coords.longitude })
+                  );
+                  sessionStorage.setItem("ez_gps_status", "active");
+                } catch {}
+              },
+              () => {
+                try {
+                  sessionStorage.setItem("ez_gps_status", "denied");
+                  sessionStorage.removeItem("ez_gps_coords");
+                } catch {}
+              },
+              { enableHighAccuracy: false, timeout: 6000, maximumAge: 60000 }
+            );
+          }
         }
+        const userVehicles = Array.isArray(res.data.vehicles)
+          ? res.data.vehicles.map((v: any) => ({
+              id: String(v.id),
+              name: v.vehicle_name || v.license_plate,
+              plate: v.license_plate,
+              type: v.vehicle_type === "EV" ? "EV" : v.vehicle_type === "SUV" ? "SUV" : "Sedan",
+            }))
+          : [];
         login({
           name: res.data.user.full_name,
           email: res.data.user.email,
           phone: res.data.user.phone,
           role: res.data.user.role,
           token: res.data.token,
+          vehicles: userVehicles,
         });
         setStatus("success");
         setSuccessMsg("Đăng nhập thành công! Đang chuyển hướng...");
@@ -233,21 +323,16 @@ export default function AuthPage() {
   };
 
   // Handle Register Step 1 Next
-  const handleRegisterNext = async (e: React.FormEvent) => {
+  const handleRegisterStep1Next = async (e: React.FormEvent) => {
     e.preventDefault();
     const errs: Record<string, string> = {};
     if (!regData.fullName.trim()) errs.fullName = "Vui lòng nhập họ và tên";
     if (!regData.email.trim() || !/\S+@\S+\.\S+/.test(regData.email)) {
-      errs.email = "Email không hợp lệ";
+      errs.email = "Email không hợp lệ (ví dụ: name@gmail.com)";
     }
-    if (!otpVerified) {
-      errs.otp = "Vui lòng xác thực email bằng mã OTP trước khi tiếp tục";
-    }
-    if (
-      !regData.phone.trim() ||
-      !/^[0-9]{9,11}$/.test(regData.phone.replace(/\s+/g, ""))
-    ) {
-      errs.phone = "Số điện thoại không hợp lệ (9-11 số)";
+    const cleanPhone = regData.phone.trim().replace(/\s+/g, "");
+    if (!cleanPhone || !/^[0-9]{9,11}$/.test(cleanPhone)) {
+      errs.phone = "Số điện thoại không hợp lệ (9-11 chữ số)";
     }
     if (!regData.password || regData.password.length < 8) {
       errs.password = "Mật khẩu phải từ 8 ký tự trở lên";
@@ -266,7 +351,7 @@ export default function AuthPage() {
     try {
       const res = await checkExistsApi({
         email: regData.email.trim(),
-        phone: regData.phone.trim(),
+        phone: cleanPhone,
       });
 
       if (!res.success) {
@@ -276,30 +361,86 @@ export default function AuthPage() {
         addToast(res.message, "error");
         return;
       }
+
+      // Tự động kích hoạt gửi mã OTP về Gmail ngay khi hoàn tất bước 1
+      setOtpLoading(true);
+      try {
+        const otpRes = await sendOtpApi(regData.email.trim().toLowerCase(), "REGISTER");
+        if (otpRes.success) {
+          setOtpSent(true);
+          setOtpVerified(false);
+          setOtpCode("");
+          startCooldown();
+          addToast(`Mã OTP đã được gửi đến ${regData.email}!`, "success");
+        } else {
+          addToast(otpRes.message || "Không thể gửi OTP, bạn có thể bấm gửi lại ở bước 2", "error");
+        }
+      } catch {
+        addToast("Không thể gửi OTP tự động, bạn có thể bấm gửi lại ở bước 2", "error");
+      } finally {
+        setOtpLoading(false);
+      }
+
+      setRegStep(2);
     } catch {
       console.warn("Không thể kiểm tra trùng lặp qua API");
+      setRegStep(2);
     } finally {
       setIsCheckingAccount(false);
     }
-
-    setRegStep(2);
   };
 
-  // Handle Register Final Submit
-  const handleRegisterSubmit = async (skipVehicle = false) => {
+  // Handle Register Final Submit (Bước 3)
+  const handleRegisterFinalSubmit = async () => {
+    const errs: Record<string, string> = {};
+
     if (!regData.agreeTerms) {
-      setErrors({ agreeTerms: "Bạn cần đồng ý với Điều khoản & Chính sách" });
+      errs.agreeTerms = "Bạn cần đồng ý với Điều khoản & Chính sách trước khi hoàn tất";
+    }
+
+    // Kiểm tra thông tin các xe
+    const formattedVehicles: Array<{ license_plate: string; vehicle_name?: string; vehicle_type?: string }> = [];
+
+    for (let i = 0; i < regVehicles.length; i++) {
+      const v = regVehicles[i];
+      const plate = v.licensePlate.trim().toUpperCase();
+      if (!plate) {
+        errs[`vehicle_${v.id}`] = `Vui lòng nhập biển số cho Xe số ${i + 1}`;
+      } else {
+        formattedVehicles.push({
+          license_plate: plate,
+          vehicle_name:
+            v.vehicleName.trim() ||
+            (v.vehicleType === "suv"
+              ? "SUV gầm cao"
+              : v.vehicleType === "ev"
+              ? "Xe điện"
+              : "Sedan cá nhân"),
+          vehicle_type:
+            v.vehicleType === "suv"
+              ? "SUV"
+              : v.vehicleType === "ev"
+              ? "EV"
+              : "Sedan",
+        });
+      }
+    }
+
+    if (Object.keys(errs).length > 0) {
+      setErrors(errs);
       return;
     }
     setErrors({});
     setStatus("loading");
 
     try {
+      const cleanPhone = regData.phone.trim().replace(/\s+/g, "");
       const res = await registerApi({
         full_name: regData.fullName.trim(),
-        email: regData.email.trim(),
+        email: regData.email.trim().toLowerCase(),
         password: regData.password,
-        phone: regData.phone.trim(),
+        phone: cleanPhone,
+        vehicles: formattedVehicles,
       });
 
       if (!res.success) {
@@ -310,45 +451,42 @@ export default function AuthPage() {
         return;
       }
 
-      // Nếu người dùng có nhập xe thì lưu vào store
-      if (!skipVehicle && regData.licensePlate.trim()) {
-        addVehicle({
-          id: `veh-${Date.now()}`,
-          name:
-            regData.vehicleType === "sedan"
-              ? "Sedan cá nhân"
-              : regData.vehicleType === "suv"
-              ? "SUV gầm cao"
-              : "VinFast VF e34",
-          plate: regData.licensePlate.trim().toUpperCase(),
-          type:
-            regData.vehicleType === "sedan"
-              ? "Sedan"
-              : regData.vehicleType === "suv"
-              ? "SUV"
-              : "EV",
-          isPrimary: true,
+      if (typeof window !== "undefined" && res.data?.token) {
+        localStorage.setItem("ezspace_token", res.data.token);
+      }
+
+      const returnedVehicles = Array.isArray(res.data?.vehicles)
+        ? res.data.vehicles.map((v: any) => ({
+            id: String(v.id),
+            name: v.vehicle_name || v.license_plate,
+            plate: v.license_plate,
+            type: v.vehicle_type === "EV" ? "EV" : v.vehicle_type === "SUV" ? "SUV" : "Sedan",
+          }))
+        : formattedVehicles.map((v, i) => ({
+            id: `veh-${Date.now()}-${i}`,
+            name: v.vehicle_name || v.license_plate,
+            plate: v.license_plate,
+            type: v.vehicle_type === "EV" ? "EV" : v.vehicle_type === "SUV" ? "SUV" : "Sedan",
+          }));
+
+      if (res.data?.user && res.data?.token) {
+        login({
+          name: res.data.user.full_name || regData.fullName,
+          email: res.data.user.email || regData.email,
+          phone: res.data.user.phone || regData.phone,
+          role: res.data.user.role || "customer",
+          token: res.data.token,
+          vehicles: returnedVehicles,
         });
       }
 
       setStatus("success");
-      setSuccessMsg(
-        skipVehicle
-          ? "Đăng ký thành công! Đang chuyển sang đăng nhập..."
-          : "Đăng ký thành công! Xe đã được liên kết."
-      );
+      setSuccessMsg("Đăng ký thành công! Đang chuyển hướng vào ứng dụng...");
 
       setTimeout(() => {
         setStatus("idle");
-        setView("login");
-        setRegStep(1);
-        setLoginData({
-          account: regData.email,
-          password: regData.password,
-          rememberMe: true,
-        });
-        addToast("Đăng ký thành công! Vui lòng đăng nhập bằng tài khoản vừa tạo.", "success");
-      }, 1500);
+        router.push("/");
+      }, 1200);
     } catch {
       setStatus("idle");
       const netErrMsg = "Không thể kết nối đến máy chủ Backend khi đăng ký!";
@@ -375,6 +513,136 @@ export default function AuthPage() {
         router.push("/");
       }, 1000);
     }, 1000);
+  };
+
+  // Forgot Password Strength calculation
+  const forgotPassStrength = useMemo(() => {
+    const pass = forgotNewPassword;
+    if (!pass) {
+      return { score: 0, text: "Chưa nhập", color: "bg-slate-300", textColor: "text-slate-400", width: "0%" };
+    }
+    if (pass.length < 8) {
+      return { score: 1, text: "Yếu (tối thiểu 8 ký tự)", color: "bg-rose-500", textColor: "text-rose-600", width: "25%" };
+    }
+    let score = 1;
+    if (pass.length >= 10) score += 1;
+    if (/[A-Z]/.test(pass) && /[a-z]/.test(pass)) score += 1;
+    if (/[0-9]/.test(pass)) score += 1;
+    if (/[^A-Za-z0-9]/.test(pass)) score += 1;
+
+    if (score <= 2) {
+      return { score: 2, text: "Trung bình", color: "bg-amber-500", textColor: "text-amber-600", width: "60%" };
+    } else {
+      return { score: 3, text: "Mạnh & An toàn", color: "bg-emerald-500", textColor: "text-emerald-600", width: "100%" };
+    }
+  }, [forgotNewPassword]);
+
+  // Forgot Password Cooldown timer
+  const startForgotCooldown = () => {
+    setForgotCooldown(60);
+    const interval = setInterval(() => {
+      setForgotCooldown((prev) => {
+        if (prev <= 1) { clearInterval(interval); return 0; }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  // 1. Gửi OTP quên mật khẩu
+  const handleForgotSendOtp = async () => {
+    if (!forgotEmail.trim() || !/\S+@\S+\.\S+/.test(forgotEmail)) {
+      setErrors({ forgotEmail: "Vui lòng nhập email hợp lệ (ví dụ: name@gmail.com)" });
+      return;
+    }
+    setForgotLoading(true);
+    setErrors({});
+    try {
+      const res = await sendOtpApi(forgotEmail.trim().toLowerCase(), "FORGOT_PASSWORD");
+      if (res.success) {
+        setForgotOtpSent(true);
+        setForgotOtpCode("");
+        startForgotCooldown();
+        clearToasts();
+      } else {
+        const msg = res.message || "Không thể gửi OTP đặt lại mật khẩu";
+        setErrors({ forgotEmail: msg });
+        addToast(msg, "error");
+      }
+    } catch {
+      const msg = "Không thể kết nối đến máy chủ khi gửi OTP";
+      setErrors({ forgotEmail: msg });
+      addToast(msg, "error");
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
+  // 2. Xác thực OTP quên mật khẩu
+  const handleForgotVerifyOtp = async () => {
+    if (forgotOtpCode.length !== 6) {
+      setErrors({ forgotOtp: "Mã OTP phải đủ 6 chữ số" });
+      return;
+    }
+    setForgotLoading(true);
+    setErrors({});
+    try {
+      const res = await verifyOtpApi(forgotEmail.trim().toLowerCase(), forgotOtpCode, "FORGOT_PASSWORD");
+      if (res.success) {
+        addToast("Xác thực email thành công! Vui lòng nhập mật khẩu mới.", "success");
+        setForgotStep(2);
+      } else {
+        setErrors({ forgotOtp: res.message || "Mã OTP không chính xác hoặc đã hết hạn" });
+      }
+    } catch {
+      setErrors({ forgotOtp: "Lỗi kết nối khi xác thực OTP" });
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
+  // 3. Đặt lại mật khẩu mới
+  const handleResetPasswordSubmit = async () => {
+    const errs: Record<string, string> = {};
+    if (!forgotNewPassword || forgotNewPassword.length < 8) {
+      errs.forgotNewPassword = "Mật khẩu mới phải từ 8 ký tự trở lên";
+    }
+    if (forgotNewPassword !== forgotConfirmPassword) {
+      errs.forgotConfirmPassword = "Mật khẩu xác nhận không khớp";
+    }
+    if (Object.keys(errs).length > 0) {
+      setErrors(errs);
+      return;
+    }
+    setForgotLoading(true);
+    setErrors({});
+    try {
+      const res = await resetPasswordApi({
+        email: forgotEmail.trim().toLowerCase(),
+        new_password: forgotNewPassword,
+        otp_code: forgotOtpCode,
+      });
+      if (res.success) {
+        addToast("Đặt lại mật khẩu thành công! Vui lòng đăng nhập với mật khẩu mới.", "success");
+        setLoginData((prev) => ({ ...prev, account: forgotEmail.trim(), password: "" }));
+        setView("login");
+        setForgotStep(1);
+        setForgotEmail("");
+        setForgotOtpCode("");
+        setForgotOtpSent(false);
+        setForgotNewPassword("");
+        setForgotConfirmPassword("");
+      } else {
+        const msg = res.message || "Không thể đặt lại mật khẩu";
+        setErrors({ forgotNewPassword: msg });
+        addToast(msg, "error");
+      }
+    } catch {
+      const msg = "Lỗi kết nối khi cập nhật mật khẩu";
+      setErrors({ forgotNewPassword: msg });
+      addToast(msg, "error");
+    } finally {
+      setForgotLoading(false);
+    }
   };
 
   return (
@@ -599,58 +867,7 @@ export default function AuthPage() {
           </div>
         </div>
 
-        {/* TAB SWITCH: LOGIN / REGISTER */}
-        <div className="px-6 mb-2 z-20">
-          <div
-            className={`p-1 rounded-2xl flex items-center transition-all ${
-              isDark
-                ? "bg-slate-900/80 border border-slate-800"
-                : "bg-slate-200/70 border border-slate-200 shadow-inner"
-            }`}
-          >
-            <button
-              type="button"
-              onClick={() => {
-                setView("login");
-                setStatus("idle");
-                setErrors({});
-              }}
-              className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-                view === "login"
-                  ? isDark
-                    ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/30"
-                    : "bg-white text-blue-600 shadow-sm"
-                  : isDark
-                  ? "text-slate-400 hover:text-white"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              <LogIn size={14} />
-              Đăng nhập
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setView("register");
-                setRegStep(1);
-                setStatus("idle");
-                setErrors({});
-              }}
-              className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-                view === "register"
-                  ? isDark
-                    ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/30"
-                    : "bg-white text-blue-600 shadow-sm"
-                  : isDark
-                  ? "text-slate-400 hover:text-white"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              <UserPlus size={14} />
-              Đăng ký
-            </button>
-          </div>
-        </div>
+
 
         {/* MAIN SCROLLABLE FORM CONTAINER */}
         <div className="flex-1 overflow-y-auto no-scrollbar px-6 pb-6 pt-1 z-20">
@@ -727,7 +944,7 @@ export default function AuthPage() {
                       onChange={(e) =>
                         setLoginData({ ...loginData, account: e.target.value })
                       }
-                      placeholder="example@ezspace.vn hoặc 0912..."
+                      placeholder="Nhập email hoặc SĐT"
                       className={`w-full pl-10 pr-3.5 py-3 rounded-2xl text-xs border transition-all outline-none ${
                         errors.account
                           ? "border-rose-500 focus:ring-1 focus:ring-rose-500"
@@ -756,19 +973,24 @@ export default function AuthPage() {
                     >
                       Mật khẩu
                     </label>
-                    <a
-                      href="#forgot"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        addToast(
-                          "Liên kết khôi phục mật khẩu đã được gửi đến email/SĐT của bạn.",
-                          "info"
-                        );
+                    <button
+                      type="button"
+                      onClick={() => {
+                        clearToasts();
+                        const emailGuess = loginData.account.includes("@") ? loginData.account.trim() : "";
+                        setForgotEmail(emailGuess);
+                        setForgotStep(1);
+                        setForgotOtpCode("");
+                        setForgotOtpSent(false);
+                        setForgotNewPassword("");
+                        setForgotConfirmPassword("");
+                        setErrors({});
+                        setView("forgot");
                       }}
-                      className="text-[11px] text-blue-600 hover:text-blue-700 font-semibold transition"
+                      className="text-[11px] text-blue-600 hover:text-blue-700 font-semibold transition cursor-pointer"
                     >
                       Quên mật khẩu?
-                    </a>
+                    </button>
                   </div>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
@@ -780,7 +1002,7 @@ export default function AuthPage() {
                       onChange={(e) =>
                         setLoginData({ ...loginData, password: e.target.value })
                       }
-                      placeholder="Nhập mật khẩu an toàn"
+                      placeholder="Nhập mật khẩu"
                       className={`w-full pl-10 pr-10 py-3 rounded-2xl text-xs border transition-all outline-none ${
                         errors.password
                           ? "border-rose-500 focus:ring-1 focus:ring-rose-500"
@@ -964,12 +1186,14 @@ export default function AuthPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <h2
-                      className={`text-lg font-extrabold tracking-tight ${
+                      className={`text-base font-extrabold tracking-tight ${
                         isDark ? "text-white" : "text-slate-900"
                       }`}
                     >
                       {regStep === 1
                         ? "Tạo tài khoản mới"
+                        : regStep === 2
+                        ? "Xác thực tài khoản"
                         : "Hồ sơ phương tiện"}
                     </h2>
                     <p
@@ -978,12 +1202,14 @@ export default function AuthPage() {
                       }`}
                     >
                       {regStep === 1
-                        ? "Bước 1: Thông tin cá nhân & bảo mật"
-                        : "Bước 2: Thêm xe để tự động nhận diện biển"}
+                        ? "Bước 1: Họ tên, email, SĐT & mật khẩu"
+                        : regStep === 2
+                        ? "Bước 2: Xác thực email qua mã OTP"
+                        : "Bước 3: Thông tin xe & hoàn tất"}
                     </p>
                   </div>
-                  <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-100 text-blue-700 border border-blue-200">
-                    {regStep}/2
+                  <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-100 text-blue-700 border border-blue-200 shrink-0">
+                    {regStep}/3
                   </span>
                 </div>
 
@@ -996,7 +1222,9 @@ export default function AuthPage() {
                   <div
                     className={`h-full transition-all duration-300 ${
                       regStep === 1
-                        ? "w-1/2 bg-blue-600"
+                        ? "w-1/3 bg-blue-600"
+                        : regStep === 2
+                        ? "w-2/3 bg-blue-600"
                         : "w-full bg-gradient-to-r from-blue-600 to-emerald-500"
                     }`}
                   ></div>
@@ -1006,7 +1234,7 @@ export default function AuthPage() {
               {/* REGISTER STEP 1: ACCOUNT DETAILS */}
               {regStep === 1 && (
                 <form
-                  onSubmit={handleRegisterNext}
+                  onSubmit={handleRegisterStep1Next}
                   className="space-y-2.5 pt-1"
                 >
                   {/* Full Name */}
@@ -1016,7 +1244,7 @@ export default function AuthPage() {
                         isDark ? "text-slate-300" : "text-slate-700"
                       }`}
                     >
-                      Họ và tên
+                      Họ và tên <span className="text-rose-500">*</span>
                     </label>
                     <div className="relative">
                       <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
@@ -1025,9 +1253,10 @@ export default function AuthPage() {
                       <input
                         type="text"
                         value={regData.fullName}
-                        onChange={(e) =>
-                          setRegData({ ...regData, fullName: e.target.value })
-                        }
+                        onChange={(e) => {
+                          setRegData({ ...regData, fullName: e.target.value });
+                          if (errors.fullName) setErrors({ ...errors, fullName: "" });
+                        }}
                         placeholder="Nguyễn Văn Minh"
                         className={`w-full pl-9 pr-3 py-2.5 rounded-xl text-xs border outline-none ${
                           errors.fullName ? "border-rose-500" : ""
@@ -1045,160 +1274,91 @@ export default function AuthPage() {
                     )}
                   </div>
 
-                  {/* Email & Phone */}
-                  <div className="grid grid-cols-1 gap-2.5">
-                    <div>
-                      <label
-                        className={`block text-[11px] font-semibold mb-1 ${
-                          isDark ? "text-slate-300" : "text-slate-700"
-                        }`}
-                      >
-                        Email
-                      </label>
-                      <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                          <Mail size={15} />
-                        </div>
-                        <input
-                          type="email"
-                          value={regData.email}
-                          onChange={(e) => {
-                            setRegData({ ...regData, email: e.target.value });
-                            setOtpSent(false);
-                            setOtpVerified(false);
-                            setOtpCode("");
-                          }}
-                          placeholder="minh.nguyen@gmail.com"
-                          className={`w-full pl-9 pr-3 py-2.5 rounded-xl text-xs border outline-none ${
-                            errors.email ? "border-rose-500" : otpVerified ? "border-emerald-500" : ""
-                          } ${
-                            isDark
-                              ? "bg-slate-900/90 border-slate-700 text-white placeholder-slate-500"
-                              : "bg-white border-slate-200 text-slate-900 placeholder-slate-400 focus:border-blue-600 focus:ring-1 focus:ring-blue-100 shadow-sm"
-                          }`}
-                        />
-                        {otpVerified && (
-                          <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
-                            <CheckCircle2 size={15} className="text-emerald-500" />
-                          </div>
-                        )}
-                      </div>
-                      {errors.email && (
-                        <p className="text-[10px] text-rose-500 mt-0.5 font-medium">
-                          {errors.email}
-                        </p>
-                      )}
-
-                      {/* OTP Input Section */}
-                      <div className="mt-2 space-y-2">
-                        {/* Send OTP Button */}
-                        {!otpVerified && (
-                          <div className="flex gap-2">
-                            <div className="relative flex-1">
-                              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                                <ShieldCheck size={15} />
-                              </div>
-                              <input
-                                type="text"
-                                value={otpCode}
-                                onChange={(e) => {
-                                  const val = e.target.value.replace(/\D/g, "").slice(0, 6);
-                                  setOtpCode(val);
-                                  setErrors({ ...errors, otp: "" });
-                                }}
-                                placeholder={otpSent ? "Nhập mã 6 số" : "Gửi mã OTP trước"}
-                                disabled={!otpSent}
-                                maxLength={6}
-                                className={`w-full pl-9 pr-3 py-2.5 rounded-xl text-xs border outline-none ${
-                                  errors.otp ? "border-rose-500" : ""
-                                } ${
-                                  isDark
-                                    ? "bg-slate-900/90 border-slate-700 text-white placeholder-slate-500 disabled:opacity-40"
-                                    : "bg-white border-slate-200 text-slate-900 placeholder-slate-400 focus:border-blue-600 focus:ring-1 focus:ring-blue-100 shadow-sm disabled:bg-slate-50 disabled:text-slate-400"
-                                }`}
-                              />
-                            </div>
-                            <button
-                              type="button"
-                              onClick={otpSent && otpCode.length === 6 ? handleVerifyOtp : handleSendOtp}
-                              disabled={otpLoading || (otpCooldown > 0 && !otpSent) || (otpCooldown > 0 && otpCode.length < 6)}
-                              className={`shrink-0 px-3 py-2.5 rounded-xl text-[10px] font-bold transition active:scale-95 flex items-center gap-1 whitespace-nowrap ${
-                                otpSent && otpCode.length === 6
-                                  ? "bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm"
-                                  : "bg-blue-600 text-white hover:bg-blue-700 shadow-sm disabled:opacity-50"
-                              }`}
-                            >
-                              {otpLoading ? (
-                                <Loader2 size={12} className="animate-spin" />
-                              ) : otpSent && otpCode.length === 6 ? (
-                                <><ShieldCheck size={12} /> Xác nhận</>
-                              ) : otpCooldown > 0 ? (
-                                `${otpCooldown}s`
-                              ) : (
-                                <><Mail size={12} /> {otpSent ? "Gửi lại" : "Gửi mã"}</>
-                              )}
-                            </button>
-                          </div>
-                        )}
-
-                        {/* OTP Verified badge */}
-                        {otpVerified && (
-                          <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-50 border border-emerald-200">
-                            <CheckCircle2 size={13} className="text-emerald-600 shrink-0" />
-                            <span className="text-[11px] font-semibold text-emerald-700">Email đã xác thực thành công!</span>
-                          </div>
-                        )}
-
-                        {errors.otp && (
-                          <p className="text-[10px] text-rose-500 font-medium">{errors.otp}</p>
-                        )}
-                      </div>
-                    </div>
-
-                    <div>
-                      <label
-                        className={`block text-[11px] font-semibold mb-1 ${
-                          isDark ? "text-slate-300" : "text-slate-700"
-                        }`}
-                      >
-                        Số điện thoại
-                      </label>
-                      <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                          <Phone size={15} />
-                        </div>
-                        <input
-                          type="tel"
-                          value={regData.phone}
-                          onChange={(e) =>
-                            setRegData({ ...regData, phone: e.target.value })
-                          }
-                          placeholder="0912 345 678"
-                          className={`w-full pl-9 pr-3 py-2.5 rounded-xl text-xs border outline-none ${
-                            errors.phone ? "border-rose-500" : ""
-                          } ${
-                            isDark
-                              ? "bg-slate-900/90 border-slate-700 text-white placeholder-slate-500"
-                              : "bg-white border-slate-200 text-slate-900 placeholder-slate-400 focus:border-blue-600 focus:ring-1 focus:ring-blue-100 shadow-sm"
-                          }`}
-                        />
-                      </div>
-                      {errors.phone && (
-                        <p className="text-[10px] text-rose-500 mt-0.5 font-medium">
-                          {errors.phone}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Password & Strength Meter */}
+                  {/* Email */}
                   <div>
                     <label
                       className={`block text-[11px] font-semibold mb-1 ${
                         isDark ? "text-slate-300" : "text-slate-700"
                       }`}
                     >
-                      Mật khẩu
+                      Email <span className="text-rose-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                        <Mail size={15} />
+                      </div>
+                      <input
+                        type="email"
+                        value={regData.email}
+                        onChange={(e) => {
+                          setRegData({ ...regData, email: e.target.value });
+                          setOtpSent(false);
+                          setOtpVerified(false);
+                          setOtpCode("");
+                          if (errors.email) setErrors({ ...errors, email: "" });
+                        }}
+                        placeholder="minh.nguyen@gmail.com"
+                        className={`w-full pl-9 pr-3 py-2.5 rounded-xl text-xs border outline-none ${
+                          errors.email ? "border-rose-500" : ""
+                        } ${
+                          isDark
+                            ? "bg-slate-900/90 border-slate-700 text-white placeholder-slate-500"
+                            : "bg-white border-slate-200 text-slate-900 placeholder-slate-400 focus:border-blue-600 focus:ring-1 focus:ring-blue-100 shadow-sm"
+                        }`}
+                      />
+                    </div>
+                    {errors.email && (
+                      <p className="text-[10px] text-rose-500 mt-0.5 font-medium">
+                        {errors.email}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Phone Number */}
+                  <div>
+                    <label
+                      className={`block text-[11px] font-semibold mb-1 ${
+                        isDark ? "text-slate-300" : "text-slate-700"
+                      }`}
+                    >
+                      Số điện thoại <span className="text-rose-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                        <Phone size={15} />
+                      </div>
+                      <input
+                        type="tel"
+                        value={regData.phone}
+                        onChange={(e) => {
+                          setRegData({ ...regData, phone: e.target.value });
+                          if (errors.phone) setErrors({ ...errors, phone: "" });
+                        }}
+                        placeholder="0905123456"
+                        className={`w-full pl-9 pr-3 py-2.5 rounded-xl text-xs border outline-none ${
+                          errors.phone ? "border-rose-500" : ""
+                        } ${
+                          isDark
+                            ? "bg-slate-900/90 border-slate-700 text-white placeholder-slate-500"
+                            : "bg-white border-slate-200 text-slate-900 placeholder-slate-400 focus:border-blue-600 focus:ring-1 focus:ring-blue-100 shadow-sm"
+                        }`}
+                      />
+                    </div>
+                    {errors.phone && (
+                      <p className="text-[10px] text-rose-500 mt-0.5 font-medium">
+                        {errors.phone}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Password Field */}
+                  <div>
+                    <label
+                      className={`block text-[11px] font-semibold mb-1 ${
+                        isDark ? "text-slate-300" : "text-slate-700"
+                      }`}
+                    >
+                      Mật khẩu (tối thiểu 8 ký tự) <span className="text-rose-500">*</span>
                     </label>
                     <div className="relative">
                       <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
@@ -1207,10 +1367,11 @@ export default function AuthPage() {
                       <input
                         type={showRegPassword ? "text" : "password"}
                         value={regData.password}
-                        onChange={(e) =>
-                          setRegData({ ...regData, password: e.target.value })
-                        }
-                        placeholder="Ít nhất 8 ký tự"
+                        onChange={(e) => {
+                          setRegData({ ...regData, password: e.target.value });
+                          if (errors.password) setErrors({ ...errors, password: "" });
+                        }}
+                        placeholder="••••••••"
                         className={`w-full pl-9 pr-10 py-2.5 rounded-xl text-xs border outline-none ${
                           errors.password ? "border-rose-500" : ""
                         } ${
@@ -1271,7 +1432,7 @@ export default function AuthPage() {
                         isDark ? "text-slate-300" : "text-slate-700"
                       }`}
                     >
-                      Xác nhận mật khẩu
+                      Xác nhận mật khẩu <span className="text-rose-500">*</span>
                     </label>
                     <div className="relative">
                       <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
@@ -1280,12 +1441,13 @@ export default function AuthPage() {
                       <input
                         type={showRegConfirm ? "text" : "password"}
                         value={regData.confirmPassword}
-                        onChange={(e) =>
+                        onChange={(e) => {
                           setRegData({
                             ...regData,
                             confirmPassword: e.target.value,
-                          })
-                        }
+                          });
+                          if (errors.confirmPassword) setErrors({ ...errors, confirmPassword: "" });
+                        }}
                         placeholder="Nhập lại mật khẩu"
                         className={`w-full pl-9 pr-10 py-2.5 rounded-xl text-xs border outline-none ${
                           errors.confirmPassword ? "border-rose-500" : ""
@@ -1313,13 +1475,13 @@ export default function AuthPage() {
                   {/* Button Next Step */}
                   <button
                     type="submit"
-                    disabled={isCheckingAccount}
+                    disabled={isCheckingAccount || otpLoading}
                     className="w-full min-h-[48px] mt-2 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2 active:scale-95 transition cursor-pointer disabled:opacity-60"
                   >
-                    {isCheckingAccount ? (
+                    {isCheckingAccount || otpLoading ? (
                       <>
                         <Loader2 size={16} className="animate-spin" />
-                        <span>Đang kiểm tra...</span>
+                        <span>Đang xử lý & gửi mã OTP...</span>
                       </>
                     ) : (
                       <>
@@ -1328,11 +1490,161 @@ export default function AuthPage() {
                       </>
                     )}
                   </button>
+
+                  {/* Link chuyển sang đăng nhập (chỉ hiển thị ở Bước 1) */}
+                  <div className="pt-2 text-center">
+                    <p
+                      className={`text-xs ${
+                        isDark ? "text-slate-400" : "text-slate-600 font-medium"
+                      }`}
+                    >
+                      Đã có tài khoản EZ-Space?{" "}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setView("login");
+                          setErrors({});
+                        }}
+                        className="text-blue-600 hover:text-blue-700 font-bold transition ml-1 underline decoration-blue-500/40 cursor-pointer"
+                      >
+                        Đăng nhập ngay
+                      </button>
+                    </p>
+                  </div>
                 </form>
               )}
 
-              {/* REGISTER STEP 2: VEHICLE PROFILE */}
+              {/* REGISTER STEP 2: XÁC THỰC OTP QUA GMAIL */}
               {regStep === 2 && (
+                <div className="space-y-4 pt-1 animate-fade-slide">
+                  {/* Email Destination Card */}
+                  <div
+                    className={`p-3.5 rounded-2xl border text-xs flex items-start gap-3 ${
+                      isDark
+                        ? "bg-blue-500/10 border-blue-500/20 text-blue-200"
+                        : "bg-blue-50 border-blue-200 text-blue-900"
+                    }`}
+                  >
+                    <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-sm shadow-blue-500/30">
+                      <Mail size={16} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-[12px] truncate">
+                        {regData.email}
+                      </p>
+                      <p className="text-[11px] opacity-80 mt-0.5 leading-relaxed">
+                        Mã OTP 6 số đã được gửi tự động tới Gmail trên. Vui lòng kiểm tra hộp thư (hoặc mục Spam).
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* 6-Digit OTP Input */}
+                  <div>
+                    <label
+                      className={`block text-xs font-semibold mb-1.5 ${
+                        isDark ? "text-slate-300" : "text-slate-700"
+                      }`}
+                    >
+                      Nhập mã xác thực OTP (6 chữ số)
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                        <ShieldCheck size={18} />
+                      </div>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={6}
+                        autoFocus
+                        value={otpCode}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/[^0-9]/g, "");
+                          setOtpCode(val);
+                          if (errors.otp) setErrors({ ...errors, otp: "" });
+                        }}
+                        placeholder="••••••"
+                        className={`w-full pl-11 pr-4 py-3 rounded-2xl text-center text-lg font-mono font-black tracking-[0.5em] border outline-none transition-all ${
+                          errors.otp
+                            ? "border-rose-500 bg-rose-50/20 text-rose-600 focus:ring-1 focus:ring-rose-500"
+                            : isDark
+                            ? "bg-slate-900 border-slate-700 text-emerald-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30"
+                            : "bg-white border-slate-300 text-blue-700 focus:border-blue-600 focus:ring-1 focus:ring-blue-100 shadow-sm"
+                        }`}
+                      />
+                    </div>
+                    {errors.otp && (
+                      <p className="text-[11px] text-rose-500 font-medium mt-1 flex items-center gap-1">
+                        <AlertCircle size={13} /> {errors.otp}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Resend OTP button / Countdown */}
+                  <div className="flex items-center justify-between text-xs px-1">
+                    <span
+                      className={`${
+                        isDark ? "text-slate-400" : "text-slate-500"
+                      }`}
+                    >
+                      Chưa nhận được mã?
+                    </span>
+                    {otpCooldown > 0 ? (
+                      <span className="font-semibold text-blue-500 flex items-center gap-1">
+                        <Clock size={13} className="animate-spin" />
+                        Gửi lại sau {otpCooldown}s
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={handleSendOtp}
+                        disabled={otpLoading}
+                        className="font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 underline decoration-blue-500/40 cursor-pointer"
+                      >
+                        <RefreshCw size={13} className={otpLoading ? "animate-spin" : ""} />
+                        Gửi lại mã OTP
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Action Buttons: Verify & Back */}
+                  <div className="space-y-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={handleVerifyOtp}
+                      disabled={otpLoading || otpCode.length !== 6}
+                      className="w-full min-h-[48px] rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2 active:scale-95 transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                    >
+                      {otpLoading ? (
+                        <span className="flex items-center gap-2">
+                          <Loader2 size={17} className="animate-spin" />
+                          Đang xác thực...
+                        </span>
+                      ) : (
+                        <>
+                          <span>Tiếp tục</span>
+                          <ArrowRight size={16} />
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setRegStep(1)}
+                      className={`w-full py-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer ${
+                        isDark
+                          ? "text-slate-400 hover:text-white"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      <ChevronLeft size={15} />
+                      Quay lại
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* REGISTER STEP 3: THÔNG TIN XE & HOÀN TẤT ĐĂNG KÝ */}
+              {regStep === 3 && (
                 <div className="space-y-3.5 pt-1 animate-fade-slide">
                   <div
                     className={`p-3 rounded-2xl border text-xs flex items-start gap-2.5 ${
@@ -1341,176 +1653,245 @@ export default function AuthPage() {
                         : "bg-blue-50 border-blue-200 text-blue-800"
                     }`}
                   >
-                    <Info
-                      size={18}
-                      className="shrink-0 text-blue-600 mt-0.5"
-                    />
+                    <Info size={18} className="shrink-0 text-blue-600 mt-0.5" />
                     <span>
-                      Thêm biển số xe giúp hệ thống camera AI tự động mở barie
-                      khi bạn đến bãi xe EZ-Space mà không cần quét thẻ!
+                      Thêm thông tin xe để camera AI nhận diện biển số tự động mở barie khi bạn vào/ra bãi xe EZ-Space!
                     </span>
                   </div>
 
-                  {/* License Plate Input */}
-                  <div>
-                    <label
-                      className={`block text-xs font-semibold mb-1.5 ${
-                        isDark ? "text-slate-300" : "text-slate-700"
-                      }`}
-                    >
-                      Biển số xe của bạn (Ví dụ: 51K-889.92)
-                    </label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                        <Car size={16} />
-                      </div>
-                      <input
-                        type="text"
-                        value={regData.licensePlate}
-                        onChange={(e) =>
-                          setRegData({
-                            ...regData,
-                            licensePlate: e.target.value.toUpperCase(),
-                          })
-                        }
-                        placeholder="51K-889.92"
-                        className={`w-full pl-10 pr-3.5 py-3 rounded-2xl text-xs font-mono font-bold tracking-wider uppercase border outline-none ${
+                  {/* Dynamic Vehicle Cards List */}
+                  <div className="space-y-3">
+                    {regVehicles.map((veh, idx) => (
+                      <div
+                        key={veh.id}
+                        className={`p-3.5 rounded-2xl border transition-all ${
                           isDark
-                            ? "bg-slate-900 border-slate-700 text-amber-300 placeholder-slate-500"
-                            : "bg-white border-slate-300 text-blue-700 placeholder-slate-400 focus:border-blue-600 focus:ring-1 focus:ring-blue-100 shadow-sm"
+                            ? "bg-slate-900/60 border-slate-700/80"
+                            : "bg-white border-slate-200 shadow-sm"
                         }`}
-                      />
-                    </div>
+                      >
+                        {/* Vehicle Card Header */}
+                        <div className="flex items-center justify-between mb-2.5 pb-2 border-b border-dashed border-slate-200 dark:border-slate-800">
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-5 h-5 rounded-full bg-blue-600/10 text-blue-600 flex items-center justify-center font-bold text-[10px]">
+                              {idx + 1}
+                            </div>
+                            <span
+                              className={`text-xs font-bold ${
+                                isDark ? "text-slate-200" : "text-slate-800"
+                              }`}
+                            >
+                              Xe số {idx + 1}
+                            </span>
+                          </div>
+
+                          {regVehicles.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => removeVehicleCard(veh.id)}
+                              className="text-rose-500 hover:text-rose-600 p-1 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 transition cursor-pointer flex items-center gap-1 text-[11px]"
+                              title="Xóa xe này"
+                            >
+                              <Trash2 size={14} />
+                              <span>Xóa</span>
+                            </button>
+                          )}
+                        </div>
+
+                        {/* License Plate Input */}
+                        <div className="mb-2.5">
+                          <label
+                            className={`block text-[11px] font-semibold mb-1 ${
+                              isDark ? "text-slate-300" : "text-slate-700"
+                            }`}
+                          >
+                            Biển số xe (VD: 51K-889.92)
+                          </label>
+                          <div className="relative">
+                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                              <Car size={15} />
+                            </div>
+                            <input
+                              type="text"
+                              value={veh.licensePlate}
+                              onChange={(e) =>
+                                updateVehicleField(
+                                  veh.id,
+                                  "licensePlate",
+                                  e.target.value.toUpperCase()
+                                )
+                              }
+                              placeholder="Nhập biển số xe"
+                              className={`w-full pl-9 pr-3 py-2.5 rounded-xl text-xs border outline-none ${
+                                errors[`vehicle_${veh.id}`]
+                                  ? "border-rose-500 bg-rose-50/20 text-rose-600"
+                                  : isDark
+                                  ? "bg-slate-950 border-slate-700 text-slate-200 placeholder-slate-500"
+                                  : "bg-slate-50 border-slate-300 text-slate-800 placeholder-slate-400 focus:border-blue-600 focus:bg-white"
+                              }`}
+                            />
+                          </div>
+                          {errors[`vehicle_${veh.id}`] && (
+                            <p className="text-[10px] text-rose-500 font-medium mt-1">
+                              {errors[`vehicle_${veh.id}`]}
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Vehicle Name / Model */}
+                        <div className="mb-2.5">
+                          <label
+                            className={`block text-[11px] font-semibold mb-1 ${
+                              isDark ? "text-slate-300" : "text-slate-700"
+                            }`}
+                          >
+                            Tên xe / Hãng xe (VD: Mazda CX-5, VF8...)
+                          </label>
+                          <input
+                            type="text"
+                            value={veh.vehicleName}
+                            onChange={(e) =>
+                              updateVehicleField(veh.id, "vehicleName", e.target.value)
+                            }
+                            placeholder="Nhập tên xe hoặc hãng xe"
+                            className={`w-full px-3 py-2.5 rounded-xl text-xs border outline-none ${
+                              isDark
+                                ? "bg-slate-950 border-slate-700 text-slate-200 placeholder-slate-500"
+                                : "bg-slate-50 border-slate-300 text-slate-800 placeholder-slate-400 focus:border-blue-600 focus:bg-white"
+                            }`}
+                          />
+                        </div>
+
+                        {/* 3 Vehicle Types */}
+                        <div>
+                          <label
+                            className={`block text-[11px] font-semibold mb-1.5 ${
+                              isDark ? "text-slate-300" : "text-slate-700"
+                            }`}
+                          >
+                            Loại xe
+                          </label>
+                          <div className="grid grid-cols-3 gap-2">
+                            {/* Sedan */}
+                            <div
+                              onClick={() =>
+                                updateVehicleField(veh.id, "vehicleType", "sedan")
+                              }
+                              className={`cursor-pointer p-2 rounded-xl border text-center transition-all ${
+                                veh.vehicleType === "sedan"
+                                  ? isDark
+                                    ? "border-blue-500 bg-blue-600/20 shadow-sm"
+                                    : "border-blue-600 bg-blue-50 text-blue-900 shadow-sm"
+                                  : isDark
+                                  ? "border-slate-800 bg-slate-950/70 opacity-70"
+                                  : "border-slate-200 bg-white hover:border-slate-300"
+                              }`}
+                            >
+                              <div
+                                className={`w-7 h-7 mx-auto mb-1 rounded-full flex items-center justify-center ${
+                                  veh.vehicleType === "sedan"
+                                    ? "bg-blue-600 text-white"
+                                    : "bg-blue-100 text-blue-600"
+                                }`}
+                              >
+                                <Car size={15} />
+                              </div>
+                              <p className="text-[11px] font-bold">Sedan</p>
+                              <p
+                                className={`text-[9px] ${
+                                  isDark ? "text-slate-400" : "text-slate-500"
+                                }`}
+                              >
+                                4-5 chỗ
+                              </p>
+                            </div>
+
+                            {/* SUV / MPV */}
+                            <div
+                              onClick={() =>
+                                updateVehicleField(veh.id, "vehicleType", "suv")
+                              }
+                              className={`cursor-pointer p-2 rounded-xl border text-center transition-all ${
+                                veh.vehicleType === "suv"
+                                  ? isDark
+                                    ? "border-blue-500 bg-blue-600/20 shadow-sm"
+                                    : "border-blue-600 bg-blue-50 text-blue-900 shadow-sm"
+                                  : isDark
+                                  ? "border-slate-800 bg-slate-950/70 opacity-70"
+                                  : "border-slate-200 bg-white hover:border-slate-300"
+                              }`}
+                            >
+                              <div
+                                className={`w-7 h-7 mx-auto mb-1 rounded-full flex items-center justify-center ${
+                                  veh.vehicleType === "suv"
+                                    ? "bg-indigo-600 text-white"
+                                    : "bg-indigo-100 text-indigo-600"
+                                }`}
+                              >
+                                <Truck size={15} />
+                              </div>
+                              <p className="text-[11px] font-bold">SUV / MPV</p>
+                              <p
+                                className={`text-[9px] ${
+                                  isDark ? "text-slate-400" : "text-slate-500"
+                                }`}
+                              >
+                                Gầm cao
+                              </p>
+                            </div>
+
+                            {/* EV Electric Car */}
+                            <div
+                              onClick={() =>
+                                updateVehicleField(veh.id, "vehicleType", "ev")
+                              }
+                              className={`cursor-pointer p-2 rounded-xl border text-center transition-all ${
+                                veh.vehicleType === "ev"
+                                  ? isDark
+                                    ? "border-emerald-500 bg-emerald-600/20 shadow-sm"
+                                    : "border-emerald-600 bg-emerald-50 text-emerald-900 shadow-sm"
+                                  : isDark
+                                  ? "border-slate-800 bg-slate-950/70 opacity-70"
+                                  : "border-slate-200 bg-white hover:border-slate-300"
+                              }`}
+                            >
+                              <div
+                                className={`w-7 h-7 mx-auto mb-1 rounded-full flex items-center justify-center ${
+                                  veh.vehicleType === "ev"
+                                    ? "bg-emerald-600 text-white"
+                                    : "bg-emerald-100 text-emerald-600"
+                                }`}
+                              >
+                                <Zap size={15} />
+                              </div>
+                              <p className="text-[11px] font-bold">Xe Điện</p>
+                              <p
+                                className={`text-[9px] ${
+                                  isDark ? "text-slate-400" : "text-slate-500"
+                                }`}
+                              >
+                                Cổng sạc EV
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
 
-                  {/* Vehicle Type Card Selector (Sedan / SUV / EV) */}
-                  <div>
-                    <label
-                      className={`block text-xs font-semibold mb-2 ${
-                        isDark ? "text-slate-300" : "text-slate-700"
-                      }`}
-                    >
-                      Chọn phân loại xe
-                    </label>
-                    <div className="grid grid-cols-3 gap-2">
-                      {/* Sedan */}
-                      <div
-                        onClick={() =>
-                          setRegData({ ...regData, vehicleType: "sedan" })
-                        }
-                        className={`cursor-pointer p-2.5 rounded-2xl border text-center transition-all transform active:scale-95 ${
-                          regData.vehicleType === "sedan"
-                            ? isDark
-                              ? "border-blue-500 bg-blue-600/20 shadow-md shadow-blue-500/20 scale-[1.02]"
-                              : "border-blue-600 bg-blue-50 text-blue-900 shadow-sm scale-[1.02]"
-                            : isDark
-                            ? "border-slate-800 bg-slate-900/70 opacity-70"
-                            : "border-slate-200 bg-white hover:border-slate-300"
-                        }`}
-                      >
-                        <div
-                          className={`w-8 h-8 mx-auto mb-1.5 rounded-full flex items-center justify-center ${
-                            regData.vehicleType === "sedan"
-                              ? "bg-blue-600 text-white"
-                              : "bg-blue-100 text-blue-600"
-                          }`}
-                        >
-                          <Car size={18} />
-                        </div>
-                        <p className="text-[11px] font-bold">Sedan</p>
-                        <p
-                          className={`text-[9px] ${
-                            isDark ? "text-slate-400" : "text-slate-500"
-                          }`}
-                        >
-                          Xe 4-5 chỗ
-                        </p>
-                        {regData.vehicleType === "sedan" && (
-                          <div className="mt-1 inline-flex items-center gap-0.5 text-[9px] font-semibold text-blue-600">
-                            <Check size={11} /> Đã chọn
-                          </div>
-                        )}
-                      </div>
-
-                      {/* SUV / MPV */}
-                      <div
-                        onClick={() =>
-                          setRegData({ ...regData, vehicleType: "suv" })
-                        }
-                        className={`cursor-pointer p-2.5 rounded-2xl border text-center transition-all transform active:scale-95 ${
-                          regData.vehicleType === "suv"
-                            ? isDark
-                              ? "border-blue-500 bg-blue-600/20 shadow-md shadow-blue-500/20 scale-[1.02]"
-                              : "border-blue-600 bg-blue-50 text-blue-900 shadow-sm scale-[1.02]"
-                            : isDark
-                            ? "border-slate-800 bg-slate-900/70 opacity-70"
-                            : "border-slate-200 bg-white hover:border-slate-300"
-                        }`}
-                      >
-                        <div
-                          className={`w-8 h-8 mx-auto mb-1.5 rounded-full flex items-center justify-center ${
-                            regData.vehicleType === "suv"
-                              ? "bg-indigo-600 text-white"
-                              : "bg-indigo-100 text-indigo-600"
-                          }`}
-                        >
-                          <Truck size={18} />
-                        </div>
-                        <p className="text-[11px] font-bold">SUV / MPV</p>
-                        <p
-                          className={`text-[9px] ${
-                            isDark ? "text-slate-400" : "text-slate-500"
-                          }`}
-                        >
-                          Gầm cao
-                        </p>
-                        {regData.vehicleType === "suv" && (
-                          <div className="mt-1 inline-flex items-center gap-0.5 text-[9px] font-semibold text-blue-600">
-                            <Check size={11} /> Đã chọn
-                          </div>
-                        )}
-                      </div>
-
-                      {/* EV Electric Car */}
-                      <div
-                        onClick={() =>
-                          setRegData({ ...regData, vehicleType: "ev" })
-                        }
-                        className={`cursor-pointer p-2.5 rounded-2xl border text-center transition-all transform active:scale-95 ${
-                          regData.vehicleType === "ev"
-                            ? isDark
-                              ? "border-emerald-500 bg-emerald-600/20 shadow-md shadow-emerald-500/20 scale-[1.02]"
-                              : "border-emerald-600 bg-emerald-50 text-emerald-900 shadow-sm scale-[1.02]"
-                            : isDark
-                            ? "border-slate-800 bg-slate-900/70 opacity-70"
-                            : "border-slate-200 bg-white hover:border-slate-300"
-                        }`}
-                      >
-                        <div
-                          className={`w-8 h-8 mx-auto mb-1.5 rounded-full flex items-center justify-center ${
-                            regData.vehicleType === "ev"
-                              ? "bg-emerald-600 text-white"
-                              : "bg-emerald-100 text-emerald-600"
-                          }`}
-                        >
-                          <Zap size={18} />
-                        </div>
-                        <p className="text-[11px] font-bold">Xe Điện</p>
-                        <p
-                          className={`text-[9px] ${
-                            isDark ? "text-slate-400" : "text-slate-500"
-                          }`}
-                        >
-                          Cổng sạc EV
-                        </p>
-                        {regData.vehicleType === "ev" && (
-                          <div className="mt-1 inline-flex items-center gap-0.5 text-[9px] font-semibold text-emerald-600">
-                            <Check size={11} /> Đã chọn
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
+                  {/* Button Add Another Vehicle */}
+                  <button
+                    type="button"
+                    onClick={addVehicleCard}
+                    className={`w-full py-2.5 px-3 rounded-2xl border-2 border-dashed font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer ${
+                      isDark
+                        ? "border-blue-500/40 text-blue-400 hover:bg-blue-500/10 hover:border-blue-500"
+                        : "border-blue-300 text-blue-600 hover:bg-blue-50 hover:border-blue-500"
+                    }`}
+                  >
+                    <Plus size={16} />
+                    <span>Thêm xe khác</span>
+                  </button>
 
                   {/* Agree Terms Checkbox */}
                   <div className="pt-1">
@@ -1524,14 +1905,14 @@ export default function AuthPage() {
                             agreeTerms: e.target.checked,
                           })
                         }
-                        className="mt-0.5 w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                        className="mt-0.5 w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                       />
                       <span
                         className={`text-[11px] leading-relaxed ${
                           isDark ? "text-slate-300" : "text-slate-600"
                         }`}
                       >
-                        Tôi đồng ý với{" "}
+                        Tôi đã đọc và đồng ý với{" "}
                         <a
                           href="#terms"
                           onClick={(e) => {
@@ -1568,76 +1949,423 @@ export default function AuthPage() {
                     )}
                   </div>
 
-                  {/* Buttons: Submit or Skip */}
+                  {/* Buttons: Submit & Back */}
                   <div className="space-y-2 pt-1">
                     <button
                       type="button"
-                      onClick={() => handleRegisterSubmit(false)}
-                      disabled={status === "loading"}
-                      className="w-full min-h-[48px] rounded-2xl bg-gradient-to-r from-blue-600 via-teal-600 to-emerald-600 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-blue-600/20 flex items-center justify-center gap-2 active:scale-95 transition cursor-pointer"
+                      onClick={handleRegisterFinalSubmit}
+                      disabled={status === "loading" || !regData.agreeTerms}
+                      className="w-full min-h-[48px] rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2 active:scale-95 transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                     >
                       {status === "loading" ? (
                         <span className="flex items-center gap-2">
                           <Loader2 size={17} className="animate-spin" />
-                          Đang tạo tài khoản...
+                          Đang hoàn tất đăng ký...
                         </span>
                       ) : (
                         <>
                           <UserCheck size={16} />
-                          <span>Hoàn tất & Đăng ký</span>
+                          <span>Hoàn tất đăng ký</span>
                         </>
                       )}
                     </button>
 
-                    <div className="flex items-center justify-between gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setRegStep(2)}
+                      className={`w-full py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1 cursor-pointer ${
+                        isDark
+                          ? "text-slate-400 hover:text-white"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      <ChevronLeft size={15} />
+                      Quay lại
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ==================== VIEW 3: FORGOT PASSWORD WIZARD ==================== */}
+          {view === "forgot" && (
+            <div className="space-y-4 animate-fade-slide">
+              {/* Header & Step Bar */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2
+                      className={`text-base font-extrabold tracking-tight ${
+                        isDark ? "text-white" : "text-slate-900"
+                      }`}
+                    >
+                      {forgotStep === 1 ? "Quên mật khẩu? 🔑" : "Tạo mật khẩu mới 🔒"}
+                    </h2>
+                    <p
+                      className={`text-[11px] mt-0.5 ${
+                        isDark ? "text-slate-400" : "text-slate-500"
+                      }`}
+                    >
+                      {forgotStep === 1
+                        ? "Nhập email tài khoản để nhận mã OTP xác thực"
+                        : "Nhập mật khẩu mới an toàn cho tài khoản của bạn"}
+                    </p>
+                  </div>
+                  <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 border border-blue-200">
+                    Bước {forgotStep}/2
+                  </span>
+                </div>
+
+                {/* Progress bar (2 steps) */}
+                <div className="grid grid-cols-2 gap-1.5 pt-1">
+                  <div
+                    className={`h-1 rounded-full transition-all duration-300 ${
+                      forgotStep >= 1 ? "bg-blue-600" : "bg-slate-200"
+                    }`}
+                  ></div>
+                  <div
+                    className={`h-1 rounded-full transition-all duration-300 ${
+                      forgotStep >= 2 ? "bg-blue-600" : "bg-slate-200"
+                    }`}
+                  ></div>
+                </div>
+              </div>
+
+              {/* STEP 1: ENTER EMAIL & VERIFY OTP */}
+              {forgotStep === 1 && (
+                <div className="space-y-3.5">
+                  {/* Email Input */}
+                  <div>
+                    <label
+                      className={`block text-xs font-semibold mb-1.5 ${
+                        isDark ? "text-slate-300" : "text-slate-700"
+                      }`}
+                    >
+                      Email tài khoản
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                        <Mail size={16} />
+                      </div>
+                      <input
+                        type="email"
+                        disabled={forgotOtpSent || forgotLoading}
+                        value={forgotEmail}
+                        onChange={(e) => {
+                          setForgotEmail(e.target.value);
+                          if (errors.forgotEmail) setErrors((prev) => ({ ...prev, forgotEmail: "" }));
+                        }}
+                        placeholder="name@example.com"
+                        className={`w-full pl-10 pr-3.5 py-3 rounded-2xl text-xs border transition-all outline-none ${
+                          errors.forgotEmail
+                            ? "border-rose-500 focus:ring-1 focus:ring-rose-500"
+                            : ""
+                        } ${
+                          forgotOtpSent ? "bg-slate-100 text-slate-500 cursor-not-allowed" : "bg-white text-slate-900 border-slate-200 focus:border-blue-600 focus:ring-2 focus:ring-blue-100 shadow-sm"
+                        }`}
+                      />
+                    </div>
+                    {errors.forgotEmail && (
+                      <p className="text-[11px] text-rose-500 mt-1 font-medium">
+                        {errors.forgotEmail}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* If OTP not sent yet */}
+                  {!forgotOtpSent ? (
+                    <div className="pt-1">
                       <button
                         type="button"
-                        onClick={() => setRegStep(1)}
-                        className={`flex-1 py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1 cursor-pointer ${
-                          isDark
-                            ? "text-slate-400 hover:text-white"
-                            : "text-slate-600 hover:text-slate-900"
-                        }`}
+                        onClick={handleForgotSendOtp}
+                        disabled={forgotLoading || !forgotEmail.trim()}
+                        className="w-full min-h-[48px] rounded-2xl bg-gradient-to-r from-blue-600 via-blue-600 to-indigo-600 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2 active:scale-95 transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                       >
-                        <ChevronLeft size={15} />
-                        Quay lại bước 1
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleRegisterSubmit(true)}
-                        className={`flex-1 py-2 rounded-xl text-xs font-semibold underline cursor-pointer ${
-                          isDark
-                            ? "text-slate-400 hover:text-amber-400 decoration-slate-600"
-                            : "text-slate-500 hover:text-blue-600 decoration-slate-400"
-                        }`}
-                      >
-                        Bỏ qua bước này
+                        {forgotLoading ? (
+                          <span className="flex items-center gap-2">
+                            <Loader2 size={17} className="animate-spin" />
+                            Đang kiểm tra & gửi mã...
+                          </span>
+                        ) : (
+                          <>
+                            <Mail size={16} />
+                            <span>Gửi mã OTP về Gmail</span>
+                          </>
+                        )}
                       </button>
                     </div>
+                  ) : (
+                    /* If OTP has been sent: show OTP input & Verify button */
+                    <div className="space-y-3 pt-1 animate-fade-slide">
+                      <div className="p-3 rounded-2xl bg-blue-50 border border-blue-200/80 text-blue-900 text-xs">
+                        <div className="flex items-start gap-2">
+                          <CheckCircle2 size={16} className="text-blue-600 shrink-0 mt-0.5" />
+                          <div>
+                            <p className="font-semibold text-blue-800">Mã OTP đã được gửi!</p>
+                            <p className="text-[11px] text-blue-700/80 mt-0.5">
+                              Vui lòng kiểm tra hộp thư email của bạn
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* OTP Code Input */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <label
+                            className={`text-xs font-semibold ${
+                              isDark ? "text-slate-300" : "text-slate-700"
+                            }`}
+                          >
+                            Nhập mã OTP 6 số
+                          </label>
+                          <div className="text-[11px] font-medium text-slate-500">
+                            {forgotCooldown > 0 ? (
+                              <span className="flex items-center gap-1 text-blue-600">
+                                <Clock size={12} />
+                                Gửi lại sau {forgotCooldown}s
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={handleForgotSendOtp}
+                                disabled={forgotLoading}
+                                className="text-blue-600 hover:text-blue-700 font-bold flex items-center gap-1 cursor-pointer"
+                              >
+                                <RefreshCw size={12} />
+                                Gửi lại mã OTP
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        <div className="relative">
+                          <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                            <ShieldCheck size={16} />
+                          </div>
+                          <input
+                            type="text"
+                            maxLength={6}
+                            value={forgotOtpCode}
+                            onChange={(e) => {
+                              const val = e.target.value.replace(/\D/g, "");
+                              setForgotOtpCode(val);
+                              if (errors.forgotOtp) setErrors((prev) => ({ ...prev, forgotOtp: "" }));
+                            }}
+                            placeholder="------"
+                            className={`w-full pl-10 pr-4 py-3 rounded-2xl text-center text-lg font-mono tracking-[0.5em] font-bold border transition-all outline-none ${
+                              errors.forgotOtp
+                                ? "border-rose-500 focus:ring-1 focus:ring-rose-500"
+                                : ""
+                            } bg-white border-slate-200 text-slate-900 placeholder-slate-300 focus:border-blue-600 focus:ring-2 focus:ring-blue-100 shadow-sm`}
+                          />
+                        </div>
+                        {errors.forgotOtp && (
+                          <p className="text-[11px] text-rose-500 mt-1 font-medium">
+                            {errors.forgotOtp}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Verify Button */}
+                      <button
+                        type="button"
+                        onClick={handleForgotVerifyOtp}
+                        disabled={forgotLoading || forgotOtpCode.length !== 6}
+                        className="w-full min-h-[48px] rounded-2xl bg-gradient-to-r from-blue-600 via-blue-600 to-indigo-600 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2 active:scale-95 transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                      >
+                        {forgotLoading ? (
+                          <span className="flex items-center gap-2">
+                            <Loader2 size={17} className="animate-spin" />
+                            Đang xác thực OTP...
+                          </span>
+                        ) : (
+                          <span>Xác nhận</span>
+                        )}
+                      </button>
+
+                      {/* Change Email */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setForgotOtpSent(false);
+                          setForgotOtpCode("");
+                          setErrors({});
+                        }}
+                        className="w-full text-center text-xs text-slate-500 hover:text-blue-600 font-medium py-1 transition cursor-pointer"
+                      >
+                        Đổi địa chỉ email khác
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Back to Login Link */}
+                  <div className="pt-2 text-center">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setView("login");
+                        setErrors({});
+                      }}
+                      className="text-xs text-slate-600 hover:text-slate-900 font-semibold inline-flex items-center gap-1 cursor-pointer transition"
+                    >
+                      <ChevronLeft size={15} />
+                      <span>Quay lại đăng nhập</span>
+                    </button>
                   </div>
                 </div>
               )}
 
-              {/* Back to login option */}
-              <div className="pt-2 text-center">
-                <p
-                  className={`text-xs ${
-                    isDark ? "text-slate-400" : "text-slate-600 font-medium"
-                  }`}
-                >
-                  Đã có tài khoản EZ-Space?{" "}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setView("login");
-                      setErrors({});
-                    }}
-                    className="text-blue-600 hover:text-blue-700 font-bold transition ml-1 underline decoration-blue-500/40 cursor-pointer"
-                  >
-                    Đăng nhập ngay
-                  </button>
-                </p>
-              </div>
+              {/* STEP 2: ENTER NEW PASSWORD & CONFIRM */}
+              {forgotStep === 2 && (
+                <div className="space-y-3.5 animate-fade-slide">
+                  {/* Verified Email Card */}
+                  <div className="p-3 rounded-2xl bg-emerald-50 border border-emerald-200/80 text-emerald-900 text-xs flex items-center gap-2.5">
+                    <div className="w-6 h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                      <Check size={14} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-bold text-emerald-800 text-[11px]">Đã xác thực email thành công</p>
+                      <p className="text-[11px] text-emerald-700 truncate">{forgotEmail}</p>
+                    </div>
+                  </div>
+
+                  {/* New Password */}
+                  <div>
+                    <label
+                      className={`block text-xs font-semibold mb-1.5 ${
+                        isDark ? "text-slate-300" : "text-slate-700"
+                      }`}
+                    >
+                      Mật khẩu mới
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                        <Lock size={16} />
+                      </div>
+                      <input
+                        type={showForgotNewPass ? "text" : "password"}
+                        value={forgotNewPassword}
+                        onChange={(e) => {
+                          setForgotNewPassword(e.target.value);
+                          if (errors.forgotNewPassword) setErrors((prev) => ({ ...prev, forgotNewPassword: "" }));
+                        }}
+                        placeholder="Tối thiểu 8 ký tự"
+                        className={`w-full pl-10 pr-10 py-3 rounded-2xl text-xs border transition-all outline-none ${
+                          errors.forgotNewPassword
+                            ? "border-rose-500 focus:ring-1 focus:ring-rose-500"
+                            : ""
+                        } bg-white border-slate-200 text-slate-900 placeholder-slate-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-100 shadow-sm`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowForgotNewPass(!showForgotNewPass)}
+                        className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
+                      >
+                        {showForgotNewPass ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
+                    {errors.forgotNewPassword && (
+                      <p className="text-[11px] text-rose-500 mt-1 font-medium">
+                        {errors.forgotNewPassword}
+                      </p>
+                    )}
+
+                    {/* Password Strength Indicator */}
+                    {forgotNewPassword && (
+                      <div className="mt-2 space-y-1">
+                        <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full transition-all duration-300 ${forgotPassStrength.color}`}
+                            style={{ width: forgotPassStrength.width }}
+                          ></div>
+                        </div>
+                        <div className="flex justify-between items-center text-[10px]">
+                          <span className="text-slate-400">Độ mạnh mật khẩu:</span>
+                          <span className={`font-semibold ${forgotPassStrength.textColor}`}>
+                            {forgotPassStrength.text}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Confirm New Password */}
+                  <div>
+                    <label
+                      className={`block text-xs font-semibold mb-1.5 ${
+                        isDark ? "text-slate-300" : "text-slate-700"
+                      }`}
+                    >
+                      Xác nhận mật khẩu mới
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                        <Lock size={16} />
+                      </div>
+                      <input
+                        type={showForgotConfirmPass ? "text" : "password"}
+                        value={forgotConfirmPassword}
+                        onChange={(e) => {
+                          setForgotConfirmPassword(e.target.value);
+                          if (errors.forgotConfirmPassword) setErrors((prev) => ({ ...prev, forgotConfirmPassword: "" }));
+                        }}
+                        placeholder="Nhập lại mật khẩu mới"
+                        className={`w-full pl-10 pr-10 py-3 rounded-2xl text-xs border transition-all outline-none ${
+                          errors.forgotConfirmPassword
+                            ? "border-rose-500 focus:ring-1 focus:ring-rose-500"
+                            : ""
+                        } bg-white border-slate-200 text-slate-900 placeholder-slate-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-100 shadow-sm`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowForgotConfirmPass(!showForgotConfirmPass)}
+                        className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
+                      >
+                        {showForgotConfirmPass ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
+                    {errors.forgotConfirmPassword && (
+                      <p className="text-[11px] text-rose-500 mt-1 font-medium">
+                        {errors.forgotConfirmPassword}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Submit & Back Buttons */}
+                  <div className="space-y-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={handleResetPasswordSubmit}
+                      disabled={forgotLoading || !forgotNewPassword || !forgotConfirmPassword}
+                      className="w-full min-h-[48px] rounded-2xl bg-gradient-to-r from-blue-600 via-blue-600 to-indigo-600 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2 active:scale-95 transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                    >
+                      {forgotLoading ? (
+                        <span className="flex items-center gap-2">
+                          <Loader2 size={17} className="animate-spin" />
+                          Đang đặt lại mật khẩu...
+                        </span>
+                      ) : (
+                        <>
+                          <CheckCircle2 size={16} />
+                          <span>Hoàn tất & Đặt lại mật khẩu</span>
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setForgotStep(1)}
+                      className={`w-full py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1 cursor-pointer ${
+                        isDark ? "text-slate-400 hover:text-white" : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      <ChevronLeft size={15} />
+                      Quay lại bước trước
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

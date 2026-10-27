@@ -5,14 +5,15 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowDown, BatteryCharging, CarFront, Check, CheckCircle2,
-  ChevronLeft, Clock3, Heart, MapPin, Minus, Navigation2, Plus,
+  ChevronLeft, ChevronRight, Clock3, Heart, MapPin, Minus, Plus,
   RefreshCw, Sparkles, X, Zap,
 } from "lucide-react";
-import { getLotByIdApi, getLotSlotsApi } from "@/lib/api";
+import { getLotByIdApi, getLotSlotsApi, holdSpotApi } from "@/lib/api";
 import { lots } from "@/lib/mock/lots";
 import { clsx } from "clsx";
 import { useStore, type Vehicle } from "@/store";
 import ParkingSpotCard, { type Spot, type Kind, type Status } from "@/components/parking/ParkingSpotCard";
+import { calculateDetailedFee, getCurrentLotRate } from "@/lib/pricing";
 
 const money = (n: number) => Math.round(n).toLocaleString("vi-VN") + "đ";
 const DEPOSIT = 50000;
@@ -63,6 +64,26 @@ function nameOf(type: Kind) {
   return type === "ev" ? "Sạc EV" : type === "suv" ? "SUV" : "Sedan";
 }
 
+function formatHHmm(date: Date) {
+  const h = String(date.getHours()).padStart(2, "0");
+  const m = String(date.getMinutes()).padStart(2, "0");
+  return `${h}:${m}`;
+}
+
+function getInitialStartTime() {
+  const now = new Date();
+  const rem = 5 - (now.getMinutes() % 5);
+  now.setMinutes(now.getMinutes() + (rem === 5 ? 0 : rem));
+  return formatHHmm(now);
+}
+
+function getInitialEndTime() {
+  const now = new Date();
+  const rem = 5 - (now.getMinutes() % 5);
+  now.setMinutes(now.getMinutes() + (rem === 5 ? 0 : rem) + 120);
+  return formatHHmm(now);
+}
+
 export default function ParkingMapPage() {
   const router = useRouter();
   const params = useParams();
@@ -70,8 +91,16 @@ export default function ParkingMapPage() {
   const fallbackLot = lots.find((x) => x.id === lotId) || lots[0];
   const vehicles = useStore((s) => s.vehicles);
   const booking = useStore((s) => s.activeBooking);
+  const user = useStore((s) => s.user);
   const holdSpot = useStore((s) => s.holdSpot);
   const toast = useStore((s) => s.addToast);
+  const favoriteLots = useStore((s) => s.favoriteLots || []);
+  const toggleFavoriteLot = useStore((s) => s.toggleFavoriteLot);
+  const isFavorite =
+    favoriteLots.includes(lotId) ||
+    ((lotId === "3" || lotId === "san-bay-t1") && favoriteLots.some((id) => id === "3" || id === "san-bay-t1")) ||
+    ((lotId === "1" || lotId === "hai-chau-a") && favoriteLots.some((id) => id === "1" || id === "hai-chau-a")) ||
+    ((lotId === "2" || lotId === "cau-rong") && favoriteLots.some((id) => id === "2" || id === "cau-rong"));
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const [lot, setLot] = useState({ name: fallbackLot.name, address: fallbackLot.address, price: fallbackLot.price });
@@ -82,21 +111,76 @@ export default function ParkingMapPage() {
   const [vehicleInitialized, setVehicleInitialized] = useState(false);
   const [needsCharging, setNeedsCharging] = useState<boolean | null>(null);
   const [spotId, setSpotId] = useState<string | null>(null);
-  const [hours, setHours] = useState(2);
+  const [startTime, setStartTime] = useState<string>(getInitialStartTime);
+  const [endTime, setEndTime] = useState<string>(getInitialEndTime);
   const [area, setArea] = useState<"all" | "left" | "right">("all");
   const [filter, setFilter] = useState<"all" | Kind>("all");
   const [zoom, setZoom] = useState(1);
-  const [favorite, setFavorite] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  const durationInfo = useMemo(() => {
+    if (!startTime || !endTime) return { hours: 2, text: "2 giờ", isNextDay: false, minutes: 120 };
+    const [sH, sM] = startTime.split(":").map(Number);
+    const [eH, eM] = endTime.split(":").map(Number);
+    if (isNaN(sH) || isNaN(sM) || isNaN(eH) || isNaN(eM)) {
+      return { hours: 2, text: "2 giờ", isNextDay: false, minutes: 120 };
+    }
+    let startTotal = sH * 60 + sM;
+    let endTotal = eH * 60 + eM;
+    let isNextDay = false;
+    if (endTotal <= startTotal) {
+      endTotal += 24 * 60;
+      isNextDay = true;
+    }
+    const diffMinutes = endTotal - startTotal;
+    const billableHours = Math.max(1, Math.min(24, Math.ceil(diffMinutes / 60)));
+    const dHours = Math.floor(diffMinutes / 60);
+    const dMins = diffMinutes % 60;
+    let text = "";
+    if (dHours > 0 && dMins > 0) {
+      text = `${dHours} giờ ${dMins} phút`;
+    } else if (dHours > 0) {
+      text = `${dHours} giờ`;
+    } else {
+      text = `${dMins} phút`;
+    }
+    return { hours: billableHours, text, isNextDay, minutes: diffMinutes };
+  }, [startTime, endTime]);
+
+  const currentRateInfo = useMemo(() => {
+    return getCurrentLotRate(lotId, lot.price);
+  }, [lotId, lot.price]);
+
+  const feeDetails = useMemo(() => {
+    return calculateDetailedFee(lotId, startTime, durationInfo.hours, lot.price);
+  }, [lotId, startTime, durationInfo.hours, lot.price]);
+
+  const [showFeeBreakdown, setShowFeeBreakdown] = useState(false);
+
+  function applyQuickHours(addHours: number) {
+    if (!startTime) return;
+    const [sH, sM] = startTime.split(":").map(Number);
+    if (isNaN(sH) || isNaN(sM)) return;
+    const endTotal = (sH * 60 + sM + addHours * 60) % (24 * 60);
+    const endH = Math.floor(endTotal / 60);
+    const endM = endTotal % 60;
+    setEndTime(`${String(endH).padStart(2, "0")}:${String(endM).padStart(2, "0")}`);
+  }
 
   const car = vehicles.find((v) => v.id === vehicleId) || null;
 
   useEffect(() => {
     if (vehicleInitialized) return;
-    const defaultCar = vehicles.find((v) => v.isPrimary) || vehicles[0];
-    if (defaultCar) setVehicleId(defaultCar.id);
-    if (!defaultCar || vehicles.length > 1) setDialog("choose");
-    else if (defaultCar.type === "EV") setDialog("charge");
+    if (vehicles.length > 1) {
+      setVehicleId(null);
+      setDialog("choose");
+    } else if (vehicles.length === 1) {
+      setVehicleId(vehicles[0].id);
+      if (vehicles[0].type === "EV") setDialog("charge");
+    } else {
+      setVehicleId(null);
+      setDialog("choose");
+    }
     setVehicleInitialized(true);
   }, [vehicles, vehicleInitialized]);
 
@@ -168,11 +252,11 @@ export default function ParkingMapPage() {
       return;
     }
     if (!isSuitable(s, car, needsCharging)) { toast("Ô này không phù hợp với xe của bạn", "error"); return; }
-    setSpotId(s.id); setHours(2);
+    setSpotId(s.id);
   }
   function chooseBest() {
     if (!best) { toast("Không còn ô trống phù hợp", "error"); return; }
-    setArea("all"); setFilter("all"); pickSpot(best);
+    setFilter("all"); pickSpot(best);
     scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
   }
   async function reserve() {
@@ -182,29 +266,73 @@ export default function ParkingMapPage() {
     }
     setSubmitting(true);
     try {
-      if (!isDemo) {
-        const latest = await getLotSlotsApi(lotId);
-        if (!latest.length || normalizeSlot(latest.find((x: any) => String(x.id) === selected.id) ||
-          { id: selected.id, status: "disabled", type: "sedan" }).status !== "empty") {
-          toast("Ô vừa thay đổi trạng thái, vui lòng chọn lại", "error");
-          setSpotId(null); await refresh(); return;
+      let serverReservationId: number | undefined;
+      let serverHoldExpiresAt: number | undefined;
+
+      // Gọi API giữ chỗ chống trùng (Atomic Update) ở Backend
+      const holdRes = await holdSpotApi({
+        parking_lot_id: lotId,
+        slot_id: selected.dbId || selected.id,
+        vehicle_id: car.id,
+        estimated_hours: durationInfo.hours,
+        token: user?.token,
+      });
+
+      // Nếu ô bị tranh chấp (HTTP 409) hoặc thất bại
+      if (holdRes.status === 409 || !holdRes.success) {
+        toast(holdRes.message || `Ô ${selected.id} vừa có người khác giữ chỗ. Vui lòng chọn ô khác!`, "error");
+        setSpotId(null);
+        await refresh();
+        return;
+      }
+
+      if (holdRes.data) {
+        serverReservationId = holdRes.data.reservation_id;
+        if (holdRes.data.hold_expires_at) {
+          serverHoldExpiresAt = new Date(holdRes.data.hold_expires_at).getTime();
         }
       }
-      // Giữ chỗ theo luồng Zustand gốc. Đây chưa phải khóa ô thực trên backend.
-      holdSpot(lotId, selected.id, car.id);
-      // Lưu số giờ dự kiến mà không cần chỉnh file store/index.ts cũ.
+
+      // Giữ chỗ với thời gian bắt đầu và kết thúc
+      holdSpot(
+        lotId,
+        selected.id,
+        car.id,
+        durationInfo.hours,
+        startTime,
+        endTime,
+        serverReservationId,
+        serverHoldExpiresAt
+      );
+
       const newBooking = useStore.getState().activeBooking;
-      if (newBooking) useStore.setState({ activeBooking: Object.assign({}, newBooking, { estimatedHours: hours }) });
+      if (newBooking) {
+        useStore.setState({
+          activeBooking: {
+            ...newBooking,
+            backendId: serverReservationId,
+            estimatedHours: durationInfo.hours,
+            startTime,
+            endTime,
+          }
+        });
+      }
+      toast(`Giữ chỗ thành công ô ${selected.id}!`, "success");
       router.push(`/dat-cho/${encodeURIComponent(selected.id)}`);
-    } finally { setSubmitting(false); }
+    } catch (err) {
+      console.error("Lỗi khi giữ ô đỗ:", err);
+      toast("Lỗi kết nối khi giữ chỗ. Vui lòng thử lại!", "error");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   function renderSpot(s: Spot | null, side: "left" | "right") {
     if (!s) return <div className="h-[80px]" />;
-    const visible = (area === "all" || area === side) && (filter === "all" || s.type === filter);
+    const visible = filter === "all" || s.type === filter;
     return <ParkingSpotCard key={s.id} spot={s} visible={visible}
       compatible={isSuitable(s, car, needsCharging)} selected={selected?.id === s.id}
-      recommended={best?.id === s.id && !selected} pricePerHour={lot.price}
+      recommended={best?.id === s.id && !selected} pricePerHour={currentRateInfo.rate}
       onSelect={() => pickSpot(s)} />;
   }
 
@@ -215,22 +343,34 @@ export default function ParkingMapPage() {
         <button onClick={() => router.push("/")} className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center"><ChevronLeft size={21}/></button>
         <div className="min-w-0 flex-1 text-center"><h1 className="font-black text-base text-slate-900 truncate">{lot.name}</h1>
           <p className="text-[11px] text-slate-500 truncate"><MapPin size={11} className="inline mr-1"/>{lot.address}</p></div>
-        <button onClick={() => setFavorite(!favorite)} className={clsx("w-9 h-9 rounded-full flex items-center justify-center", favorite ? "bg-rose-50 text-rose-500" : "bg-slate-100 text-slate-500")}>
-          <Heart size={19} fill={favorite ? "currentColor" : "none"}/></button>
+        <button
+          onClick={() => {
+            toggleFavoriteLot(lotId);
+            toast(
+              isFavorite
+                ? `Đã bỏ ${lot.name} khỏi danh sách yêu thích`
+                : `Đã thêm ${lot.name} vào vị trí yêu thích`,
+              "success"
+            );
+          }}
+          className={clsx(
+            "w-9 h-9 rounded-full flex items-center justify-center transition-transform active:scale-90",
+            isFavorite ? "bg-rose-50 text-rose-500" : "bg-slate-100 text-slate-500"
+          )}
+          aria-label="Yêu thích"
+        >
+          <Heart size={19} fill={isFavorite ? "currentColor" : "none"} />
+        </button>
       </div>
       <button onClick={() => setDialog("choose")} className="w-full mt-2 rounded-xl bg-blue-50 border border-blue-100 p-2.5 flex justify-between items-center gap-2 text-left">
         <div className="flex items-center gap-2 min-w-0"><CarFront size={20} className="text-blue-600 shrink-0"/>
           <div className="min-w-0"><p className="text-xs font-bold text-blue-950 truncate">{car ? `${car.name} · ${car.plate}` : "Chọn xe của bạn"}</p>
-            <p className="text-[10px] text-blue-700 truncate">{car?.type === "EV" ? needsCharging === null ? "Chưa chọn nhu cầu sạc" : needsCharging ? "Xe điện · cần sạc" : "Xe điện · không sạc" : car?.type || "Chọn loại xe"} · {matching} ô phù hợp</p></div></div>
-        <span className="shrink-0 bg-white text-blue-700 border border-blue-200 rounded-lg px-2 py-1 text-[10px] font-bold">Đổi xe</span>
+            <p className="text-[10px] text-blue-700 truncate">{car ? (car.type === "EV" ? (needsCharging === null ? "Chưa chọn nhu cầu sạc" : needsCharging ? "Xe điện · cần sạc" : "Xe điện · không sạc") : car.type) : "Chưa chọn xe"} · {car ? `${matching} ô phù hợp` : "Vui lòng chọn xe"}</p></div></div>
+        <span className="shrink-0 bg-white text-blue-700 border border-blue-200 rounded-lg px-2 py-1 text-[10px] font-bold">{car ? "Đổi xe" : "Chọn xe"}</span>
       </button>
     </header>
 
     <div className="shrink-0 bg-white px-3 py-2 border-b border-slate-200 space-y-2 z-10">
-      <div className="rounded-xl bg-slate-100 p-1 flex gap-1">
-        {([ ["all", "Toàn bãi"], ["left", "Dãy trái"], ["right", "Dãy phải"] ] as const).map(([v, label]) =>
-          <button key={v} onClick={() => {setArea(v);setSpotId(null)}} className={clsx("flex-1 rounded-lg py-1.5 text-[11px] font-bold", area === v ? "bg-blue-600 text-white" : "text-slate-600")}>{label}</button>)}
-      </div>
       <div className="flex justify-between items-center gap-1 text-[10px] font-semibold">
         <span className="text-emerald-700">🟢 Trống ({freeCount})</span><span className="text-rose-600">🔴 Đã đỗ ({occupiedCount})</span>
         <span className="text-amber-700">🟡 Giữ ({holdingCount})</span><span className="text-slate-500">⚪ Bảo trì</span>
@@ -267,51 +407,141 @@ export default function ParkingMapPage() {
         <div className="pointer-events-auto bg-white border border-slate-200 rounded-full p-1 flex shadow-md items-center">
           <button onClick={() => setZoom(v => Math.min(1.2, +(v+.1).toFixed(1)))} className="w-7 h-7 flex items-center justify-center"><Plus size={15}/></button>
           <button onClick={() => setZoom(v => Math.max(.8, +(v-.1).toFixed(1)))} className="w-7 h-7 flex items-center justify-center"><Minus size={15}/></button>
-          <button onClick={() => {setZoom(1);scrollRef.current?.scrollTo({top:0,behavior:"smooth"})}} className="w-7 h-7 flex items-center justify-center"><Navigation2 size={14}/></button>
         </div>
       </div>
     </div>
 
-    <section className="shrink-0 z-20 bg-white rounded-t-3xl border-t border-slate-200 shadow-xl px-5 pt-2 pb-[calc(14px+env(safe-area-inset-bottom))]">
-      <div className="w-10 h-1 bg-slate-300 rounded-full mx-auto mb-3"/>
-      {selected ? <div className="space-y-3">
-        <div className="flex justify-between items-start"><div>
-          <p className="flex gap-2 items-center"><b className="text-xl">{selected.id}</b><span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-lg font-bold">{nameOf(selected.type)}</span>
-            <span className="text-emerald-700 text-[10px] font-bold flex gap-1 items-center"><CheckCircle2 size={13}/> Phù hợp xe</span></p>
-          <p className="text-[11px] text-slate-500 mt-1">{car?.plate} · {money(lot.price)}/giờ</p>
-        </div><button onClick={() => setSpotId(null)}><X size={18} className="text-slate-400"/></button></div>
-        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 flex justify-between items-center gap-2">
-          <div><p className="text-[10px] font-bold uppercase text-slate-500">Thời lượng dự kiến</p>
-            <div className="flex items-center gap-2 mt-1">
-              <button onClick={() => setHours(v => Math.max(1,v-1))} className="w-8 h-8 rounded-lg border border-slate-300 bg-white flex items-center justify-center"><Minus size={14}/></button>
-              <span className="text-sm font-black min-w-[44px] text-center">{hours} giờ</span>
-              <button onClick={() => setHours(v => Math.min(24,v+1))} className="w-8 h-8 rounded-lg border border-slate-300 bg-white flex items-center justify-center"><Plus size={14}/></button>
+    {selected && (
+      <section className="shrink-0 z-20 bg-white rounded-t-3xl border-t border-slate-200 shadow-xl px-5 pt-4 pb-[calc(14px+env(safe-area-inset-bottom))]">
+        <div className="space-y-3">
+          <div className="flex justify-between items-start"><div>
+            <p className="flex gap-2 items-center"><b className="text-xl">{selected.id}</b><span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-lg font-bold">{nameOf(selected.type)}</span>
+              <span className="text-emerald-700 text-[10px] font-bold flex gap-1 items-center"><CheckCircle2 size={13}/> Phù hợp xe</span></p>
+            <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1.5 flex-wrap">
+              <span>{car?.plate}</span>
+              <span>·</span>
+              <span>Giá hiện tại: <strong className="text-slate-800">{money(currentRateInfo.rate)}/h</strong></span>
+            </p>
+          </div><button onClick={() => setSpotId(null)}><X size={18} className="text-slate-400"/></button></div>
+          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-3">
+            <div className="flex justify-between items-center">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                <Clock3 size={13} className="text-blue-600" /> Thời gian đỗ xe
+              </span>
+              <span className="text-xs font-bold text-blue-700 bg-blue-100/70 px-2.5 py-0.5 rounded-full">
+                Thời lượng: {durationInfo.text} {durationInfo.isNextDay && <span className="text-[10px] text-amber-600 font-semibold">(qua đêm)</span>}
+              </span>
             </div>
-          </div><div className="border-l pl-3 text-right"><p className="text-[10px] font-bold uppercase text-slate-500">Phí dự kiến</p>
-            <p className="text-lg text-blue-600 font-black">{money(lot.price * hours)}</p>
-            <p className="text-[10px] text-slate-500">Cọc: <b className="text-slate-800">{money(DEPOSIT)}</b></p></div>
+
+            {/* Bắt đầu từ mấy giờ đến mấy giờ */}
+            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+              <div className="bg-white border border-slate-200 rounded-xl p-2.5 shadow-sm focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-100 transition-all">
+                <label className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Từ mấy giờ</label>
+                <input
+                  type="time"
+                  value={startTime}
+                  onChange={(e) => setStartTime(e.target.value)}
+                  className="w-full text-base font-black text-slate-900 bg-transparent outline-none cursor-pointer"
+                />
+              </div>
+
+              <span className="text-slate-400 font-bold text-sm text-center px-0.5">→</span>
+
+              <div className="bg-white border border-slate-200 rounded-xl p-2.5 shadow-sm focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-100 transition-all">
+                <label className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Đến mấy giờ</label>
+                <input
+                  type="time"
+                  value={endTime}
+                  onChange={(e) => setEndTime(e.target.value)}
+                  className="w-full text-base font-black text-slate-900 bg-transparent outline-none cursor-pointer"
+                />
+              </div>
+            </div>
+
+            {/* Nút chọn nhanh */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-semibold text-slate-400 shrink-0">Chọn nhanh:</span>
+              {[1, 2, 3, 4, 8].map((h) => (
+                <button
+                  key={h}
+                  type="button"
+                  onClick={() => applyQuickHours(h)}
+                  className={clsx(
+                    "text-[11px] font-bold px-2.5 py-1 rounded-lg border transition-all active:scale-95",
+                    durationInfo.hours === h && !durationInfo.isNextDay
+                      ? "bg-blue-600 text-white border-blue-600 shadow-sm"
+                      : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
+                  )}
+                >
+                  +{h}h
+                </button>
+              ))}
+            </div>
+
+            {/* Chi tiết chi phí */}
+            <div className="pt-2.5 border-t border-slate-200">
+              <div className="flex justify-between items-center">
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-[10px] font-bold uppercase text-slate-500">Phí dự kiến ({durationInfo.hours} giờ tính phí)</p>
+                    <button
+                      type="button"
+                      onClick={() => setShowFeeBreakdown((v) => !v)}
+                      className="text-[10px] text-blue-600 font-bold underline hover:text-blue-800"
+                    >
+                      {showFeeBreakdown ? "Ẩn chi tiết" : "Xem chi tiết"}
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    {feeDetails.isCrossTier
+                      ? `Bình quân: ${money(feeDetails.averageRate)}/giờ`
+                      : `Đơn giá: ${money(feeDetails.averageRate)}/giờ`}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xl text-blue-600 font-black">{money(feeDetails.totalFee)}</p>
+                  <p className="text-[10px] text-slate-500">Cọc: <b className="text-slate-800">{money(DEPOSIT)}</b></p>
+                </div>
+              </div>
+
+              {/* Bảng chi tiết từng giờ */}
+              {showFeeBreakdown && (
+                <div className="mt-2.5 p-2 bg-white rounded-xl border border-slate-200 text-xs space-y-1">
+                  <div className="text-[10px] font-bold text-slate-400 uppercase border-b pb-1 mb-1">
+                    Chi tiết cước từng giờ:
+                  </div>
+                  {feeDetails.breakdown.map((item, idx) => (
+                    <div key={idx} className="flex justify-between items-center text-[11px] text-slate-600">
+                      <span>• {item.hourLabel}</span>
+                      <strong className="text-slate-900 font-mono">{money(item.rate)}</strong>
+                    </div>
+                  ))}
+                  <div className="pt-1.5 border-t border-slate-100 flex justify-between font-bold text-slate-900 text-[11px]">
+                    <span>Tổng cộng ({durationInfo.hours} giờ):</span>
+                    <span className="text-blue-600">{money(feeDetails.totalFee)}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+          <button onClick={() => void reserve()} disabled={submitting} className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-bold rounded-xl flex justify-center items-center gap-2 disabled:opacity-50">
+            <Clock3 size={16}/> {submitting ? "Đang kiểm tra ô..." : "Tiếp tục đặt chỗ & thanh toán cọc"}</button>
         </div>
-        <button onClick={() => void reserve()} disabled={submitting} className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-bold rounded-xl flex justify-center items-center gap-2 disabled:opacity-50">
-          <Clock3 size={16}/> {submitting ? "Đang kiểm tra ô..." : "Tiếp tục đặt chỗ & thanh toán cọc"}</button>
-      </div> : <div className="flex justify-between items-center gap-3 py-1">
-        <div className="min-w-0 flex gap-2 items-center"><span className="shrink-0 bg-blue-100 rounded-full w-10 h-10 flex items-center justify-center font-black text-blue-600">P</span>
-          <div className="min-w-0"><p className="text-sm font-black truncate">{matching} ô trống phù hợp</p><p className="text-[11px] text-slate-500 truncate">Chọn ô để xem số giờ và tiền cọc</p></div></div>
-        <button onClick={chooseBest} disabled={!best} className="shrink-0 bg-blue-600 disabled:bg-slate-300 text-white text-xs font-bold rounded-xl px-3 py-2.5">Chọn nhanh</button>
-      </div>}
-    </section>
+      </section>
+    )}
 
     {dialog && <div className="fixed inset-0 z-50 bg-slate-950/65 flex items-end sm:items-center justify-center sm:p-4">
       <div className="bg-white rounded-t-[28px] sm:rounded-[28px] w-full max-w-[430px] max-h-[88dvh] overflow-y-auto p-5 pb-6 shadow-2xl">
         {dialog === "choose" ? <>
           <div className="flex items-start justify-between mb-4"><div><h2 className="text-lg font-black">Bạn đang đi xe nào?</h2>
             <p className="text-xs text-slate-500">Chọn xe trước để xem ô đỗ phù hợp.</p></div>
-            {!!car && <button onClick={() => setDialog(null)}><X size={19}/></button>}</div>
+            <button onClick={() => setDialog(null)}><X size={19}/></button></div>
           {vehicles.length ? <div className="space-y-2">
-            {vehicles.map(v => <button key={v.id} onClick={() => pickVehicle(v)} className={clsx("w-full text-left border-2 rounded-2xl p-3 flex gap-3 items-center",
-              vehicleId === v.id ? "bg-blue-50 border-blue-500" : "bg-slate-50 border-slate-200") }>
+            {vehicles.map(v => <button key={v.id} onClick={() => pickVehicle(v)} className="w-full text-left border border-slate-200 rounded-2xl p-3 flex gap-3 items-center bg-slate-50 hover:bg-blue-50/60 hover:border-blue-300 active:scale-[0.99] transition-all">
               {v.type === "EV" ? <BatteryCharging size={23} className="text-blue-600"/> : <CarFront size={23} className="text-blue-600"/>}
               <span className="flex-1 min-w-0"><b className="text-sm block truncate">{v.name}</b><small className="text-slate-500">{v.plate} · {v.type === "EV" ? `EV ${v.evBodyType || "SUV"}` : v.type}</small></span>
-              {vehicleId === v.id && <Check size={17} className="text-blue-600"/>}</button>)}
+              <ChevronRight size={18} className="text-slate-400"/>
+            </button>)}
           </div> : <p className="bg-slate-50 rounded-xl p-4 text-sm">Bạn chưa có xe. Hãy thêm xe vào hồ sơ.</p>}
           <Link href="/xe-cua-toi" className="block mt-4 rounded-xl bg-slate-100 text-center text-blue-700 font-bold py-3 text-sm">+ Quản lý / thêm xe</Link>
         </> : <>

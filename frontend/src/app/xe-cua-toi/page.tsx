@@ -1,15 +1,16 @@
 "use client";
-import { useState, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useStore, Vehicle } from "@/store";
-import { ChevronLeft, Plus, Trash2, Edit2, CarFront, CheckCircle2, AlertTriangle, GripVertical } from "lucide-react";
+import { ChevronLeft, Plus, Trash2, Edit2, CarFront, AlertTriangle, GripVertical } from "lucide-react";
 import { clsx } from "clsx";
 import BottomSheet from "@/components/ui/BottomSheet";
 import { Reorder } from "framer-motion";
+import { getVehiclesApi, addVehicleApi, updateVehicleApi, deleteVehicleApi } from "@/lib/api";
 
 export default function VehiclesPage() {
   const router = useRouter();
-  const { vehicles, addVehicle, updateVehicle, deleteVehicle, setDefaultVehicle, reorderVehicles, addToast } = useStore();
+  const { user, vehicles, setVehicles, addVehicle, updateVehicle, deleteVehicle, reorderVehicles, addToast } = useStore();
   
   const [sheet, setSheet] = useState<"none" | "add" | "edit" | "delete">("none");
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
@@ -18,15 +19,34 @@ export default function VehiclesPage() {
   const [formPlate, setFormPlate] = useState("");
   const [formType, setFormType] = useState<"Sedan" | "SUV" | "EV">("Sedan");
   const [formEvBodyType, setFormEvBodyType] = useState<"Sedan" | "SUV">("SUV");
-  const [formDefault, setFormDefault] = useState(false);
   const [plateError, setPlateError] = useState("");
+
+  // Sync real vehicles from backend on mount
+  useEffect(() => {
+    const token = user?.token || (typeof window !== "undefined" ? localStorage.getItem("ezspace_token") : null);
+    if (token) {
+      getVehiclesApi(token)
+        .then((res) => {
+          if (res.success && Array.isArray(res.data)) {
+            setVehicles(
+              res.data.map((v: any) => ({
+                id: String(v.id),
+                name: v.vehicle_name || v.license_plate,
+                plate: v.license_plate,
+                type: v.vehicle_type === "EV" ? "EV" : v.vehicle_type === "SUV" ? "SUV" : "Sedan",
+              }))
+            );
+          }
+        })
+        .catch(() => {});
+    }
+  }, []);
 
   const resetForm = () => {
     setFormName("");
     setFormPlate("");
     setFormType("Sedan");
     setFormEvBodyType("SUV");
-    setFormDefault(false);
     setPlateError("");
   };
 
@@ -36,16 +56,11 @@ export default function VehiclesPage() {
     setFormPlate(v.plate);
     setFormType(v.type);
     setFormEvBodyType(v.evBodyType || "SUV");
-    setFormDefault(!!v.isPrimary);
     setPlateError("");
     setSheet("edit");
   };
 
   const handleDeleteClick = (v: Vehicle) => {
-    if (vehicles.length <= 1) {
-      addToast("Không thể xóa xe cuối cùng", "error");
-      return;
-    }
     setSelectedVehicle(v);
     setSheet("delete");
   };
@@ -56,49 +71,84 @@ export default function VehiclesPage() {
     return regex.test(p.toUpperCase());
   };
 
-  const handleSave = () => {
-    if (!formName) {
-      addToast("Vui lòng nhập tên xe", "error"); return;
+  const handleSave = async () => {
+    if (!formName.trim()) {
+      addToast("Vui lòng nhập tên xe", "error");
+      return;
     }
-    const upPlate = formPlate.toUpperCase();
+    const upPlate = formPlate.trim().toUpperCase();
     if (!validatePlate(upPlate)) {
-      setPlateError("Biển số không hợp lệ (VD: 43A-123.45)"); return;
+      setPlateError("Biển số không hợp lệ (VD: 43A-123.45)");
+      return;
     }
 
+    const token = user?.token || (typeof window !== "undefined" ? localStorage.getItem("ezspace_token") : null);
+
     if (sheet === "add") {
+      let createdId = `v${Date.now()}`;
+      if (token) {
+        try {
+          const res = await addVehicleApi(token, {
+            license_plate: upPlate,
+            vehicle_name: formName.trim(),
+            vehicle_type: formType,
+          });
+          if (res.success && res.data) {
+            createdId = String(res.data.id);
+          } else if (!res.success) {
+            addToast(res.message || "Không thể thêm xe", "error");
+            return;
+          }
+        } catch (err) {
+          console.warn("Lỗi lưu xe backend:", err);
+        }
+      }
+
       const newV: Vehicle = {
-        id: `v${Date.now()}`,
-        name: formName,
+        id: createdId,
+        name: formName.trim(),
         plate: upPlate,
         type: formType,
         evBodyType: formType === "EV" ? formEvBodyType : undefined,
-        isPrimary: formDefault || vehicles.length === 0
       };
       addVehicle(newV);
-      if (formDefault) setDefaultVehicle(newV.id);
-      addToast("Đã thêm xe mới", "success");
+      addToast("Đã thêm xe mới thành công", "success");
     } else if (sheet === "edit" && selectedVehicle) {
+      if (token) {
+        try {
+          await updateVehicleApi(token, selectedVehicle.id, {
+            vehicle_name: formName.trim(),
+            license_plate: upPlate,
+            vehicle_type: formType,
+          });
+        } catch (err) {
+          console.warn("Lỗi sửa xe backend:", err);
+        }
+      }
+
       updateVehicle(selectedVehicle.id, {
-        name: formName,
+        name: formName.trim(),
         plate: upPlate,
         type: formType,
         evBodyType: formType === "EV" ? formEvBodyType : undefined,
       });
-      if (formDefault) setDefaultVehicle(selectedVehicle.id);
       addToast("Đã cập nhật xe", "success");
     }
     setSheet("none");
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (selectedVehicle) {
-      deleteVehicle(selectedVehicle.id);
-      addToast("Đã xóa xe", "success");
-      // If was default, make first one default
-      if (selectedVehicle.isPrimary && vehicles.length > 1) {
-        const remaining = vehicles.filter(v => v.id !== selectedVehicle.id);
-        setDefaultVehicle(remaining[0].id);
+      const token = user?.token || (typeof window !== "undefined" ? localStorage.getItem("ezspace_token") : null);
+      if (token) {
+        try {
+          await deleteVehicleApi(token, selectedVehicle.id);
+        } catch (err) {
+          console.warn("Lỗi xóa xe backend:", err);
+        }
       }
+      deleteVehicle(selectedVehicle.id);
+      addToast("Đã xóa xe thành công", "success");
     }
     setSheet("none");
   };
@@ -116,48 +166,64 @@ export default function VehiclesPage() {
       </div>
 
       <div className="px-4 py-6">
-        <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 px-2">Kéo thả để sắp xếp</p>
-        
-        <Reorder.Group axis="y" values={vehicles} onReorder={reorderVehicles} className="space-y-3">
-          {vehicles.map((v) => (
-            <Reorder.Item key={v.id} value={v} className="bg-white dark:bg-slate-800 p-4 rounded-[20px] shadow-sm border border-slate-100 dark:border-slate-700 flex items-center gap-4 relative touch-pan-y">
-              <div className="text-slate-300 dark:text-slate-600 cursor-grab active:cursor-grabbing">
-                <GripVertical size={20} />
-              </div>
-              
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-1">
-                  <h3 className="font-bold text-slate-900 dark:text-white text-sm">{v.name}</h3>
-                  {v.isPrimary && (
-                    <span className="bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400 text-[9px] font-black uppercase px-2 py-0.5 rounded">Mặc định</span>
-                  )}
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="font-mono text-xs font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded">{v.plate}</span>
-                  <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">
-                    {v.type === "EV" ? `EV (${v.evBodyType || "SUV"})` : v.type}
-                  </span>
-                </div>
-              </div>
+        {vehicles.length === 0 ? (
+          <div className="bg-white dark:bg-slate-800 p-8 rounded-[24px] text-center border border-dashed border-slate-200 dark:border-slate-700 shadow-sm">
+            <CarFront size={48} className="mx-auto text-slate-300 dark:text-slate-600 mb-3" />
+            <h3 className="font-bold text-slate-800 dark:text-white text-base">Chưa có phương tiện nào</h3>
+            <p className="text-xs text-slate-400 mt-1 mb-6">Thêm phương tiện để dễ dàng chọn xe khi đặt chỗ</p>
+            <button
+              onClick={() => { resetForm(); setSheet("add"); }}
+              className="inline-flex items-center gap-2 px-5 py-3 bg-[#2B4BD1] text-white rounded-xl text-xs font-bold shadow-md shadow-blue-500/20 active:scale-95 transition-all"
+            >
+              <Plus size={16} /> Thêm xe mới
+            </button>
+          </div>
+        ) : (
+          <>
+            <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 px-2">Kéo thả để sắp xếp</p>
+            
+            <Reorder.Group axis="y" values={vehicles} onReorder={reorderVehicles} className="space-y-3">
+              {vehicles.map((v) => (
+                <Reorder.Item key={v.id} value={v} className="bg-white dark:bg-slate-800 p-4 rounded-[20px] shadow-sm border border-slate-100 dark:border-slate-700 flex items-center gap-4 relative touch-pan-y">
+                  <div className="text-slate-300 dark:text-slate-600 cursor-grab active:cursor-grabbing">
+                    <GripVertical size={20} />
+                  </div>
+                  
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <h3 className="font-bold text-slate-900 dark:text-white text-sm">{v.name}</h3>
+                      <span className="bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300 text-[10px] font-bold uppercase px-2 py-0.5 rounded">
+                        {v.type}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="font-mono text-xs font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded">{v.plate}</span>
+                      <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">
+                        {v.type === "EV" ? `EV (${v.evBodyType || "SUV"})` : v.type}
+                      </span>
+                    </div>
+                  </div>
 
-              <div className="flex items-center gap-2">
-                <button onClick={() => handleEditClick(v)} className="w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-700 flex items-center justify-center text-[#2B4BD1] dark:text-blue-400 active:scale-95">
-                  <Edit2 size={14} />
-                </button>
-                <button onClick={() => handleDeleteClick(v)} className="w-8 h-8 rounded-full bg-red-50 dark:bg-red-500/10 flex items-center justify-center text-red-500 active:scale-95">
-                  <Trash2 size={14} />
-                </button>
-              </div>
-            </Reorder.Item>
-          ))}
-        </Reorder.Group>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => handleEditClick(v)} className="w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-700 flex items-center justify-center text-[#2B4BD1] dark:text-blue-400 active:scale-95">
+                      <Edit2 size={14} />
+                    </button>
+                    <button onClick={() => handleDeleteClick(v)} className="w-8 h-8 rounded-full bg-red-50 dark:bg-red-500/10 flex items-center justify-center text-red-500 active:scale-95">
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </Reorder.Item>
+              ))}
+            </Reorder.Group>
 
-        <button 
-          onClick={() => { resetForm(); setSheet("add"); }}
-          className="w-full mt-6 bg-slate-100 dark:bg-slate-800 border border-dashed border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 font-bold py-4 rounded-[20px] active:scale-95 flex items-center justify-center gap-2"
-        >
-          <Plus size={20} /> Thêm xe mới
-        </button>
+            <button 
+              onClick={() => { resetForm(); setSheet("add"); }}
+              className="w-full mt-6 bg-slate-100 dark:bg-slate-800 border border-dashed border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 font-bold py-4 rounded-[20px] active:scale-95 flex items-center justify-center gap-2"
+            >
+              <Plus size={20} /> Thêm xe mới
+            </button>
+          </>
+        )}
       </div>
 
       {/* Form Sheet */}
@@ -226,16 +292,6 @@ export default function VehiclesPage() {
               </div>
             </div>
           )}
-
-          <button 
-            onClick={() => setFormDefault(!formDefault)}
-            className="w-full flex items-center justify-between py-2"
-          >
-            <span className="text-sm font-bold text-slate-700 dark:text-slate-300">Đặt làm xe mặc định</span>
-            <div className={clsx("w-12 h-6 rounded-full transition-colors relative flex items-center", formDefault ? "bg-[#2B4BD1]" : "bg-slate-200 dark:bg-slate-600")}>
-              <div className={clsx("w-5 h-5 bg-white rounded-full shadow-sm transition-transform absolute", formDefault ? "translate-x-[26px]" : "translate-x-[2px]")} />
-            </div>
-          </button>
 
           <button onClick={handleSave} className="w-full bg-[#2B4BD1] text-white font-bold py-4 rounded-[16px] active:scale-95 shadow-lg shadow-[#2B4BD1]/30 mt-2">
             Lưu xe

@@ -74,6 +74,7 @@ function AIContent() {
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number; label?: string } | null>(null);
   const [isLocating, setIsLocating] = useState(false);
   const [showLocationPicker, setShowLocationPicker] = useState(false);
+  const [gpsDenied, setGpsDenied] = useState(false);
 
   // Booking confirmation modal
   const [bookingModal, setBookingModal] = useState<{
@@ -102,18 +103,54 @@ function AIContent() {
 
   // Auto GPS on mount
   useEffect(() => {
-    if (typeof window !== "undefined" && navigator.geolocation && !userLocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          setUserLocation({
-            latitude: pos.coords.latitude,
-            longitude: pos.coords.longitude,
-            label: "GPS của bạn",
-          });
-        },
-        () => {},
-        { enableHighAccuracy: true, timeout: 5000 }
-      );
+    if (typeof window !== "undefined") {
+      const storedDenial = sessionStorage.getItem("ezspace_gps_denied") === "true";
+      if (storedDenial) setGpsDenied(true);
+
+      if (navigator.permissions && navigator.permissions.query) {
+        navigator.permissions
+          .query({ name: "geolocation" as PermissionName })
+          .then((p) => {
+            if (p.state === "denied") {
+              setGpsDenied(true);
+              sessionStorage.setItem("ezspace_gps_denied", "true");
+            } else if (p.state === "granted") {
+              setGpsDenied(false);
+              sessionStorage.removeItem("ezspace_gps_denied");
+            }
+            p.onchange = () => {
+              if (p.state === "denied") {
+                setGpsDenied(true);
+                sessionStorage.setItem("ezspace_gps_denied", "true");
+              } else if (p.state === "granted") {
+                setGpsDenied(false);
+                sessionStorage.removeItem("ezspace_gps_denied");
+              }
+            };
+          })
+          .catch(() => {});
+      }
+
+      if (navigator.geolocation && !userLocation) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            setUserLocation({
+              latitude: pos.coords.latitude,
+              longitude: pos.coords.longitude,
+              label: "GPS của bạn",
+            });
+            setGpsDenied(false);
+            sessionStorage.removeItem("ezspace_gps_denied");
+          },
+          (err) => {
+            if (err.code === err.PERMISSION_DENIED) {
+              setGpsDenied(true);
+              sessionStorage.setItem("ezspace_gps_denied", "true");
+            }
+          },
+          { enableHighAccuracy: true, timeout: 5000 }
+        );
+      }
     }
   }, []);
 
@@ -196,6 +233,31 @@ function AIContent() {
     const trimmed = textToSend.trim();
     if (!trimmed) return;
 
+    // Check GPS: If denied or not yet available, notify the user
+    if (gpsDenied || !userLocation) {
+      addToast("Cần bật GPS để xác định vị trí hiện tại của bạn", "error");
+      if (!gpsDenied && typeof window !== "undefined" && navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            setUserLocation({
+              latitude: pos.coords.latitude,
+              longitude: pos.coords.longitude,
+              label: "GPS của bạn",
+            });
+            setGpsDenied(false);
+            sessionStorage.removeItem("ezspace_gps_denied");
+          },
+          (err) => {
+            if (err.code === err.PERMISSION_DENIED) {
+              setGpsDenied(true);
+              sessionStorage.setItem("ezspace_gps_denied", "true");
+            }
+          },
+          { enableHighAccuracy: true, timeout: 4000 }
+        );
+      }
+    }
+
     // 1. Add User message
     const userMsg: AIMessage = {
       id: `u-${Date.now()}`,
@@ -239,7 +301,7 @@ function AIContent() {
         id: `ai-${Date.now()}`,
         role: "ai",
         text: res.text,
-        cards: res.cards,
+        cards: Array.isArray(res.cards) ? res.cards.slice(0, 1) : [],
         chips: res.chips,
         timestamp: Date.now(),
       };
@@ -255,7 +317,7 @@ function AIContent() {
         id: `ai-${Date.now()}`,
         role: "ai",
         text: res.text,
-        cards: res.cards,
+        cards: Array.isArray(res.cards) ? res.cards.slice(0, 1) : [],
         chips: res.chips,
         timestamp: Date.now(),
       };
@@ -293,21 +355,18 @@ function AIContent() {
     } else if (q.includes("ev") || q.includes("sạc") || q.includes("điện")) {
       chips.push("⚡ Sạc nhanh EV (60kW)");
     }
-    if (q.includes("30k") || q.includes("rẻ") || q.includes("giá")) {
-      chips.push("💰 Ngân sách ≤ 30k/h");
-    }
     return chips;
   };
 
   return (
-    <div className="relative w-full min-h-screen bg-[#F8FAFC] text-slate-800 font-sans flex flex-col pb-8">
+    <div className="relative w-full h-full bg-[#F8FAFC] text-slate-800 font-sans flex flex-col overflow-hidden">
       
       {/* Background Ambient Gradients */}
       <div className="absolute -top-24 -left-24 w-72 h-72 bg-blue-400/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute top-1/2 -right-24 w-80 h-80 bg-indigo-300/15 rounded-full blur-3xl pointer-events-none" />
 
       {/* ================= 1. DYNAMIC ISLAND & STATUS BAR ================= */}
-      <header className="relative z-30 pt-3 px-6 pb-1 flex justify-between items-center text-slate-900 select-none bg-white/70 backdrop-blur-md border-b border-slate-200/50">
+      <header className="relative z-30 pt-3 px-6 pb-1 flex justify-between items-center text-slate-900 select-none bg-white/70 backdrop-blur-md border-b border-slate-200/50 shrink-0">
         <span className="text-[14px] font-bold tracking-tight" suppressHydrationWarning>
           {clockTime || "09:41"}
         </span>
@@ -345,34 +404,15 @@ function AIContent() {
           <div>
             <div className="flex items-center space-x-1.5">
               <h1 className="text-[15px] font-bold text-slate-900 tracking-tight">Trợ lý EZ-Space</h1>
-              <span className="px-1.5 py-0.5 text-[10px] font-bold text-blue-600 bg-blue-50 rounded-full border border-blue-200">
-                AI PRO
-              </span>
             </div>
-            <p className="text-[11px] text-slate-500 font-medium flex items-center">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5 animate-ping" />
-              Đang trực tuyến • Trả lời tức thì
+            <p className="text-[11px] text-slate-500 font-medium">
+              Trả lời tức thì
             </p>
           </div>
         </div>
 
         {/* Header Action Buttons */}
         <div className="flex items-center space-x-1">
-          {/* GPS Location Button */}
-          <button
-            onClick={() => setShowLocationPicker(!showLocationPicker)}
-            title="Vị trí của bạn"
-            className={clsx(
-              "p-2 rounded-xl text-slate-600 hover:text-blue-600 hover:bg-blue-50 active:scale-95 transition-all relative",
-              userLocation && "text-blue-600 bg-blue-50/80"
-            )}
-          >
-            <MapPin size={18} className={userLocation ? "fill-blue-600" : ""} />
-            {userLocation && (
-              <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-emerald-500 rounded-full" />
-            )}
-          </button>
-
           {/* New chat button */}
           <button
             onClick={() => {
@@ -456,7 +496,7 @@ function AIContent() {
       </AnimatePresence>
 
       {/* ================= 3. MAIN CHAT SCROLLER ================= */}
-      <main className="flex-1 overflow-y-auto px-4 py-3 space-y-4 no-scrollbar relative z-10">
+      <main className="flex-1 min-h-0 overflow-y-auto px-4 py-3 space-y-4 no-scrollbar relative z-10">
         
         {/* WELCOME / EMPTY STATE */}
         {aiMessages.length === 0 && (
@@ -567,6 +607,25 @@ function AIContent() {
           </div>
         )}
 
+        {/* GPS Permission Warning Banner */}
+        {gpsDenied && (
+          <div className="p-2.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-center justify-between shadow-xs">
+            <div className="flex items-center gap-2">
+              <span className="text-sm">📍</span>
+              <span className="font-semibold text-[11px] leading-tight">
+                Cần bật GPS để xác định vị trí hiện tại của bạn
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={handleGetLocation}
+              className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 active:scale-95 text-white rounded-xl text-[10px] font-bold shrink-0 transition cursor-pointer"
+            >
+              Bật GPS
+            </button>
+          </div>
+        )}
+
         {/* MESSAGE STREAM CONTAINER */}
         <div className="space-y-4">
           <AnimatePresence>
@@ -619,22 +678,22 @@ function AIContent() {
                     </>
                   ) : (
                     /* AI Message Bubble & Rich Cards */
-                    <div className="flex items-start space-x-2 max-w-full">
+                    <div className="flex items-start space-x-2 w-full max-w-full">
                       {/* Mini AI Avatar */}
                       <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 flex-shrink-0 flex items-center justify-center text-white text-[11px] shadow-sm mt-0.5">
                         ✨
                       </div>
 
-                      <div className="flex-1 space-y-2.5">
+                      <div className="flex-1 min-w-0 space-y-2.5">
                         {/* Text Bubble */}
                         <div className="bg-white border border-slate-200 px-3.5 py-2.5 rounded-2xl rounded-tl-sm shadow-sm text-slate-800">
-                          <p className="text-[13px] leading-relaxed whitespace-pre-wrap">{msg.text}</p>
+                          <p className="text-[13px] leading-relaxed whitespace-pre-wrap break-words">{msg.text}</p>
                         </div>
 
-                        {/* CAROUSEL RICH CARDS (BÃI ĐỖ XE TƯƠNG ỨNG) */}
+                        {/* VERTICAL RICH CARDS (BÃI ĐỖ XE TƯƠNG ỨNG - TỐI ĐA 1 BÃI PHÙ HỢP NHẤT) */}
                         {msg.cards && msg.cards.length > 0 && (
-                          <div className="w-full overflow-x-auto no-scrollbar flex space-x-3 py-1 pr-2 -ml-1 pl-1">
-                            {msg.cards.map((card, cIdx) => {
+                          <div className="w-full flex flex-col space-y-3 py-1">
+                            {msg.cards.slice(0, 1).map((card, cIdx) => {
                               const lot = lotsList.find((l) => l.id === card.lotId) || lotsList[0];
                               const isTop = cIdx === 0;
 
@@ -655,7 +714,7 @@ function AIContent() {
                                 <div
                                   key={card.lotId + cIdx}
                                   className={clsx(
-                                    "w-[270px] flex-shrink-0 bg-white rounded-2xl p-3 shadow-md relative transition-transform hover:-translate-y-0.5",
+                                    "w-full bg-white rounded-2xl p-3 shadow-md relative transition-transform hover:-translate-y-0.5",
                                     isTop ? "border-2 border-blue-500 shadow-blue-500/10" : "border border-slate-200"
                                   )}
                                 >
@@ -705,25 +764,6 @@ function AIContent() {
                                     ))}
                                   </div>
 
-                                  {/* Mini 2D Grid Preview */}
-                                  <div className="bg-slate-50 border border-slate-200 rounded-lg p-1.5 mb-2.5">
-                                    <div className="flex justify-between items-center text-[9px] font-bold text-slate-500 mb-1">
-                                      <span>SƠ ĐỒ NHANH KHU A</span>
-                                      <span className="text-emerald-600">Ô A-03 ĐANG TRỐNG</span>
-                                    </div>
-                                    <div className="grid grid-cols-6 gap-1">
-                                      <div className="h-3 rounded-[3px] bg-rose-400" title="Đã đỗ" />
-                                      <div className="h-3 rounded-[3px] bg-rose-400" title="Đã đỗ" />
-                                      <div
-                                        className="h-3 rounded-[3px] bg-emerald-500 ring-2 ring-blue-500 animate-pulse"
-                                        title="Gợi ý: A-03"
-                                      />
-                                      <div className="h-3 rounded-[3px] bg-emerald-500" title="Trống" />
-                                      <div className="h-3 rounded-[3px] bg-amber-400" title="Giữ chỗ" />
-                                      <div className="h-3 rounded-[3px] bg-emerald-500" title="Trống" />
-                                    </div>
-                                  </div>
-
                                   {/* Action Buttons */}
                                   <div className="grid grid-cols-2 gap-2">
                                     <Link
@@ -751,13 +791,6 @@ function AIContent() {
                               );
                             })}
                           </div>
-                        )}
-
-                        {/* Hint notice */}
-                        {msg.cards && msg.cards.length > 0 && (
-                          <p className="text-[11px] text-slate-400 font-medium pl-1">
-                            💡 Chạm "Giữ chỗ" để khóa vị trí đỗ trong 10 phút.
-                          </p>
                         )}
                       </div>
                     </div>
@@ -795,7 +828,7 @@ function AIContent() {
       </main>
 
       {/* ================= 4. INPUT BAR SECTION ================= */}
-      <div className="relative z-20 px-3 py-2 bg-white/95 backdrop-blur-md border-t border-slate-200/80 shadow-[0_-4px_16px_rgba(0,0,0,0.03)]">
+      <div className="relative z-20 px-3 py-2 bg-white/95 backdrop-blur-md border-t border-slate-200/80 shadow-[0_-4px_16px_rgba(0,0,0,0.03)] shrink-0">
         
         {/* Smart Prompt Chips Bar */}
         <div className="flex space-x-1.5 overflow-x-auto no-scrollbar pb-1.5">
@@ -854,10 +887,10 @@ function AIContent() {
           <button
             type="submit"
             disabled={!input.trim()}
-            className="w-11 h-11 rounded-[14px] bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center shadow-md shadow-blue-500/20 active:scale-95 hover:opacity-95 transition-all flex-shrink-0 disabled:opacity-50 disabled:bg-slate-300"
+            className="w-11 h-11 rounded-[14px] bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center shadow-md shadow-blue-500/20 active:scale-95 hover:opacity-95 transition-all flex-shrink-0 disabled:opacity-50 disabled:bg-slate-300 cursor-pointer disabled:cursor-not-allowed"
             title="Gửi tin nhắn"
           >
-            <Send size={16} className="translate-x-0.5" />
+            <Send size={17} className="-translate-x-[1px] translate-y-[1px]" />
           </button>
         </form>
       </div>

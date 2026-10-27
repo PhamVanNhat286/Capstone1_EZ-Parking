@@ -30,12 +30,14 @@ import {
   X,
   ArrowUpLeft,
   Navigation2,
+  Heart,
 } from "lucide-react";
 import { clsx } from "clsx";
 import { lots, Lot } from "@/lib/mock/lots";
 import { getLotsApi } from "@/lib/api";
 import { useStore } from "@/store";
 import BottomSheet from "@/components/ui/BottomSheet";
+import { getCurrentLotRate } from "@/lib/pricing";
 
 const normalize = (str: string) =>
   str
@@ -67,6 +69,14 @@ function ExploreContent() {
   const activeBooking = useStore((s) => s.activeBooking);
   const addToast = useStore((s) => s.addToast);
   const cancelBooking = useStore((s) => s.cancelBooking);
+  const favoriteLots = useStore((s) => s.favoriteLots || []);
+  const toggleFavoriteLot = useStore((s) => s.toggleFavoriteLot);
+
+  const isLotFav = (lotId: string) =>
+    favoriteLots.includes(lotId) ||
+    ((lotId === "3" || lotId === "san-bay-t1") && favoriteLots.some((id) => id === "3" || id === "san-bay-t1")) ||
+    ((lotId === "1" || lotId === "hai-chau-a") && favoriteLots.some((id) => id === "1" || id === "hai-chau-a")) ||
+    ((lotId === "2" || lotId === "cau-rong") && favoriteLots.some((id) => id === "2" || id === "cau-rong"));
 
   const activeVehicle = vehicles.find((v) => v.isPrimary) || vehicles[0] || {
     plate: "43A-123.45",
@@ -78,8 +88,7 @@ function ExploreContent() {
   const [isGpsActive, setIsGpsActive] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
 
-  // Tự động kích hoạt GPS khi mở app (âm thầm không hiện toast che màn hình)
-  const requestGpsLocation = () => {
+  const requestGpsLocation = (force = false) => {
     if (typeof window !== "undefined" && "geolocation" in navigator) {
       setIsLocating(true);
       navigator.geolocation.getCurrentPosition(
@@ -88,20 +97,50 @@ function ExploreContent() {
           setUserLocation({ lat: latitude, lng: longitude });
           setIsGpsActive(true);
           setIsLocating(false);
-          setCurrentArea("Vị trí GPS của bạn 📍");
+          setCurrentArea("Vị trí hiện tại");
+          try {
+            sessionStorage.setItem("ez_gps_coords", JSON.stringify({ lat: latitude, lng: longitude }));
+            sessionStorage.setItem("ez_gps_status", "active");
+          } catch {}
         },
         (error) => {
           setIsLocating(false);
+          setIsGpsActive(false);
+          setCurrentArea("");
+          setUserLocation(null);
+          try {
+            sessionStorage.setItem("ez_gps_status", "denied");
+            sessionStorage.removeItem("ez_gps_coords");
+          } catch {}
           console.warn("Lỗi hoặc từ chối GPS:", error.message);
-          // Mặc định fallback tọa độ trung tâm Đà Nẵng (Hải Châu)
-          setUserLocation({ lat: 16.0718, lng: 108.2222 });
         },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+        { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
       );
     }
   };
 
+  // Tự động kiểm tra hoặc hỏi quyền vị trí khi vào app
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      const savedGps = sessionStorage.getItem("ez_gps_coords");
+      const gpsStatus = sessionStorage.getItem("ez_gps_status");
+
+      if (savedGps && gpsStatus === "active") {
+        try {
+          const coords = JSON.parse(savedGps);
+          setUserLocation(coords);
+          setIsGpsActive(true);
+          setCurrentArea("Vị trí hiện tại");
+          return;
+        } catch {}
+      } else if (gpsStatus === "denied") {
+        setIsGpsActive(false);
+        setCurrentArea("");
+        return;
+      }
+    }
+
+    // Hỏi quyền vị trí từ trình duyệt
     requestGpsLocation();
   }, []);
 
@@ -145,7 +184,7 @@ function ExploreContent() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showSearchHistory, setShowSearchHistory] = useState(false);
   const [sheetContent, setSheetContent] = useState<"none" | "notif" | "area">("none");
-  const [currentArea, setCurrentArea] = useState("Hải Châu, Đà Nẵng");
+  const [currentArea, setCurrentArea] = useState("");
 
   const searchPhrases = [
     "Bạn muốn đỗ xe ở đâu?...",
@@ -322,7 +361,7 @@ function ExploreContent() {
             </h2>
             <button
               onClick={() => setSheetContent("area")}
-              className="flex items-center gap-1 text-[11px] text-blue-600 font-semibold mt-0.5 hover:underline text-left"
+              className="flex items-center gap-1 text-[11px] text-blue-600 font-semibold mt-0.5 hover:underline text-left min-h-[16px]"
             >
               <div className="relative flex items-center justify-center">
                 <MapPin size={12} className={isGpsActive ? "text-emerald-600" : "text-blue-600"} />
@@ -330,9 +369,13 @@ function ExploreContent() {
                   <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-emerald-500 rounded-full animate-ping" />
                 )}
               </div>
-              <span className="truncate max-w-[130px]">{currentArea}</span>
+              {currentArea ? (
+                <>
+                  <span className="truncate max-w-[130px]">{currentArea}</span>
+                  <ChevronDown size={12} className="shrink-0 text-slate-400" />
+                </>
+              ) : null}
               {isLocating && <span className="text-[9px] text-slate-400 animate-pulse">(Đang dò...)</span>}
-              <ChevronDown size={12} className="shrink-0 text-slate-400" />
             </button>
           </div>
         </div>
@@ -341,10 +384,24 @@ function ExploreContent() {
         <div className="flex items-center gap-2">
           {/* Quick GPS Refresh Pill */}
           <button
-            onClick={requestGpsLocation}
-            title="Lấy lại tọa độ GPS"
+            onClick={() => {
+              if (isGpsActive) {
+                // Tắt GPS nếu người dùng không muốn dùng
+                setIsGpsActive(false);
+                setUserLocation(null);
+                setCurrentArea("");
+                try {
+                  sessionStorage.setItem("ez_gps_status", "denied");
+                  sessionStorage.removeItem("ez_gps_coords");
+                } catch {}
+              } else {
+                // Yêu cầu bật lại GPS
+                requestGpsLocation(true);
+              }
+            }}
+            title={isGpsActive ? "Bấm để tắt GPS" : "Bấm để bật GPS"}
             className={clsx(
-              "px-2 py-1 rounded-full text-[10px] font-bold border flex items-center gap-1 transition active:scale-95",
+              "px-2 py-1 rounded-full text-[10px] font-bold border flex items-center gap-1 transition active:scale-95 cursor-pointer",
               isGpsActive
                 ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                 : "bg-slate-100 text-slate-600 border-slate-200"
@@ -414,15 +471,6 @@ function ExploreContent() {
             >
               <Mic size={18} />
             </button>
-
-            {/* AI Search / Filter button */}
-            <button
-              onClick={() => router.push(`/ai?q=${encodeURIComponent(searchQuery || "Tìm bãi đỗ gần nhất")}`)}
-              className="w-10 h-10 rounded-[14px] bg-gradient-to-tr from-blue-600 to-blue-700 text-white shadow-md shadow-blue-500/20 flex items-center justify-center active:scale-95 transition shrink-0"
-              title="AI Trợ lý đỗ xe"
-            >
-              <SlidersHorizontal size={18} />
-            </button>
           </div>
 
           {/* Quick Search History Dropdown Popover */}
@@ -462,29 +510,6 @@ function ExploreContent() {
           )}
         </div>
 
-        {/* 3.2 ACTIVE VEHICLE */}
-        <div>
-          {/* Current Selected Vehicle Strip */}
-          <div className="flex items-center justify-between bg-blue-50/70 border border-blue-100 rounded-xl px-3 py-1.5">
-            <div className="flex items-center gap-2 text-xs">
-              <span className="text-base">🚘</span>
-              <span className="text-slate-600 font-medium">Xe của bạn:</span>
-              <span className="font-extrabold text-blue-900 bg-white px-2 py-0.5 rounded-md border border-blue-200/80 shadow-2xs font-mono">
-                {activeVehicle.plate}
-              </span>
-              <span className="text-[10px] font-bold bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">
-                {activeVehicle.type}
-              </span>
-            </div>
-            <Link
-              href="/xe-cua-toi"
-              className="text-[11px] font-bold text-blue-600 hover:text-blue-800 flex items-center gap-0.5"
-            >
-              <span>Đổi xe</span>
-              <ChevronRight size={13} />
-            </Link>
-          </div>
-        </div>
 
         {/* 3.3 CARD ĐẶT CHỖ HIỆN TẠI (ACTIVE RESERVATION CARD) - CHỈ HIỆN KHI CÓ ĐƠN THỰC TẾ */}
         {activeBooking && (
@@ -670,7 +695,12 @@ function ExploreContent() {
 
               <div className="grid grid-cols-2 gap-2 pt-0.5">
                 <button
-                  onClick={() => addToast("Đang kích hoạt bản đồ chỉ đường tới bãi đỗ...", "info")}
+                  onClick={() => {
+                    const bookedLot = lots.find((l) => l.id === activeBooking?.lotId) || lots[0];
+                    const query = encodeURIComponent(`${bookedLot.name}, ${bookedLot.address}`);
+                    const url = `https://www.google.com/maps/dir/?api=1&destination=${query}&travelmode=driving`;
+                    window.open(url, "_blank");
+                  }}
                   className="py-2.5 px-3 rounded-xl border border-blue-200 bg-white hover:bg-blue-50 text-blue-700 font-bold text-xs flex items-center justify-center gap-1.5 transition active:scale-95"
                 >
                   <Navigation size={14} />
@@ -739,13 +769,10 @@ function ExploreContent() {
           </div>
         </div>
 
-        {/* 3.5 BÃI ĐỖ GẦN BẠN (NEARBY PARKING LOTS HORIZONTAL CAROUSEL) */}
+        {/* 3.5 BÃI ĐỖ GẦN BẠN (NEARBY PARKING LOTS VERTICAL LIST) */}
         <div className="space-y-2.5">
           <div className="flex items-center justify-between px-1">
-            <div className="flex items-center gap-1.5">
-              <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Bãi đỗ gần bạn</h3>
-              <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md">Realtime</span>
-            </div>
+            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Bãi đỗ gần bạn</h3>
             <button
               onClick={() => setSearchQuery("")}
               className="text-xs font-bold text-blue-600 hover:underline flex items-center"
@@ -782,17 +809,18 @@ function ExploreContent() {
             })}
           </div>
 
-          {/* Horizontal Scroll Cards */}
-          <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1">
+          {/* Vertical Stack Cards */}
+          <div className="flex flex-col gap-3 pb-2">
             {filteredLots.map((lot) => {
               const availableCount = lot.available?.total ?? 0;
               const isFull = availableCount === 0;
+              const activeRate = getCurrentLotRate(lot.id, lot.price);
 
               return (
                 <div
                   key={lot.id}
                   className={clsx(
-                    "min-w-[250px] max-w-[250px] bg-white rounded-2xl border border-slate-200/90 p-3 shadow-sm flex flex-col justify-between shrink-0 transition-transform active:scale-[0.99]",
+                    "w-full bg-white rounded-2xl border border-slate-200/90 p-3.5 shadow-sm flex flex-col justify-between transition-transform active:scale-[0.99]",
                     isFull && "opacity-75"
                   )}
                 >
@@ -800,7 +828,7 @@ function ExploreContent() {
                     <div className="flex items-start justify-between">
                       <span
                         className={clsx(
-                          "px-2 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-1",
+                          "px-2.5 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-1",
                           isFull
                             ? "bg-rose-50 text-rose-700 border-rose-200"
                             : availableCount <= 3
@@ -816,42 +844,57 @@ function ExploreContent() {
                         />
                         {isFull ? "Đã đỗ đầy" : `${availableCount} chỗ trống`}
                       </span>
-                      <span className="text-[11px] font-black text-blue-700">
-                        {lot.price.toLocaleString("vi-VN")}đ
-                        <span className="text-[9px] font-normal text-slate-400">/h</span>
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-black text-blue-700">
+                          {activeRate.rate.toLocaleString("vi-VN")}đ
+                          <span className="text-[10px] font-normal text-slate-400 ml-0.5">/h</span>
+                        </span>
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            const fav = isLotFav(lot.id);
+                            toggleFavoriteLot(lot.id);
+                            addToast(fav ? `Đã bỏ ${lot.name} khỏi danh sách yêu thích` : `Đã thêm ${lot.name} vào vị trí yêu thích`, "success");
+                          }}
+                          className="p-1 rounded-full hover:bg-slate-100 text-slate-400 active:scale-90 transition-transform cursor-pointer"
+                          aria-label="Yêu thích"
+                        >
+                          <Heart size={16} className={isLotFav(lot.id) ? "text-rose-500 fill-rose-500" : "text-slate-300"} />
+                        </button>
+                      </div>
                     </div>
 
                     <h4 className="font-extrabold text-sm text-slate-800 mt-2 line-clamp-1">{lot.name}</h4>
-                    <p className="text-[10px] text-blue-700 font-bold mt-0.5 flex items-center gap-1">
-                      <Navigation2 size={11} className="text-blue-500 shrink-0" />
+                    <p className="text-[11px] text-blue-700 font-bold mt-0.5 flex items-center gap-1">
+                      <Navigation2 size={12} className="text-blue-500 shrink-0" />
                       <span>
                         {lot.distance !== undefined
                           ? `${lot.distance} km • ${Math.max(1, Math.round(lot.distance * 3))} phút di chuyển`
                           : "0.4 km • 3 phút di chuyển"}
                       </span>
                     </p>
-                    <p className="text-[10px] text-slate-400 mt-0.5 truncate flex items-center gap-1">
-                      <MapPin size={10} className="text-slate-400 shrink-0" />
+                    <p className="text-[11px] text-slate-400 mt-0.5 truncate flex items-center gap-1">
+                      <MapPin size={11} className="text-slate-400 shrink-0" />
                       <span className="truncate">{lot.address || `${lot.district}, Đà Nẵng`}</span>
                     </p>
 
                     {/* Interactive 8-Slot LED Matrix Replica */}
-                    <div className="mt-2.5 p-1.5 rounded-lg bg-slate-50 border border-slate-200">
-                      <div className="text-[8px] font-bold text-slate-400 mb-1 flex items-center justify-between">
+                    <div className="mt-2.5 p-2 rounded-xl bg-slate-50 border border-slate-200">
+                      <div className="text-[9px] font-bold text-slate-400 mb-1.5 flex items-center justify-between">
                         <span>SƠ ĐỒ TRỰC QUAN</span>
                         <span className={isFull ? "text-rose-600" : "text-emerald-600"}>
                           {isFull ? "HẾT CHỖ" : `${Math.min(availableCount, 8)}/8 TRỐNG`}
                         </span>
                       </div>
-                      <div className="grid grid-cols-4 gap-1">
+                      <div className="grid grid-cols-4 gap-1.5">
                         {["A1", "A2", "A3", "A4", "B1", "B2", "B3", "B4"].map((code, idx) => {
                           const isOccupied = isFull || idx >= (availableCount % 8 === 0 && availableCount > 0 ? 8 : (availableCount % 8) + 1);
                           return (
                             <div
                               key={code}
                               className={clsx(
-                                "h-4 rounded border text-[8px] font-bold flex items-center justify-center",
+                                "h-5 rounded-md border text-[9px] font-bold flex items-center justify-center",
                                 isOccupied
                                   ? "border-rose-400 bg-rose-100 text-rose-700"
                                   : "border-emerald-500 bg-emerald-100 text-emerald-700"
@@ -868,10 +911,10 @@ function ExploreContent() {
                   <Link
                     href={`/bai/${lot.id}`}
                     className={clsx(
-                      "w-full mt-3 py-2 rounded-xl text-center font-bold text-xs shadow-xs active:scale-95 transition block",
+                      "w-full mt-3 py-2.5 rounded-xl text-center font-bold text-xs shadow-xs active:scale-95 transition block cursor-pointer",
                       isFull
                         ? "bg-slate-100 hover:bg-slate-200 text-slate-600"
-                        : "bg-blue-600 hover:bg-blue-700 text-white"
+                        : "bg-blue-600 hover:bg-blue-700 text-white shadow-blue-500/20"
                     )}
                   >
                     {isFull ? "Báo khi có chỗ" : "Đặt chỗ ngay"}
