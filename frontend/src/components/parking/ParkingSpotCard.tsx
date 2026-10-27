@@ -7,12 +7,14 @@ export type Kind = "sedan" | "suv" | "ev";
 export type Status = "empty" | "occupied" | "holding" | "disabled";
 export type Spot = {
   id: string;
+  dbId?: number;
   type: Kind;
   status: Status;
   rowIndex?: number;
   colIndex?: number;
   nearExit?: boolean;
 };
+
 
 type Props = {
   spot: Spot;

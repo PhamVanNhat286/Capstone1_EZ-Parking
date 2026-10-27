@@ -4,7 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { AlertCircle, ArrowLeft, ArrowRight, Banknote, Check, CheckCircle2, ChevronDown, CircleHelp, Clock3, Copy, CreditCard, Download, ExternalLink, Info, LoaderCircle, MapPin, QrCode, RefreshCw, ShieldCheck, Smartphone, Ticket, Wallet, X, XCircle } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
-import { getLotByIdApi } from "@/lib/api";
+import { getLotByIdApi, payDepositApi, releaseSpotApi } from "@/lib/api";
 import { lots } from "@/lib/mock/lots";
 import { useStore, type Booking } from "@/store";
 
@@ -61,6 +61,7 @@ function PaymentContent() {
   const booking = useStore((s) => s.activeBooking);
   const history = useStore((s) => s.history);
   const vehicles = useStore((s) => s.vehicles);
+  const user = useStore((s) => s.user);
   const payDeposit = useStore((s) => s.payDeposit);
   const releaseSpot = useStore((s) => s.releaseSpot);
   const lateIPNRefund = useStore((s) => s.lateIPNRefund);
@@ -94,6 +95,9 @@ function PaymentContent() {
         return;
       }
       // ONLY simulator success explicitly requested by the user. No bank payment is made.
+      if (current?.backendId) {
+        void payDepositApi(current.backendId, fromQuery, user?.token);
+      }
       payDeposit(fromQuery);
       router.replace(`/thanh-toan/thanh-cong?provider=${fromQuery}`);
     }, 950);
@@ -123,7 +127,6 @@ function GatewayScreen({ booking, vehicle, lot, provider, remaining, router, rel
   const [openInfo, setOpenInfo] = useState(false);
     const isExpired = remaining <= 0;
   const qrValue = `EZPARKING_DEMO_ONLY|BOOKING=${booking.id}|SLOT=${booking.spotId}|AMOUNT=${DEPOSIT}|METHOD=${provider}`;
-  const selectMethod = (p: Provider) => router.replace(`/thanh-toan/${p}`);
   const confirmDemo = (result: "success" | "fail" | "late") => {
     if (isExpired) { router.push(`/thanh-toan/that-bai?provider=${provider}&reason=expired`); return; }
     router.push(`/thanh-toan/dang-xu-ly?provider=${provider}&result=${result}`);
@@ -149,10 +152,8 @@ function GatewayScreen({ booking, vehicle, lot, provider, remaining, router, rel
   return <div className="min-h-full bg-[#f1f5f9] text-slate-900 pb-8">
     <Header title={provider === "card" ? "Thanh toán qua thẻ" : "Quét mã để thanh toán"} subtitle="Thanh toán cọc giữ chỗ • Bản mô phỏng" back={() => setAskCancel(true)}/>
     <div className="px-4 py-3 space-y-3">
-      <div className="rounded-2xl bg-amber-50 border border-amber-200 p-3 flex items-center gap-3"><div className="w-10 h-10 rounded-full bg-amber-100 grid place-items-center text-amber-700"><Clock3 size={22}/></div><div className="min-w-0 flex-1"><span className="font-extrabold text-xs text-amber-900">Đang giữ ô {booking.spotId}</span><p className="text-[11px] text-amber-700">{isExpired ? "Giữ chỗ đã hết hạn" : "Hệ thống sẽ nhả ô khi hết thời gian"}</p></div><span className="font-black text-lg tabular-nums text-amber-700">{timeText(remaining)}</span></div>
       <section className="bg-white rounded-3xl border border-slate-100 p-4 flex flex-col items-center shadow-sm">
-        <div className="flex p-1 bg-slate-100 w-full rounded-xl gap-1 mb-4">{(["vnpay", "momo", "card"] as Provider[]).map((p) => <button onClick={() => selectMethod(p)} key={p} className={`flex-1 py-2 rounded-lg text-[11px] font-extrabold ${p === provider ? "bg-blue-600 text-white" : "text-slate-600"}`}>{p === "vnpay" ? "VNPay" : p === "momo" ? "MoMo" : "Thẻ"}</button>)}</div>
-        <p className="uppercase text-[10px] tracking-widest font-extrabold text-slate-400">Số tiền cọc cần thanh toán</p><div className="text-[32px] font-black tracking-tight text-blue-600 mt-1">{money(DEPOSIT)}</div>
+        <p className="uppercase text-[10px] tracking-widest font-extrabold text-slate-400 mt-1">Số tiền cọc cần thanh toán</p><div className="text-[32px] font-black tracking-tight text-blue-600 mt-1">{money(DEPOSIT)}</div>
         {provider !== "card" ? <>
           <div id="ez-payment-qr" className="relative bg-white rounded-2xl border-[3px] border-blue-500 p-4 my-4 w-[232px] h-[232px] grid place-items-center overflow-hidden">
             <QRCodeSVG value={qrValue} size={194} marginSize={1} fgColor="#0f172a" bgColor="#ffffff"/>
@@ -180,12 +181,28 @@ function SuccessScreen({ booking, vehicle, lot, router }: { booking: Booking | n
   useEffect(() => { const id = window.setInterval(() => setNow(Date.now()), 1000); return () => window.clearInterval(id); }, []);
   if (!booking || !["paid", "entered"].includes(booking.status)) return <div className="min-h-full bg-slate-50 p-6 text-center"><p className="text-lg font-bold">Chưa có giao dịch được xác nhận</p><button onClick={() => router.replace("/")} className="mt-5 bg-blue-600 text-white px-6 py-3 rounded-xl font-bold">Trang chủ</button></div>;
   const minutes = Math.max(0, Math.ceil(((booking.arrivalExpiresAt || now) - now) / 1000));
-  return <div className="min-h-full bg-[#f1f5f9] pb-8"><Header title="Kết quả thanh toán" subtitle="Giao dịch đặt cọc giữ chỗ" back={() => router.replace("/")}/>
-    <div className="bg-gradient-to-b from-emerald-100 via-emerald-50 to-transparent px-5 pt-7 pb-5 text-center"><div className="mx-auto w-24 h-24 rounded-full bg-white shadow-md grid place-items-center mb-4"><CheckCircle2 className="text-emerald-500" size={55} strokeWidth={1.6}/></div><h2 className="text-2xl font-black">Đặt cọc thành công 🎉</h2><p className="text-sm text-slate-600 mt-1">Ô {booking.spotId} đã được giữ riêng cho bạn</p><div className="text-[30px] font-black text-blue-600 mt-4">{money(DEPOSIT)}</div><p className="text-[11px] text-slate-500 font-semibold">Tiền cọc đã thanh toán (mô phỏng)</p></div>
+  return <div className="min-h-full bg-[#f1f5f9] pb-8">
+    <div className="relative bg-gradient-to-b from-emerald-100 via-emerald-50 to-transparent px-5 pt-8 pb-5 text-center">
+      <button onClick={() => router.replace("/")} aria-label="Quay lại" className="absolute top-4 left-4 z-10 w-9 h-9 rounded-full bg-white shadow-sm border border-slate-200/80 grid place-items-center text-slate-700 hover:bg-slate-50 active:scale-95 transition-all">
+        <ArrowLeft size={19}/>
+      </button>
+      <div className="mx-auto w-24 h-24 rounded-full bg-white shadow-md grid place-items-center mb-4">
+        <CheckCircle2 className="text-emerald-500" size={55} strokeWidth={1.6}/>
+      </div>
+      <h2 className="text-2xl font-black">Đặt cọc thành công 🎉</h2>
+      <p className="text-sm text-slate-600 mt-1">Ô {booking.spotId} đã được giữ riêng cho bạn</p>
+      <div className="text-[30px] font-black text-blue-600 mt-4">{money(DEPOSIT)}</div>
+      <p className="text-[11px] text-slate-500 font-semibold">Tiền cọc đã thanh toán (mô phỏng)</p>
+    </div>
     <div className="px-4 space-y-4"><div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 flex items-center justify-between"><div><p className="text-blue-800 text-xs font-extrabold">Đã cọc • Hạn đến bãi</p><p className="text-sm text-slate-700 mt-1">{new Date(booking.arrivalExpiresAt || now).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}</p></div><span className="font-black text-xl tabular-nums text-blue-700">{timeText(minutes)}</span></div>
-    <div className="bg-white rounded-3xl overflow-hidden border border-slate-100 shadow-sm"><div className="p-4 flex items-center justify-between border-b border-dashed border-slate-200"><span className="text-xs text-slate-500">Mã giữ chỗ</span><div className="flex items-center"><b className="font-mono text-sm">{booking.id}</b><CopyButton value={booking.id}/></div></div><div className="p-4 space-y-3"><InfoRow label="Bãi đỗ" value={lot.name}/><InfoRow label="Vị trí ô đỗ" value={booking.spotId}/><InfoRow label="Xe đăng ký" value={`${vehicle?.plate || "-"} • ${vehicle?.name || "Xe"}`}/><InfoRow label="Thời lượng" value={`${booking.estimatedHours || 2} giờ`}/><InfoRow label="Phương thức" value={providerName(booking.paymentMethod || "vnpay")}/></div><div className="bg-slate-50 border-t border-dashed border-slate-200 p-4 space-y-2"><InfoRow label="Tổng phí dự kiến" value={money((booking.estimatedHours || 2) * lot.price)}/><InfoRow label="Cọc đã thanh toán" value={money(DEPOSIT)}/><InfoRow label="Dự kiến trả khi ra bãi" value={money(Math.max(0, (booking.estimatedHours || 2) * lot.price - DEPOSIT))}/></div></div>
-    <p className="bg-amber-50 border border-amber-100 rounded-xl text-xs text-amber-800 p-3">Vui lòng đến bãi trước thời hạn hiển thị để tránh mất cọc. Đây là trạng thái thanh toán thử nghiệm của đồ án.</p>
-    <button onClick={() => router.push(`/ve/${booking.id}`)} className="w-full rounded-2xl bg-blue-600 text-white py-4 font-extrabold flex items-center justify-center gap-2"><Ticket size={19}/> Xem vé QR & dẫn đường <ArrowRight size={17}/></button><button onClick={() => router.push(`/chi-duong/${booking.id}`)} className="w-full rounded-2xl bg-white text-blue-700 border border-blue-100 py-3.5 font-bold flex items-center justify-center gap-2"><MapPin size={17}/> Mở bản đồ dẫn đường</button><button onClick={() => router.replace("/")} className="w-full py-2 text-xs font-bold text-slate-500">Về trang khám phá</button></div>
+    <div className="bg-white rounded-3xl overflow-hidden border border-slate-100 shadow-sm"><div className="p-4 flex items-center justify-between border-b border-dashed border-slate-200"><span className="text-xs text-slate-500">Mã giữ chỗ</span><div className="flex items-center"><b className="font-mono text-sm">{booking.id}</b><CopyButton value={booking.id}/></div></div><div className="p-4 space-y-3"><InfoRow label="Bãi đỗ" value={lot.name}/><InfoRow label="Vị trí ô đỗ" value={booking.spotId}/><InfoRow label="Xe đăng ký" value={`${vehicle?.plate || "-"} • ${vehicle?.name || "Xe"}`}/><InfoRow label="Thời gian đỗ" value={booking.startTime && booking.endTime ? `${booking.startTime} - ${booking.endTime} (${booking.estimatedHours || 2} giờ)` : `${booking.estimatedHours || 2} giờ`}/><InfoRow label="Phương thức" value={providerName(booking.paymentMethod || "vnpay")}/></div><div className="bg-slate-50 border-t border-dashed border-slate-200 p-4 space-y-2"><InfoRow label="Tổng phí dự kiến" value={money((booking.estimatedHours || 2) * lot.price)}/><InfoRow label="Cọc đã thanh toán" value={money(DEPOSIT)}/><InfoRow label="Dự kiến trả khi ra bãi" value={money(Math.max(0, (booking.estimatedHours || 2) * lot.price - DEPOSIT))}/></div></div>
+    <button onClick={() => router.push(`/ve/${booking.id}`)} className="w-full rounded-2xl bg-blue-600 text-white py-4 font-extrabold flex items-center justify-center gap-2 shadow-md shadow-blue-500/20 active:scale-[0.99] transition-transform"><Ticket size={19}/> Xem vé QR & dẫn đường <ArrowRight size={17}/></button>
+    <button onClick={() => {
+      const lotTarget = lots.find(l => l.id === booking.lotId) || lots[0];
+      const query = encodeURIComponent(`${lotTarget.name}, ${lotTarget.address}`);
+      window.open(`https://www.google.com/maps/dir/?api=1&destination=${query}&travelmode=driving`, "_blank");
+    }} className="w-full rounded-2xl bg-white text-blue-700 border border-blue-200 py-3.5 font-bold flex items-center justify-center gap-2 hover:bg-blue-50/50 active:scale-[0.99] transition-transform"><MapPin size={17}/> Mở chỉ đường Google Maps</button>
+    <button onClick={() => router.replace("/")} className="w-full py-2 text-xs font-bold text-slate-500 hover:text-slate-700">Về trang khám phá</button></div>
   </div>;
 }
 
@@ -194,9 +211,20 @@ function FailedScreen({ booking, vehicle, lot, now, provider, reason, router, re
   const [showHelp, setShowHelp] = useState(false);
   const remain = booking?.status === "holding" ? Math.max(0, Math.ceil((booking.holdExpiresAt - now) / 1000)) : 0;
   const expired = remain === 0 || reason === "expired" || reason === "late";
-  const selectOther = () => { releaseSpot(); router.replace(`/bai/${booking?.lotId || "hai-chau-a"}`); };
-  return <div className="min-h-full bg-[#f1f5f9] pb-8"><Header title="Kết quả thanh toán" subtitle="Giao dịch đặt cọc giữ chỗ" back={() => router.replace("/")}/>
-    <div className="relative text-center px-5 pt-8 pb-5 bg-gradient-to-b from-rose-100 via-rose-50 to-transparent"><div className="mx-auto w-24 h-24 bg-white rounded-full shadow-sm grid place-items-center mb-4"><XCircle size={55} strokeWidth={1.5} className="text-rose-500"/></div><h2 className="text-2xl font-black">{reason === "late" ? "Giao dịch đến sau hạn giữ chỗ" : expired ? "Đã hết thời gian giữ chỗ" : "Thanh toán không thành công"}</h2><p className="text-sm text-slate-600 mt-2 leading-6">{reason === "late" ? "Trong kịch bản mô phỏng, kết quả thanh toán đến quá muộn nên vé không được kích hoạt. Không có giao dịch tiền thật hay hoàn tiền thật." : expired ? "Ô đỗ không còn được bảo đảm. Vui lòng chọn lại trước khi thanh toán." : "Giao dịch thử nghiệm bị từ chối. Bạn vẫn có thể thử lại trước khi hết thời gian giữ chỗ."}</p></div>
+  const user = useStore((s) => s.user);
+  const selectOther = () => {
+    if (booking?.backendId) {
+      void releaseSpotApi(booking.backendId, user?.token);
+    }
+    releaseSpot();
+    router.replace(`/bai/${booking?.lotId || "hai-chau-a"}`);
+  };
+  return <div className="min-h-full bg-[#f1f5f9] pb-8">
+    <div className="relative text-center px-5 pt-8 pb-5 bg-gradient-to-b from-rose-100 via-rose-50 to-transparent">
+      <button onClick={() => router.replace("/")} aria-label="Quay lại" className="absolute top-4 left-4 z-10 w-9 h-9 rounded-full bg-white shadow-sm border border-slate-200/80 grid place-items-center text-slate-700 hover:bg-slate-50 active:scale-95 transition-all">
+        <ArrowLeft size={19}/>
+      </button>
+      <div className="mx-auto w-24 h-24 bg-white rounded-full shadow-sm grid place-items-center mb-4"><XCircle size={55} strokeWidth={1.5} className="text-rose-500"/></div><h2 className="text-2xl font-black">{reason === "late" ? "Giao dịch đến sau hạn giữ chỗ" : expired ? "Đã hết thời gian giữ chỗ" : "Thanh toán không thành công"}</h2><p className="text-sm text-slate-600 mt-2 leading-6">{reason === "late" ? "Trong kịch bản mô phỏng, kết quả thanh toán đến quá muộn nên vé không được kích hoạt. Không có giao dịch tiền thật hay hoàn tiền thật." : expired ? "Ô đỗ không còn được bảo đảm. Vui lòng chọn lại trước khi thanh toán." : "Giao dịch thử nghiệm bị từ chối. Bạn vẫn có thể thử lại trước khi hết thời gian giữ chỗ."}</p></div>
     <div className="px-4 space-y-4"><div className={`rounded-2xl p-4 border flex items-center justify-between ${expired ? "bg-slate-200 border-slate-300" : "bg-amber-50 border-amber-200"}`}><div><p className="text-xs font-extrabold">{expired ? "Giữ chỗ đã hết hạn" : `Ô ${booking?.spotId || "-"} vẫn được giữ`}</p><p className="text-[11px] text-slate-500 mt-1">{expired ? "Bạn cần chọn ô khác" : "Cố gắng hoàn tất thanh toán sớm"}</p></div><strong className="font-black text-lg tabular-nums">{timeText(remain)}</strong></div>
       <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-4 space-y-3"><h3 className="font-extrabold text-sm">Thông tin giao dịch</h3><InfoRow label="Trạng thái" value={expired ? "Hết hạn" : "Thất bại (mô phỏng)"}/><InfoRow label="Phương thức" value={providerName(provider)}/><InfoRow label="Mã đặt chỗ" value={booking?.id || "-"}/><InfoRow label="Số tiền dự định thanh toán" value={money(DEPOSIT)}/><InfoRow label="Bãi đỗ" value={lot.name}/><InfoRow label="Vị trí" value={booking?.spotId || "-"}/><InfoRow label="Biển số" value={vehicle?.plate || "-"}/></div>
       <div className="bg-white rounded-2xl p-4 border border-slate-100"><button onClick={() => setShowHelp((v) => !v)} className="w-full flex justify-between items-center text-left gap-2"><span className="flex gap-2 text-sm font-extrabold"><CircleHelp size={19} className="text-blue-600"/> Tiền của tôi có bị trừ không?</span><ChevronDown size={17}/></button>{showHelp && <p className="text-xs text-slate-600 mt-3">Trong chế độ thử nghiệm của đồ án, không có tiền thật bị trừ và không phát sinh giao dịch hoàn tiền. Nếu sau này tích hợp cổng thật, trạng thái trừ tiền và hoàn tiền phải lấy từ đối soát của nhà cung cấp thanh toán.</p>}</div>

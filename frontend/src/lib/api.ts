@@ -110,7 +110,16 @@ export async function loginApi(email: string, password: string) {
   return res.json();
 }
 
-export async function registerApi(data: { full_name: string; email: string; phone?: string; password: string }) {
+export async function registerApi(data: {
+  full_name: string;
+  email: string;
+  phone?: string;
+  password: string;
+  license_plate?: string;
+  vehicle_type?: string;
+  vehicle_name?: string;
+  vehicles?: Array<{ license_plate: string; vehicle_name?: string; vehicle_type?: string }>;
+}) {
   const res = await fetch(`${API_BASE_URL}/auth/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -145,6 +154,16 @@ export async function checkExistsApi(data: { email?: string; phone?: string }) {
   });
   return res.json();
 }
+
+export async function resetPasswordApi(data: { email: string; new_password: string; otp_code?: string }) {
+  const res = await fetch(`${API_BASE_URL}/auth/reset-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  return res.json();
+}
+
 
 
 export async function getMeApi(token: string) {
@@ -183,4 +202,117 @@ export async function changePasswordApi(
   });
   return res.json();
 }
+
+// ================= VEHICLE APIS =================
+export async function getVehiclesApi(token: string) {
+  const res = await fetch(`${API_BASE_URL}/vehicles`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return res.json();
+}
+
+export async function addVehicleApi(
+  token: string,
+  data: { license_plate: string; vehicle_name?: string; vehicle_type?: string }
+) {
+  const res = await fetch(`${API_BASE_URL}/vehicles`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(data),
+  });
+  return res.json();
+}
+
+export async function updateVehicleApi(
+  token: string,
+  id: string,
+  data: { license_plate?: string; vehicle_name?: string; vehicle_type?: string }
+) {
+  const res = await fetch(`${API_BASE_URL}/vehicles/${id}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(data),
+  });
+  return res.json();
+}
+
+export async function deleteVehicleApi(token: string, id: string) {
+  const res = await fetch(`${API_BASE_URL}/vehicles/${id}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return res.json();
+}
+
+// ================= RESERVATION APIS (ANTI-DOUBLE BOOKING) =================
+export async function holdSpotApi(data: {
+  parking_lot_id: string | number;
+  slot_id: string | number;
+  vehicle_id?: string | number;
+  estimated_hours?: number;
+  start_time?: string;
+  expected_end_time?: string;
+  token?: string;
+}) {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (data.token) {
+    headers["Authorization"] = `Bearer ${data.token}`;
+  }
+
+  const res = await fetch(`${API_BASE_URL}/reservations/hold`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      parking_lot_id: data.parking_lot_id,
+      slot_id: data.slot_id,
+      vehicle_id: data.vehicle_id,
+      estimated_hours: data.estimated_hours,
+      start_time: data.start_time,
+      expected_end_time: data.expected_end_time,
+    }),
+  });
+
+  const json = await res.json().catch(() => ({}));
+  return { status: res.status, ok: res.ok, ...json };
+}
+
+export async function releaseSpotApi(reservationId: string | number, token?: string) {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
+  const res = await fetch(`${API_BASE_URL}/reservations/${reservationId}/release`, {
+    method: "POST",
+    headers,
+  });
+  return res.json().catch(() => ({ success: false }));
+}
+
+export async function payDepositApi(reservationId: string | number, provider = "vnpay", token?: string) {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
+  const res = await fetch(`${API_BASE_URL}/reservations/${reservationId}/pay-deposit`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ provider }),
+  });
+  return res.json().catch(() => ({ success: false }));
+}
+
+export async function getActiveReservationApi(token?: string) {
+  const headers: Record<string, string> = {};
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
+  const res = await fetch(`${API_BASE_URL}/reservations/active`, { headers });
+  return res.json().catch(() => ({ success: false, data: null }));
+}
+
 

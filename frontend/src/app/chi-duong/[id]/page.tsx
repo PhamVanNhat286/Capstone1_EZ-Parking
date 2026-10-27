@@ -45,7 +45,7 @@ export default function NavigationPage() {
     navigator.geolocation.getCurrentPosition((p) => { setOrigin({ lat: p.coords.latitude, lng: p.coords.longitude }); setLocationStatus("granted"); }, () => { setOrigin(null); setLocationStatus("denied"); }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 15000 });
   };
   const googleUrl = useMemo(() => {
-    const end = `${destination.lat},${destination.lng}`;
+    const end = `${destination.name}, ${destination.address}`;
     const start = origin ? `&origin=${encodeURIComponent(`${origin.lat},${origin.lng}`)}` : "";
     return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(end)}${start}&travelmode=driving`;
   }, [destination, origin]);
