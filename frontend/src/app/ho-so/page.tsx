@@ -32,6 +32,8 @@ import {
   X,
   AlertTriangle,
   Image as ImageIcon,
+  ShieldCheck,
+  FileText,
 } from "lucide-react";
 import { clsx } from "clsx";
 import { useStore, Vehicle } from "@/store";
@@ -95,6 +97,7 @@ export default function ProfilePage() {
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
   const [isAvatarSheetOpen, setIsAvatarSheetOpen] = useState(false);
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
+  const [isPolicyModalOpen, setIsPolicyModalOpen] = useState(false);
 
   // Profile Form state
   const [nameInput, setNameInput] = useState(currentUser.name);
@@ -144,11 +147,13 @@ export default function ProfilePage() {
   const [newVName, setNewVName] = useState("");
   const [newVPlate, setNewVPlate] = useState("");
   const [newVDefault, setNewVDefault] = useState(false);
+  const [newEvBodyType, setNewEvBodyType] = useState<"Sedan" | "SUV">("SUV");
 
   // Edit Vehicle Form state
   const [editVName, setEditVName] = useState("");
   const [editVPlate, setEditVPlate] = useState("");
   const [editVType, setEditVType] = useState<"Sedan" | "SUV" | "EV">("SUV");
+  const [editEvBodyType, setEditEvBodyType] = useState<"Sedan" | "SUV">("SUV");
 
   // Change Password state
   const [oldPassword, setOldPassword] = useState("");
@@ -291,13 +296,14 @@ export default function ProfilePage() {
       name: newVName.trim(),
       plate: plateUpper,
       type: newVType,
-      evBodyType: newVType === "EV" ? "SUV" : undefined,
+      evBodyType: newVType === "EV" ? newEvBodyType : undefined,
     };
 
     addVehicle(newVehicle);
     setNewVName("");
     setNewVPlate("");
     setNewVDefault(false);
+    setNewEvBodyType("SUV");
     setIsAddVehicleOpen(false);
     showToast(`Đã thêm xe ${newVehicle.plate} thành công!`);
   };
@@ -323,6 +329,7 @@ export default function ProfilePage() {
       name: editVName.trim(),
       plate: editVPlate.trim().toUpperCase(),
       type: editVType,
+      evBodyType: editVType === "EV" ? editEvBodyType : undefined,
     });
 
     setIsEditVehicleOpen(null);
@@ -438,14 +445,6 @@ export default function ProfilePage() {
           <div className="absolute -top-10 -right-10 w-44 h-44 bg-blue-200/50 rounded-full blur-2xl pointer-events-none animate-float-blob" />
           <div className="absolute top-20 -left-12 w-36 h-36 bg-sky-200/40 rounded-full blur-xl pointer-events-none" />
 
-          {/* Top bar trong header: Tiêu đề */}
-          <div className="relative z-10 flex items-center justify-between mb-4">
-            <div className="flex items-center space-x-2">
-              <span className="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
-              <span className="text-xs font-bold uppercase tracking-wider text-primary">Hồ sơ khách hàng</span>
-            </div>
-          </div>
-
           {/* Avatar & Thông tin cá nhân */}
           <div className="relative z-10 flex flex-col items-center text-center">
             {/* Khung Avatar lớn 80px có breathing glow */}
@@ -531,18 +530,17 @@ export default function ProfilePage() {
                   <Car className="w-4 h-4 text-primary" />
                   <span>Xe của tôi</span>
                 </h2>
-                <p className="text-[11px] text-slate-500">Chọn xe đặt chỗ nhanh & gợi ý ô đỗ tối ưu</p>
               </div>
               <button
                 onClick={() => setIsAddVehicleOpen(true)}
-                className="inline-flex items-center space-x-1 px-3 py-1.5 bg-primary text-white rounded-xl text-xs font-bold shadow-sm hover:bg-primary-dark active:scale-95 transition-all"
+                className="inline-flex items-center space-x-1 px-3 py-1.5 bg-primary text-white rounded-xl text-xs font-bold shadow-sm hover:bg-primary-dark active:scale-95 transition-all cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Thêm xe</span>
               </button>
             </div>
 
-            {/* Carousel cuộn ngang các thẻ xe (Snap) hoặc Empty State */}
+            {/* Danh sách xe xếp dọc (Vertical Stack) hoặc Empty State */}
             {vehicles.length === 0 ? (
               <div className="bg-white rounded-2xl p-6 text-center border border-dashed border-slate-300">
                 <Car className="w-10 h-10 text-slate-300 mx-auto mb-2" />
@@ -550,14 +548,14 @@ export default function ProfilePage() {
                 <p className="text-xs text-slate-400 mt-1 mb-4">Thêm xe để hệ thống nhận diện biển số và gợi ý ô đỗ tối ưu</p>
                 <button
                   onClick={() => setIsAddVehicleOpen(true)}
-                  className="inline-flex items-center space-x-1.5 px-4 py-2 bg-primary text-white rounded-xl text-xs font-bold shadow-sm hover:bg-primary-dark transition-all"
+                  className="inline-flex items-center space-x-1.5 px-4 py-2 bg-primary text-white rounded-xl text-xs font-bold shadow-sm hover:bg-primary-dark transition-all cursor-pointer"
                 >
                   <Plus className="w-4 h-4" />
                   <span>Thêm xe ngay</span>
                 </button>
               </div>
             ) : (
-              <div className="flex space-x-3 overflow-x-auto no-scrollbar snap-x snap-mandatory py-1 px-0.5">
+              <div className="flex flex-col space-y-3 py-1">
                 {vehicles.map((v) => {
                   const isSuv = v.type === "SUV";
                   const isEv = v.type === "EV";
@@ -565,7 +563,7 @@ export default function ProfilePage() {
                   return (
                     <div
                       key={v.id}
-                      className="snap-center shrink-0 w-[275px] bg-white rounded-2xl p-3.5 shadow-soft relative flex flex-col justify-between border border-slate-200 hover:border-slate-300 transition-all"
+                      className="w-full bg-white rounded-2xl p-3.5 shadow-soft relative flex flex-col justify-between border border-slate-200 hover:border-slate-300 transition-all"
                     >
                       <div>
                         <div className="flex items-start justify-between">
@@ -590,13 +588,10 @@ export default function ProfilePage() {
                             </div>
                             <div>
                               <h3 className="text-sm font-bold text-slate-900">{v.name}</h3>
-                              <span className="text-[10px] text-slate-400 font-medium">
-                                {isEv ? "Điện thuần • Sạc 60kW" : isSuv ? "7 chỗ máy dầu" : "5 chỗ số tự động"}
-                              </span>
                             </div>
                           </div>
 
-                          {/* Nhãn phân loại xe - Không dùng chữ 'Mặc định' */}
+                          {/* Nhãn phân loại xe */}
                           <span
                             className={clsx(
                               "px-2 py-0.5 rounded-md text-[10px] font-bold uppercase",
@@ -607,39 +602,21 @@ export default function ProfilePage() {
                                 : "bg-blue-50 text-blue-700 border border-blue-200"
                             )}
                           >
-                            {v.type}
+                            {isEv ? (v.evBodyType ? `EV • ${v.evBodyType}` : "EV") : v.type}
                           </span>
                         </div>
 
-                        {/* Biển số xe kiểu Việt Nam */}
-                        <div className="mt-3 bg-slate-50 border border-slate-800/80 rounded-lg p-2 text-center shadow-inner flex items-center justify-between px-3">
+                        {/* Biển số xe kiểu Việt Nam - Phông chữ giống tên xe, bỏ chữ SUV trong biển số */}
+                        <div className="mt-3 bg-slate-50 border border-slate-800/80 rounded-lg p-2 shadow-inner flex items-center justify-between px-3">
                           <span className="text-[10px] font-bold text-slate-400">VN</span>
-                          <span className="text-sm font-black tracking-widest text-slate-900 font-mono">
+                          <span className="text-sm font-bold tracking-wider text-slate-900 flex-1 text-center pr-4">
                             {v.plate}
-                          </span>
-                          <span
-                            className={clsx(
-                              "px-1.5 py-0.5 rounded text-[9px] font-bold uppercase",
-                              isEv
-                                ? "bg-emerald-100 text-emerald-700"
-                                : isSuv
-                                ? "bg-orange-100 text-orange-700"
-                                : "bg-blue-100 text-primary"
-                            )}
-                          >
-                            {isEv ? "EV SẠC" : v.type}
                           </span>
                         </div>
                       </div>
 
                       {/* Thao tác xe */}
-                      <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs">
-                        <span className="text-[11px] text-emerald-600 font-medium flex items-center space-x-1">
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                          <span>
-                            {isEv ? "Khớp trụ sạc EV" : isSuv ? "Khớp ô lớn B2" : "Khớp ô tiêu chuẩn"}
-                          </span>
-                        </span>
+                      <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-end text-xs">
                         <div className="flex items-center space-x-2">
                           <button
                             onClick={() => {
@@ -647,15 +624,16 @@ export default function ProfilePage() {
                               setEditVName(v.name);
                               setEditVPlate(v.plate);
                               setEditVType(v.type);
+                              setEditEvBodyType(v.evBodyType || "SUV");
                             }}
-                            className="text-slate-500 hover:text-primary p-1 active:scale-90"
+                            className="text-slate-500 hover:text-primary p-1 active:scale-90 cursor-pointer"
                             aria-label="Sửa xe"
                           >
                             <Pencil className="w-3.5 h-3.5" />
                           </button>
                           <button
                             onClick={() => handleDeleteVehicle(v)}
-                            className="text-slate-400 hover:text-red-500 p-1 active:scale-90"
+                            className="text-slate-400 hover:text-red-500 p-1 active:scale-90 cursor-pointer"
                             aria-label="Xóa xe"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -667,15 +645,6 @@ export default function ProfilePage() {
                 })}
               </div>
             )}
-
-            {/* Indicator Dots & Ghi chú xe */}
-            <div className="flex items-center justify-between mt-2 px-1">
-              <div className="flex space-x-1.5">
-                <span className="w-4 h-1.5 rounded-full bg-primary"></span>
-                <span className="w-1.5 h-1.5 rounded-full bg-slate-300"></span>
-              </div>
-              <span className="text-[10px] text-slate-500 italic">💡 Gợi ý ô đỗ theo loại xe SUV / EV</span>
-            </div>
           </section>
 
           {/* VỊ TRÍ ĐỖ YÊU THÍCH */}
@@ -686,7 +655,6 @@ export default function ProfilePage() {
                   <Heart className="w-4 h-4 text-rose-500 fill-rose-500" />
                   <span>Vị trí đỗ yêu thích</span>
                 </h2>
-                <p className="text-[11px] text-slate-500">Bãi đỗ thường xuyên & lối vào nhanh</p>
               </div>
               <Link
                 href="/"
@@ -796,9 +764,9 @@ export default function ProfilePage() {
               </div>
 
               {/* Ưu đãi & voucher */}
-              <button
-                onClick={() => showToast("Bạn có 2 phiếu giảm giá 20% đặt cọc!")}
-                className="w-full py-2.5 flex items-center justify-between text-left hover:bg-slate-50 active:bg-slate-100 rounded-lg px-1 transition-colors"
+              <Link
+                href="/uu-dai"
+                className="w-full py-2.5 flex items-center justify-between text-left hover:bg-slate-50 active:bg-slate-100 rounded-lg px-1 transition-colors cursor-pointer"
               >
                 <div className="flex items-center space-x-3">
                   <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
@@ -806,7 +774,7 @@ export default function ProfilePage() {
                   </div>
                   <div>
                     <div className="font-bold text-slate-800 text-xs">Ưu đãi & Khuyến mãi</div>
-                    <div className="text-[11px] text-slate-400">Giảm giá đỗ xe cuối tuần</div>
+                    <div className="text-[11px] text-slate-400">Giảm giá đỗ xe & mã quà tặng</div>
                   </div>
                 </div>
                 <div className="flex items-center space-x-1.5">
@@ -815,7 +783,7 @@ export default function ProfilePage() {
                   </span>
                   <ChevronRight className="w-4 h-4 text-slate-400" />
                 </div>
-              </button>
+              </Link>
             </div>
           </section>
 
@@ -881,7 +849,7 @@ export default function ProfilePage() {
               {/* Đổi mật khẩu */}
               <button
                 onClick={() => setIsChangePasswordOpen(true)}
-                className="w-full py-2.5 flex items-center justify-between text-left hover:bg-slate-50 active:bg-slate-100 rounded-lg px-1 transition-colors"
+                className="w-full py-2.5 flex items-center justify-between text-left hover:bg-slate-50 active:bg-slate-100 rounded-lg px-1 transition-colors cursor-pointer"
               >
                 <div className="flex items-center space-x-3">
                   <div className="w-8 h-8 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center">
@@ -904,6 +872,19 @@ export default function ProfilePage() {
               <span>Hỗ trợ & Thông tin</span>
             </h2>
             <div className="divide-y divide-slate-100 text-xs">
+              {/* Button Chính sách & Quy định - Nằm TRÊN tổng đài hỗ trợ */}
+              <button
+                type="button"
+                onClick={() => setIsPolicyModalOpen(true)}
+                className="w-full py-2.5 flex items-center justify-between hover:bg-slate-50 rounded-lg px-1 transition-colors text-left cursor-pointer"
+              >
+                <div className="flex items-center space-x-3">
+                  <ShieldCheck className="w-4 h-4 text-primary" />
+                  <span className="font-bold text-slate-700">Chính sách & Quy định</span>
+                </div>
+                <ChevronRight className="w-4 h-4 text-slate-400" />
+              </button>
+
               <a href="tel:19006868" className="py-2.5 flex items-center justify-between hover:bg-slate-50 rounded-lg px-1">
                 <div className="flex items-center space-x-3">
                   <PhoneCall className="w-4 h-4 text-slate-500" />
@@ -1082,6 +1063,42 @@ export default function ProfilePage() {
                 </div>
               </div>
 
+              {newVType === "EV" && (
+                <div className="bg-emerald-50/80 rounded-xl p-3 border border-emerald-200/80 space-y-1.5 animate-in fade-in duration-200">
+                  <label className="block font-bold text-emerald-900 text-xs">
+                    Kiểu dáng xe điện (để chọn ô đỗ phù hợp):
+                  </label>
+                  <div className="grid grid-cols-2 gap-2 mt-1">
+                    <button
+                      type="button"
+                      onClick={() => setNewEvBodyType("Sedan")}
+                      className={clsx(
+                        "py-2 px-2.5 rounded-lg border text-center flex items-center justify-center space-x-1.5 transition-all cursor-pointer",
+                        newEvBodyType === "Sedan"
+                          ? "bg-emerald-600 text-white border-emerald-600 font-bold shadow-xs"
+                          : "bg-white text-emerald-800 border-emerald-200 hover:bg-emerald-100/50 font-semibold"
+                      )}
+                    >
+                      <Car className="w-3.5 h-3.5" />
+                      <span className="text-xs">Sedan (VF 3, VF 6...)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNewEvBodyType("SUV")}
+                      className={clsx(
+                        "py-2 px-2.5 rounded-lg border text-center flex items-center justify-center space-x-1.5 transition-all cursor-pointer",
+                        newEvBodyType === "SUV"
+                          ? "bg-emerald-600 text-white border-emerald-600 font-bold shadow-xs"
+                          : "bg-white text-emerald-800 border-emerald-200 hover:bg-emerald-100/50 font-semibold"
+                      )}
+                    >
+                      <Truck className="w-3.5 h-3.5" />
+                      <span className="text-xs">SUV (VF 8, VF 9...)</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div>
                 <label className="block font-bold text-slate-700 mb-1">Tên xe / Hãng xe</label>
                 <input
@@ -1102,7 +1119,7 @@ export default function ProfilePage() {
                   value={newVPlate}
                   onChange={(e) => setNewVPlate(e.target.value.toUpperCase())}
                   required
-                  className="w-full h-11 px-3.5 rounded-xl border border-slate-200 focus:border-primary outline-none font-mono font-bold uppercase"
+                  className="w-full h-11 px-3.5 rounded-xl border border-slate-200 focus:border-primary outline-none font-bold uppercase tracking-wider"
                 />
               </div>
 
@@ -1183,6 +1200,42 @@ export default function ProfilePage() {
                 </div>
               </div>
 
+              {editVType === "EV" && (
+                <div className="bg-emerald-50/80 rounded-xl p-3 border border-emerald-200/80 space-y-1.5 animate-in fade-in duration-200">
+                  <label className="block font-bold text-emerald-900 text-xs">
+                    Kiểu dáng xe điện (để chọn ô đỗ phù hợp):
+                  </label>
+                  <div className="grid grid-cols-2 gap-2 mt-1">
+                    <button
+                      type="button"
+                      onClick={() => setEditEvBodyType("Sedan")}
+                      className={clsx(
+                        "py-2 px-2.5 rounded-lg border text-center flex items-center justify-center space-x-1.5 transition-all cursor-pointer",
+                        editEvBodyType === "Sedan"
+                          ? "bg-emerald-600 text-white border-emerald-600 font-bold shadow-xs"
+                          : "bg-white text-emerald-800 border-emerald-200 hover:bg-emerald-100/50 font-semibold"
+                      )}
+                    >
+                      <Car className="w-3.5 h-3.5" />
+                      <span className="text-xs">Sedan (VF 3, VF 6...)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditEvBodyType("SUV")}
+                      className={clsx(
+                        "py-2 px-2.5 rounded-lg border text-center flex items-center justify-center space-x-1.5 transition-all cursor-pointer",
+                        editEvBodyType === "SUV"
+                          ? "bg-emerald-600 text-white border-emerald-600 font-bold shadow-xs"
+                          : "bg-white text-emerald-800 border-emerald-200 hover:bg-emerald-100/50 font-semibold"
+                      )}
+                    >
+                      <Truck className="w-3.5 h-3.5" />
+                      <span className="text-xs">SUV (VF 8, VF 9...)</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div>
                 <label className="block font-bold text-slate-700 mb-1">Tên xe / Hãng xe</label>
                 <input
@@ -1201,7 +1254,7 @@ export default function ProfilePage() {
                   value={editVPlate}
                   onChange={(e) => setEditVPlate(e.target.value.toUpperCase())}
                   required
-                  className="w-full h-11 px-3.5 rounded-xl border border-slate-200 focus:border-primary outline-none font-mono font-bold uppercase"
+                  className="w-full h-11 px-3.5 rounded-xl border border-slate-200 focus:border-primary outline-none font-bold uppercase tracking-wider"
                 />
               </div>
 
@@ -1364,6 +1417,100 @@ export default function ProfilePage() {
                 Đăng xuất
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* BOTTOM SHEET / MODAL: CHÍNH SÁCH & QUY ĐỊNH */}
+      {isPolicyModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/40 backdrop-blur-sm flex flex-col justify-end">
+          <div className="bg-white rounded-t-[32px] p-5 shadow-2xl sheet-transition max-h-[85%] overflow-y-auto max-w-[430px] w-full mx-auto animate-in slide-in-from-bottom duration-300">
+            <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-4" />
+            
+            {/* Header */}
+            <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-100">
+              <div className="flex items-center space-x-2">
+                <div className="w-8 h-8 rounded-xl bg-blue-50 text-primary flex items-center justify-center">
+                  <ShieldCheck className="w-4 h-4 text-primary" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">Chính sách & Quy định</h3>
+                  <p className="text-[10px] text-slate-400">Nền tảng đỗ xe thông minh EZ-Space</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsPolicyModalOpen(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Policy Items */}
+            <div className="space-y-3 text-xs">
+              {/* Policy 1: Đặt cọc & Giữ chỗ */}
+              <div className="bg-blue-50/60 rounded-2xl p-3.5 border border-blue-100/80">
+                <div className="flex items-center space-x-2 text-primary font-bold mb-1">
+                  <span className="w-5 h-5 rounded-full bg-primary text-white text-[10px] flex items-center justify-center">1</span>
+                  <span className="text-xs">Đặt cọc & Giữ chỗ độc quyền</span>
+                </div>
+                <p className="text-[11px] text-slate-600 leading-relaxed pl-7">
+                  Người dùng đặt cọc <strong>50.000₫/lượt</strong> để giữ chỗ. Vị trí đỗ bạn chọn sẽ được khóa độc quyền trong <strong>10 phút</strong>, đảm bảo không có phương tiện khác đỗ vào.
+                </p>
+              </div>
+
+              {/* Policy 2: Thời hạn đến bãi */}
+              <div className="bg-amber-50/60 rounded-2xl p-3.5 border border-amber-100/80">
+                <div className="flex items-center space-x-2 text-amber-700 font-bold mb-1">
+                  <span className="w-5 h-5 rounded-full bg-amber-600 text-white text-[10px] flex items-center justify-center">2</span>
+                  <span className="text-xs">Thời hạn 20 phút di chuyển đến bãi</span>
+                </div>
+                <p className="text-[11px] text-slate-600 leading-relaxed pl-7">
+                  Bạn có <strong>20 phút</strong> kể từ khi đặt cọc thành công để đến bãi xe và quét mã QR check-in tại cổng barie. Quá 20 phút không check-in, hệ thống sẽ tự động giải phóng vị trí.
+                </p>
+              </div>
+
+              {/* Policy 3: Hoàn cọc 100% */}
+              <div className="bg-emerald-50/60 rounded-2xl p-3.5 border border-emerald-100/80">
+                <div className="flex items-center space-x-2 text-emerald-700 font-bold mb-1">
+                  <span className="w-5 h-5 rounded-full bg-emerald-600 text-white text-[10px] flex items-center justify-center">3</span>
+                  <span className="text-xs">Hoàn cọc 100% trong 5 phút đầu</span>
+                </div>
+                <p className="text-[11px] text-slate-600 leading-relaxed pl-7">
+                  Nếu bạn thay đổi lịch trình và chủ động bấm hủy giữ chỗ trong vòng <strong>5 phút đầu tiên</strong>, toàn bộ <strong>100% tiền cọc (50.000₫)</strong> sẽ được hoàn tự động về ví/ngân hàng.
+                </p>
+              </div>
+
+              {/* Policy 4: Quy chuẩn an toàn bãi đỗ */}
+              <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-200/80">
+                <div className="flex items-center space-x-2 text-slate-800 font-bold mb-1">
+                  <span className="w-5 h-5 rounded-full bg-slate-700 text-white text-[10px] flex items-center justify-center">4</span>
+                  <span className="text-xs">Quy tắc đỗ xe & Sạc điện EV</span>
+                </div>
+                <p className="text-[11px] text-slate-600 leading-relaxed pl-7">
+                  Vui lòng đỗ đúng vạch kẻ và đúng chủng loại xe (SUV, Sedan, xe điện EV). Đối với xe điện sạc nhanh, vui lòng di chuyển xe ra khỏi trụ sạc sau khi đã sạc đủ pin để nhường chỗ cho tài xế khác.
+                </p>
+              </div>
+
+              {/* Policy 5: Bảo mật thông tin */}
+              <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-200/80">
+                <div className="flex items-center space-x-2 text-slate-800 font-bold mb-1">
+                  <span className="w-5 h-5 rounded-full bg-slate-700 text-white text-[10px] flex items-center justify-center">5</span>
+                  <span className="text-xs">Bảo mật thông tin & Hỗ trợ</span>
+                </div>
+                <p className="text-[11px] text-slate-600 leading-relaxed pl-7">
+                  Biển số xe, số điện thoại và lịch sử đỗ xe được bảo mật tuyệt đối theo chuẩn SSL. Mọi sự cố phát sinh tại bãi đỗ đều được tổng đài <strong>1900 6868</strong> hỗ trợ giải quyết 24/7.
+                </p>
+              </div>
+            </div>
+
+            {/* Nút đóng */}
+            <button
+              onClick={() => setIsPolicyModalOpen(false)}
+              className="mt-5 w-full py-3 bg-primary text-white font-bold rounded-2xl shadow-md hover:bg-primary-dark transition text-xs cursor-pointer"
+            >
+              Tôi đã hiểu & đồng ý
+            </button>
           </div>
         </div>
       )}

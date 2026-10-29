@@ -40,6 +40,15 @@ export type AIMessage = {
   timestamp: number;
 };
 
+export const getUserChatKey = (user?: { email?: string; phone?: string } | null): string => {
+  if (!user) return "guest";
+  const email = user.email?.trim().toLowerCase();
+  if (email) return `user_${email}`;
+  const phone = user.phone?.trim();
+  if (phone) return `user_${phone}`;
+  return "guest";
+};
+
 type StoreState = {
   user: { name: string; phone: string; email?: string; token?: string; role?: string; isLoggedIn: boolean } | null;
   vehicles: Vehicle[];
@@ -58,6 +67,7 @@ type StoreState = {
   reorderVehicles: (vehicles: Vehicle[]) => void;
   
   aiMessages: AIMessage[];
+  chatHistories?: Record<string, AIMessage[]>;
   addAiMessage: (msg: AIMessage) => void;
   clearAiMessages: () => void;
 
@@ -114,8 +124,33 @@ export const useStore = create<StoreState>()(
       reorderVehicles: (vehicles) => set({ vehicles }),
 
       aiMessages: [],
-      addAiMessage: (msg) => set((state) => ({ aiMessages: [...state.aiMessages, msg] })),
-      clearAiMessages: () => set({ aiMessages: [] }),
+      chatHistories: {},
+      addAiMessage: (msg) =>
+        set((state) => {
+          const key = getUserChatKey(state.user);
+          const currentHistories = state.chatHistories || {};
+          const currentList = currentHistories[key] || state.aiMessages || [];
+          const updated = [...currentList, msg];
+          return {
+            aiMessages: updated,
+            chatHistories: {
+              ...currentHistories,
+              [key]: updated,
+            },
+          };
+        }),
+      clearAiMessages: () =>
+        set((state) => {
+          const key = getUserChatKey(state.user);
+          const currentHistories = state.chatHistories || {};
+          return {
+            aiMessages: [],
+            chatHistories: {
+              ...currentHistories,
+              [key]: [],
+            },
+          };
+        }),
 
       favoriteLots: [],
       toggleFavoriteLot: (lotId: string) =>
@@ -149,18 +184,26 @@ export const useStore = create<StoreState>()(
         }),
 
       setDemo: (val) => set({ isDemo: val }),
-      login: (userData) =>
-        set({
-          user: {
-            name: userData?.name || "Người dùng",
-            phone: userData?.phone || "",
-            email: userData?.email || "",
-            token: userData?.token,
-            role: userData?.role || "customer",
-            isLoggedIn: true,
-          },
-          vehicles: userData?.vehicles || [],
-        }),
+      login: (userData) => {
+        const newUser = {
+          name: userData?.name || "Người dùng",
+          phone: userData?.phone || "",
+          email: userData?.email || "",
+          token: userData?.token,
+          role: userData?.role || "customer",
+          isLoggedIn: true,
+        };
+        const key = getUserChatKey(newUser);
+        set((state) => {
+          const histories = state.chatHistories || {};
+          return {
+            user: newUser,
+            vehicles: userData?.vehicles || [],
+            // Chỉ tải đúng lịch sử chat của tài khoản này
+            aiMessages: histories[key] || [],
+          };
+        });
+      },
       updateUser: (data) =>
         set((state) => ({
           user: state.user ? { ...state.user, ...data } : null,
@@ -168,8 +211,21 @@ export const useStore = create<StoreState>()(
       logout: () => {
         if (typeof window !== "undefined") {
           localStorage.removeItem("ezspace_token");
+          // Xóa cookie cho Edge Middleware
+          document.cookie = "ezspace_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Strict";
+          document.cookie = "ezspace_role=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Strict";
         }
-        set({ user: null, vehicles: [] });
+        set((state) => {
+          const histories = state.chatHistories || {};
+          return {
+            user: null,
+            vehicles: [],
+            activeBooking: null,
+            history: [],
+            // Đăng xuất: chuyển sang phiên khách hoặc làm sạch, không để lộ dữ liệu tài khoản cũ
+            aiMessages: histories["guest"] || [],
+          };
+        });
       },
       
       holdSpot: (lotId, spotId, vehicleId, estimatedHours = 2, startTime, endTime, backendId, serverHoldExpiresAt) => {
@@ -321,19 +377,37 @@ export const useStore = create<StoreState>()(
     }),
     {
       name: "ez-space-storage",
-      version: 2,
+      version: 3,
+      onRehydrateStorage: () => (state) => {
+        if (state) {
+          const key = getUserChatKey(state.user);
+          const histories = state.chatHistories || {};
+          state.aiMessages = histories[key] || [];
+        }
+      },
       partialize: (state) =>
         Object.fromEntries(
           Object.entries(state).filter(([k]) => k !== "toasts")
         ) as any,
       migrate: (persistedState: any) => {
-        if (persistedState && Array.isArray(persistedState.vehicles)) {
-          // Remove old hardcoded mock vehicles
-          persistedState.vehicles = persistedState.vehicles.filter((v: any) => {
-            const isMockId = v.id === "v1" || v.id === "v2" || v.id === "v3";
-            const isMockPlate = v.plate === "43A-123.45" && v.name === "Toyota Fortuner";
-            return !isMockId && !isMockPlate;
-          });
+        if (persistedState) {
+          if (Array.isArray(persistedState.vehicles)) {
+            // Remove old hardcoded mock vehicles
+            persistedState.vehicles = persistedState.vehicles.filter((v: any) => {
+              const isMockId = v.id === "v1" || v.id === "v2" || v.id === "v3";
+              const isMockPlate = v.plate === "43A-123.45" && v.name === "Toyota Fortuner";
+              return !isMockId && !isMockPlate;
+            });
+          }
+          if (!persistedState.chatHistories) {
+            persistedState.chatHistories = {};
+          }
+          if (Array.isArray(persistedState.aiMessages) && persistedState.aiMessages.length > 0) {
+            const key = getUserChatKey(persistedState.user);
+            if (!persistedState.chatHistories[key] || persistedState.chatHistories[key].length === 0) {
+              persistedState.chatHistories[key] = persistedState.aiMessages;
+            }
+          }
         }
         return persistedState;
       },

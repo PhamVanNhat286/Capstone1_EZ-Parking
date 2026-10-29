@@ -27,6 +27,7 @@ import {
   BadgePercent,
   History,
   Sparkles,
+  Bot,
   X,
   ArrowUpLeft,
   Navigation2,
@@ -183,8 +184,92 @@ function ExploreContent() {
   // Search & Typewriter state
   const [searchQuery, setSearchQuery] = useState("");
   const [showSearchHistory, setShowSearchHistory] = useState(false);
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const speechRecognitionRef = useRef<any>(null);
   const [sheetContent, setSheetContent] = useState<"none" | "notif" | "area">("none");
   const [currentArea, setCurrentArea] = useState("");
+
+  // Handle click outside to close search history
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
+        setShowSearchHistory(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Web Speech API: Real Voice Recognition
+  const handleToggleVoiceSearch = () => {
+    if (typeof window === "undefined") return;
+
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      addToast("Trình duyệt không hỗ trợ nhận diện giọng nói hoặc chưa bật quyền Micro", "error");
+      return;
+    }
+
+    if (isListening) {
+      if (speechRecognitionRef.current) {
+        try {
+          speechRecognitionRef.current.stop();
+        } catch {}
+      }
+      setIsListening(false);
+      return;
+    }
+
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.lang = "vi-VN";
+      recognition.continuous = false;
+      recognition.interimResults = false;
+
+      recognition.onstart = () => {
+        setIsListening(true);
+        addToast("Đang lắng nghe... Vui lòng nói tên bãi xe hoặc địa điểm", "info");
+      };
+
+      recognition.onresult = (event: any) => {
+        const transcript = event.results[0]?.[0]?.transcript || "";
+        if (transcript.trim()) {
+          setSearchQuery(transcript.trim());
+          setShowSearchHistory(false);
+          addToast(`Đã nhận diện: "${transcript.trim()}"`, "success");
+        }
+        setIsListening(false);
+      };
+
+      recognition.onerror = (event: any) => {
+        console.warn("Speech recognition error:", event.error);
+        setIsListening(false);
+        if (event.error === "not-allowed" || event.error === "permission-denied") {
+          addToast("Vui lòng cấp quyền Microphone trong trình duyệt để thu âm", "error");
+        } else if (event.error === "no-speech") {
+          addToast("Chưa nghe thấy giọng nói. Vui lòng thử lại gần micro hơn", "info");
+        } else {
+          addToast(`Lỗi micro: ${event.error}`, "error");
+        }
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+      };
+
+      speechRecognitionRef.current = recognition;
+      recognition.start();
+    } catch (err: any) {
+      console.error("Lỗi khi mở micro:", err);
+      setIsListening(false);
+      addToast("Không thể khởi động micro thu âm", "error");
+    }
+  };
 
   const searchPhrases = [
     "Bạn muốn đỗ xe ở đâu?...",
@@ -429,47 +514,71 @@ function ExploreContent() {
       {/* ================= 3. SCROLLABLE CONTAINER ================= */}
       <main className="flex-1 overflow-y-auto no-scrollbar px-4 space-y-4 pt-3 pb-8">
 
-        {/* 3.1 SEARCH BAR WITH TYPEWRITER EFFECT */}
-        <div className="relative z-30">
+        {/* 3.1 SEARCH BAR WITH KEYBOARD INPUT & REAL VOICE RECOGNITION */}
+        <div ref={searchContainerRef} className="relative z-30">
           <div className="flex items-center gap-2">
             <div
-              onClick={() => setShowSearchHistory(!showSearchHistory)}
-              className="flex-1 flex items-center gap-2.5 bg-white border border-slate-200/90 rounded-[14px] px-3.5 py-2.5 shadow-sm hover:border-blue-400 cursor-pointer transition-all"
+              onClick={() => searchInputRef.current?.focus()}
+              className={clsx(
+                "flex-1 flex items-center gap-2.5 bg-white border rounded-[14px] px-3.5 py-2.5 shadow-sm transition-all cursor-text",
+                isSearchFocused ? "border-blue-500 ring-2 ring-blue-500/15" : "border-slate-200/90 hover:border-blue-300"
+              )}
             >
               <Search size={18} className="text-blue-600 shrink-0" />
-              <div className="flex-1 text-xs text-slate-400 font-medium truncate">
-                {searchQuery ? (
-                  <span className="text-slate-800 font-semibold">{searchQuery}</span>
-                ) : (
-                  <span>
-                    {typewriterText}
-                    <span className="text-blue-600 animate-pulse font-bold">|</span>
-                  </span>
-                )}
-              </div>
+              <input
+                ref={searchInputRef}
+                type="text"
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  if (!showSearchHistory) setShowSearchHistory(true);
+                }}
+                onFocus={() => {
+                  setIsSearchFocused(true);
+                  setShowSearchHistory(true);
+                }}
+                onBlur={() => {
+                  setIsSearchFocused(false);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    setShowSearchHistory(false);
+                    searchInputRef.current?.blur();
+                  }
+                }}
+                placeholder={isSearchFocused ? "Nhập tên bãi đỗ, đường, địa điểm..." : typewriterText || "Bạn muốn đỗ xe ở đâu?..."}
+                className="flex-1 text-xs text-slate-800 font-medium placeholder:text-slate-400 outline-none bg-transparent"
+                autoComplete="off"
+              />
               {searchQuery && (
                 <button
+                  type="button"
                   onClick={(e) => {
                     e.stopPropagation();
                     setSearchQuery("");
+                    searchInputRef.current?.focus();
                   }}
-                  className="text-slate-400 hover:text-slate-600"
+                  className="text-slate-400 hover:text-slate-600 p-0.5 rounded-full hover:bg-slate-100 transition"
+                  title="Xóa tìm kiếm"
                 >
                   <X size={15} />
                 </button>
               )}
             </div>
 
-            {/* Voice button */}
+            {/* Real Voice Search button */}
             <button
-              onClick={() => {
-                addToast("Đang lắng nghe: 'Tìm bãi đỗ xe gần nhất'...", "info");
-                setSearchQuery("Hải Châu");
-              }}
-              className="w-10 h-10 rounded-[14px] bg-white border border-slate-200 shadow-sm flex items-center justify-center text-slate-600 hover:text-blue-600 hover:border-blue-300 active:scale-95 transition shrink-0"
-              title="Tìm kiếm bằng giọng nói"
+              type="button"
+              onClick={handleToggleVoiceSearch}
+              className={clsx(
+                "w-10 h-10 rounded-[14px] border shadow-sm flex items-center justify-center active:scale-95 transition-all shrink-0 cursor-pointer",
+                isListening
+                  ? "bg-rose-50 border-rose-400 text-rose-600 ring-4 ring-rose-200 animate-pulse"
+                  : "bg-white border-slate-200 text-slate-600 hover:text-blue-600 hover:border-blue-300"
+              )}
+              title={isListening ? "Đang thu âm... Bấm để dừng" : "Tìm kiếm bằng giọng nói"}
             >
-              <Mic size={18} />
+              <Mic size={18} className={isListening ? "animate-bounce text-rose-600" : ""} />
             </button>
           </div>
 
@@ -477,26 +586,40 @@ function ExploreContent() {
           {showSearchHistory && (
             <div className="absolute top-12 left-0 right-0 bg-white rounded-2xl shadow-xl border border-slate-100 p-3 z-50 animate-fade-up">
               <div className="flex items-center justify-between pb-2 border-b border-slate-100 text-[11px] font-bold text-slate-500">
-                <span>Gợi ý & Tìm kiếm gần đây</span>
-                <button onClick={() => setShowSearchHistory(false)} className="text-blue-600 hover:underline">
+                <span>{searchQuery.trim() ? "Kết quả gợi ý nhanh" : "Gợi ý & Tìm kiếm gần đây"}</span>
+                <button
+                  type="button"
+                  onClick={() => setShowSearchHistory(false)}
+                  className="text-blue-600 hover:underline cursor-pointer"
+                >
                   Đóng
                 </button>
               </div>
-              <div className="space-y-1 mt-2">
-                {[
-                  "Bãi Hải Châu A",
-                  "Bãi Cầu Rồng",
-                  "Sân bay Đà Nẵng T1",
-                  "15 Lê Duẩn, Hải Châu",
-                  "Đường Trần Hưng Đạo, Sơn Trà",
-                ].map((item, idx) => (
+              <div className="space-y-1 mt-2 max-h-52 overflow-y-auto no-scrollbar">
+                {(searchQuery.trim()
+                  ? lotsList
+                      .filter((l) =>
+                        normalize(l.name).includes(normalize(searchQuery.trim())) ||
+                        normalize(l.district).includes(normalize(searchQuery.trim())) ||
+                        (l.address && normalize(l.address).includes(normalize(searchQuery.trim())))
+                      )
+                      .slice(0, 5)
+                      .map((lot) => lot.name)
+                  : [
+                      "Bãi Hải Châu A",
+                      "Bãi Cầu Rồng",
+                      "Sân bay Đà Nẵng T1",
+                      "15 Lê Duẩn, Hải Châu",
+                      "Đường Trần Hưng Đạo, Sơn Trà",
+                    ]
+                ).map((item, idx) => (
                   <div
                     key={idx}
                     onClick={() => {
                       setSearchQuery(item);
                       setShowSearchHistory(false);
                     }}
-                    className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer"
+                    className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer transition"
                   >
                     <div className="flex items-center gap-2">
                       <Clock size={14} className="text-slate-400" />
@@ -505,6 +628,16 @@ function ExploreContent() {
                     <ArrowUpLeft size={14} className="text-slate-300" />
                   </div>
                 ))}
+                {searchQuery.trim() &&
+                  lotsList.filter((l) =>
+                    normalize(l.name).includes(normalize(searchQuery.trim())) ||
+                    normalize(l.district).includes(normalize(searchQuery.trim())) ||
+                    (l.address && normalize(l.address).includes(normalize(searchQuery.trim())))
+                  ).length === 0 && (
+                    <p className="text-[11px] text-slate-400 py-2 text-center">
+                      Không tìm thấy bãi đỗ phù hợp với từ khóa
+                    </p>
+                  )}
               </div>
             </div>
           )}
@@ -746,15 +879,15 @@ function ExploreContent() {
             </Link>
 
             {/* 3. Ưu đãi */}
-            <button
-              onClick={() => addToast("Kho ưu đãi: Bạn có 1 mã giảm giá 20% đỗ xe cuối tuần!", "info")}
-              className="p-2.5 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex flex-col items-center justify-center gap-1.5 hover:border-blue-300 hover:bg-blue-50/30 active:scale-95 transition"
+            <Link
+              href="/uu-dai"
+              className="p-2.5 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex flex-col items-center justify-center gap-1.5 hover:border-amber-300 hover:bg-amber-50/20 active:scale-95 transition"
             >
               <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
                 <BadgePercent size={20} />
               </div>
               <span className="text-[11px] font-bold text-slate-700">Ưu đãi</span>
-            </button>
+            </Link>
 
             {/* 4. Lịch sử */}
             <Link
@@ -939,8 +1072,8 @@ function ExploreContent() {
               className="absolute bottom-14 right-0 w-64 bg-white p-3 rounded-2xl shadow-xl border border-blue-200 text-xs"
             >
               <div className="flex items-center justify-between pb-1.5 border-b border-slate-100">
-                <div className="flex items-center gap-1 text-blue-600 font-bold text-[11px]">
-                  <Sparkles size={13} />
+                <div className="flex items-center gap-1.5 text-blue-600 font-bold text-[11px]">
+                  <Bot size={15} />
                   <span>EZ-Space AI Trợ lý</span>
                 </div>
                 <button onClick={() => setShowAiBubble(false)} className="text-slate-400 hover:text-slate-600">
@@ -977,7 +1110,7 @@ function ExploreContent() {
           className="w-12 h-12 rounded-full bg-gradient-to-tr from-blue-600 to-blue-700 text-white flex items-center justify-center animate-glow-breath active:scale-90 transition-transform cursor-pointer border-2 border-white shadow-lg shadow-blue-600/40"
           title="Hỏi trợ lý ảo AI EZ-Space"
         >
-          <Sparkles size={22} className="animate-spin-slow" />
+          <Bot size={22} className="animate-pulse" />
         </button>
       </div>
 
