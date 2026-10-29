@@ -2,18 +2,17 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { clsx } from "clsx";
+import { Bot } from "lucide-react";
 
 export default function BottomNav() {
   const pathname = usePathname();
 
-  // Hide nav on certain pages
+  // Ẩn BottomNav trên các trang flow (có header back riêng)
   if (
     pathname.startsWith("/dang-nhap") ||
-    pathname.startsWith("/dat-cho") ||
-    pathname.startsWith("/ve") ||
-    pathname.startsWith("/thanh-toan") ||
-    pathname.startsWith("/chi-duong") ||
-    pathname.startsWith("/xe-cua-toi") ||
+    pathname.startsWith("/ve/") ||
+    pathname.startsWith("/thanh-toan/") ||
+    pathname.startsWith("/chi-duong/") ||
     pathname.startsWith("/bai/")
   ) {
     return null;
@@ -22,7 +21,10 @@ export default function BottomNav() {
   const isExplore = pathname === "/";
   const isTickets = pathname.startsWith("/lich-su");
   const isAi = pathname.startsWith("/ai");
-  const isProfile = pathname.startsWith("/ho-so");
+  const isProfile =
+    pathname.startsWith("/ho-so") ||
+    pathname.startsWith("/xe-cua-toi") ||
+    pathname.startsWith("/uu-dai");
 
   return (
     <nav className="w-full bg-white/95 backdrop-blur-xl border-t border-slate-200/90 rounded-t-[20px] px-2 pt-2.5 pb-3 shadow-[0_-4px_18px_rgba(0,0,0,0.04)] shrink-0 z-40">
@@ -91,20 +93,7 @@ export default function BottomNav() {
           )}
         >
           <div className="w-6 h-6 flex items-center justify-center">
-            <svg
-              className="w-6 h-6"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.9"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M12 3C12 7.5 15.5 11 20 11C15.5 11 12 14.5 12 19C12 14.5 8.5 11 4 11C8.5 11 12 7.5 12 3Z" fill={isAi ? "currentColor" : "none"} />
-              <path d="M19 3v4" />
-              <path d="M17 5h4" />
-              <circle cx="5.5" cy="18.5" r="1.5" fill="currentColor" />
-            </svg>
+            <Bot className="w-5 h-5" strokeWidth={isAi ? 2.4 : 1.9} />
           </div>
           <span className={clsx("text-[11px] tracking-tight", isAi ? "font-extrabold text-[#2563EB]" : "font-medium text-[#64748B]")}>
             AI

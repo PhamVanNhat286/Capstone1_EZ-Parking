@@ -197,7 +197,7 @@ export default function VehiclesPage() {
                       </span>
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className="font-mono text-xs font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded">{v.plate}</span>
+                      <span className="text-xs font-bold tracking-wider text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded">{v.plate}</span>
                       <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">
                         {v.type === "EV" ? `EV (${v.evBodyType || "SUV"})` : v.type}
                       </span>
@@ -247,7 +247,7 @@ export default function VehiclesPage() {
               value={formPlate}
               onChange={e => { setFormPlate(e.target.value); setPlateError(""); }}
               placeholder="VD: 43A-123.45"
-              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-[12px] p-4 text-sm font-bold font-mono text-slate-900 dark:text-white focus:outline-none focus:border-[#2B4BD1] uppercase"
+              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-[12px] p-4 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:border-[#2B4BD1] uppercase tracking-wider"
             />
             {plateError && <p className="text-xs font-bold text-red-500 mt-1">{plateError}</p>}
           </div>

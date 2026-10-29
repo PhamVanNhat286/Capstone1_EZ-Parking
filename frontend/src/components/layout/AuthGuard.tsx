@@ -1,33 +1,70 @@
 "use client";
-import { useEffect, useState } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useStore } from "@/store";
 
-export default function AuthGuard({ children }: { children: React.ReactNode }) {
+const PUBLIC_PATHS = ["/dang-nhap"];
+const ADMIN_PATHS = ["/admin"];
+
+function isPublicPath(path: string) {
+  return PUBLIC_PATHS.some((p) => path === p || path.startsWith(p + "/"));
+}
+function isAdminPath(path: string) {
+  return ADMIN_PATHS.some((p) => path === p || path.startsWith(p + "/"));
+}
+
+/**
+ * Inner guard — dùng useSearchParams nên cần Suspense bên ngoài.
+ * Chờ Zustand persist hydrate xong rồi mới redirect để tránh redirect sai
+ * khi user vẫn còn trong localStorage nhưng Zustand chưa load xong.
+ */
+function AuthGuardInner({ children }: { children: React.ReactNode }) {
   const user = useStore((s) => s.user);
   const router = useRouter();
   const pathname = usePathname();
-  const [mounted, setMounted] = useState(false);
+  const searchParams = useSearchParams();
+  const [hydrated, setHydrated] = useState(false);
 
+  // Đợi Zustand persist rehydrate từ localStorage
   useEffect(() => {
-    setMounted(true);
+    // useStore.persist.hasHydrated() đồng bộ sau khi hydrate
+    const unsub = useStore.persist.onFinishHydration(() => {
+      setHydrated(true);
+    });
+    // Nếu đã hydrate rồi thì set luôn
+    if (useStore.persist.hasHydrated()) {
+      setHydrated(true);
+    }
+    return unsub;
   }, []);
 
   useEffect(() => {
-    if (!mounted) return;
-    
-    if (!user && pathname !== "/dang-nhap") {
-      router.replace("/dang-nhap");
-    } else if (user && pathname === "/dang-nhap") {
+    if (!hydrated) return;
+
+    const isAdmin = user?.role === "admin" || user?.role === "owner";
+
+    if (!user && !isPublicPath(pathname)) {
+      const from = pathname !== "/" ? `?from=${encodeURIComponent(pathname)}` : "";
+      router.replace(`/dang-nhap${from}`);
+    } else if (user && isPublicPath(pathname)) {
+      const fromParam = searchParams?.get("from");
+      const destination =
+        fromParam && fromParam.startsWith("/") ? fromParam : isAdmin ? "/admin" : "/";
+      router.replace(destination);
+    } else if (user && !isAdmin && isAdminPath(pathname)) {
       router.replace("/");
     }
-  }, [user, pathname, router, mounted]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrated, user, pathname]);
 
-  if (!mounted) return null; // Prevent hydration mismatch
-
-  // Avoid flashing protected content
-  if (!user && pathname !== "/dang-nhap") return null;
-  if (user && pathname === "/dang-nhap") return null;
-
+  // Trong lúc chờ hydrate: render children bình thường (tránh flash trắng)
   return <>{children}</>;
+}
+
+export default function AuthGuard({ children }: { children: React.ReactNode }) {
+  return (
+    <Suspense fallback={null}>
+      <AuthGuardInner>{children}</AuthGuardInner>
+    </Suspense>
+  );
 }

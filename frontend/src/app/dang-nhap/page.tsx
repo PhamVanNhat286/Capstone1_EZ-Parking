@@ -263,6 +263,10 @@ export default function AuthPage() {
       if (res.success && res.data) {
         if (typeof window !== "undefined") {
           localStorage.setItem("ezspace_token", res.data.token);
+          // Set cookie cho Edge Middleware đọc được (không cần httpOnly)
+          const cookieExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toUTCString();
+          document.cookie = `ezspace_token=${res.data.token}; path=/; expires=${cookieExpiry}; SameSite=Strict`;
+          document.cookie = `ezspace_role=${res.data.user?.role || "customer"}; path=/; expires=${cookieExpiry}; SameSite=Strict`;
 
           // Kích hoạt hỏi quyền vị trí từ trình duyệt ngay trong thao tác đăng nhập
           if ("geolocation" in navigator) {
@@ -286,6 +290,7 @@ export default function AuthPage() {
             );
           }
         }
+        const userRole = res.data.user?.role || "customer";
         const userVehicles = Array.isArray(res.data.vehicles)
           ? res.data.vehicles.map((v: any) => ({
               id: String(v.id),
@@ -298,15 +303,16 @@ export default function AuthPage() {
           name: res.data.user.full_name,
           email: res.data.user.email,
           phone: res.data.user.phone,
-          role: res.data.user.role,
+          role: userRole,
           token: res.data.token,
           vehicles: userVehicles,
         });
         setStatus("success");
         setSuccessMsg("Đăng nhập thành công! Đang chuyển hướng...");
+        const redirectTo = userRole === "admin" || userRole === "owner" ? "/admin" : "/";
         setTimeout(() => {
           setStatus("idle");
-          router.push("/");
+          router.push(redirectTo);
         }, 1200);
       } else {
         setStatus("idle");
@@ -453,6 +459,10 @@ export default function AuthPage() {
 
       if (typeof window !== "undefined" && res.data?.token) {
         localStorage.setItem("ezspace_token", res.data.token);
+        // Set cookie cho Edge Middleware
+        const cookieExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toUTCString();
+        document.cookie = `ezspace_token=${res.data.token}; path=/; expires=${cookieExpiry}; SameSite=Strict`;
+        document.cookie = `ezspace_role=${res.data.user?.role || "customer"}; path=/; expires=${cookieExpiry}; SameSite=Strict`;
       }
 
       const returnedVehicles = Array.isArray(res.data?.vehicles)

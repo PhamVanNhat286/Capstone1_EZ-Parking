@@ -6,6 +6,7 @@ import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Sparkles,
+  Bot,
   Send,
   Mic,
   MapPin,
@@ -26,7 +27,7 @@ import {
   Plus,
 } from "lucide-react";
 import { clsx } from "clsx";
-import { useStore, AIMessage } from "@/store";
+import { useStore, AIMessage, getUserChatKey } from "@/store";
 import { lots, Lot } from "@/lib/mock/lots";
 import { getLotsApi } from "@/lib/api";
 import { getFallbackResponse, calculateDistance } from "@/lib/ai/fallback";
@@ -64,11 +65,22 @@ function AIContent() {
     });
   }, []);
 
+  // Đồng bộ lịch sử chat tương ứng với tài khoản đang đăng nhập
+  useEffect(() => {
+    const key = getUserChatKey(user);
+    const store = useStore.getState();
+    const userHistory = store.chatHistories?.[key] || [];
+    if (JSON.stringify(aiMessages) !== JSON.stringify(userHistory)) {
+      useStore.setState({ aiMessages: userHistory });
+    }
+  }, [user]);
+
   // Chat input & state
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [typingStatus, setTypingStatus] = useState("Đang phân tích yêu cầu bãi đỗ...");
   const [hasSpeech, setHasSpeech] = useState(false);
+  const [isListeningSpeech, setIsListeningSpeech] = useState(false);
 
   // User location (GPS)
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number; label?: string } | null>(null);
@@ -184,15 +196,61 @@ function AIContent() {
   }, []);
 
   const handleSpeech = () => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) return;
-    const recognition = new SpeechRecognition();
-    recognition.lang = "vi-VN";
-    recognition.start();
-    recognition.onresult = (e: any) => {
-      const transcript = e.results[0][0].transcript;
-      setInput((prev) => (prev ? `${prev} ${transcript}` : transcript));
-    };
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      addToast("Trình duyệt không hỗ trợ nhận diện giọng nói hoặc chưa bật quyền Micro", "error");
+      return;
+    }
+
+    if (isListeningSpeech) {
+      setIsListeningSpeech(false);
+      return;
+    }
+
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.lang = "vi-VN";
+      recognition.continuous = false;
+      recognition.interimResults = false;
+
+      recognition.onstart = () => {
+        setIsListeningSpeech(true);
+        addToast("Đang lắng nghe... Vui lòng nói yêu cầu của bạn", "info");
+      };
+
+      recognition.onresult = (e: any) => {
+        const transcript = e.results[0]?.[0]?.transcript || "";
+        if (transcript.trim()) {
+          setInput((prev) => (prev ? `${prev} ${transcript.trim()}` : transcript.trim()));
+          addToast(`Đã nhận diện: "${transcript.trim()}"`, "success");
+        }
+        setIsListeningSpeech(false);
+      };
+
+      recognition.onerror = (e: any) => {
+        console.warn("Speech error in AI:", e.error);
+        setIsListeningSpeech(false);
+        if (e.error === "not-allowed" || e.error === "permission-denied") {
+          addToast("Vui lòng cấp quyền Microphone trong trình duyệt để thu âm", "error");
+        } else if (e.error === "no-speech") {
+          addToast("Chưa nghe thấy giọng nói. Vui lòng thử lại gần micro hơn", "info");
+        } else {
+          addToast("Không nhận diện được giọng nói, vui lòng thử lại", "error");
+        }
+      };
+
+      recognition.onend = () => {
+        setIsListeningSpeech(false);
+      };
+
+      recognition.start();
+    } catch (err: any) {
+      console.warn("Speech error in AI:", err);
+      setIsListeningSpeech(false);
+      addToast("Không thể khởi động micro thu âm", "error");
+    }
   };
 
   const handleGetLocation = () => {
@@ -395,7 +453,7 @@ function AIContent() {
           {/* Avatar AI with Breathing Glow */}
           <div className="relative flex items-center justify-center">
             <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 p-0.5 shadow-md shadow-blue-500/20 flex items-center justify-center text-white">
-              <Sparkles size={20} className="animate-spin-slow" />
+              <Bot size={22} className="animate-pulse" />
             </div>
             {/* Online status green pulse */}
             <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full" />
@@ -507,13 +565,13 @@ function AIContent() {
                 onClick={() => handleSend("Tìm bãi đỗ SUV gần Hải Châu dưới 30k")}
                 className="w-20 h-20 rounded-full bg-gradient-to-tr from-blue-400 via-blue-600 to-indigo-800 animate-orb-float animate-orb-pulse flex items-center justify-center shadow-lg relative cursor-pointer active:scale-95 transition-transform"
               >
-                <Sparkles size={36} className="text-white drop-shadow-md animate-pulse" />
+                <Bot size={40} className="text-white drop-shadow-md animate-pulse" />
                 <div className="absolute -inset-1.5 rounded-full border border-blue-400/30 animate-spin-slow" />
               </div>
             </div>
 
             <h2 className="text-[20px] font-extrabold text-slate-900 tracking-tight mt-1">
-              Xin chào {user?.name.split(" ").pop() || "Minh"} 👋
+              Xin chào {user?.name ? user.name.split(" ").pop() : "bạn"} 👋
             </h2>
             <p className="text-[13px] text-slate-500 font-medium max-w-[270px] mt-1 leading-relaxed">
               Mình là trợ lý đỗ xe thông minh. Cứ hỏi tự nhiên, mình sẽ tìm bãi đỗ và giữ chỗ tức thì!
@@ -680,8 +738,8 @@ function AIContent() {
                     /* AI Message Bubble & Rich Cards */
                     <div className="flex items-start space-x-2 w-full max-w-full">
                       {/* Mini AI Avatar */}
-                      <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 flex-shrink-0 flex items-center justify-center text-white text-[11px] shadow-sm mt-0.5">
-                        ✨
+                      <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 flex-shrink-0 flex items-center justify-center text-white shadow-sm mt-0.5">
+                        <Bot size={15} />
                       </div>
 
                       <div className="flex-1 min-w-0 space-y-2.5">
@@ -808,8 +866,8 @@ function AIContent() {
               className="flex flex-col items-start space-y-1.5"
             >
               <div className="flex items-center space-x-2">
-                <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white text-[11px]">
-                  ✨
+                <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-sm">
+                  <Bot size={15} />
                 </div>
                 <div className="bg-white border border-slate-200 px-4 py-2.5 rounded-2xl rounded-tl-sm shadow-sm flex items-center space-x-1.5">
                   <div className="w-2 h-2 rounded-full bg-blue-600 animate-bounce-dot1" />
@@ -862,13 +920,17 @@ function AIContent() {
             <button
               type="button"
               onClick={handleSpeech}
-              title="Nhập bằng giọng nói"
+              title={isListeningSpeech ? "Đang thu âm... Bấm để dừng" : "Nhập bằng giọng nói"}
               className={clsx(
-                "absolute left-2.5 p-1 rounded-full active:scale-90 transition-transform",
-                hasSpeech ? "text-slate-400 hover:text-blue-600" : "text-slate-300"
+                "absolute left-2.5 p-1 rounded-full active:scale-90 transition-transform cursor-pointer",
+                isListeningSpeech
+                  ? "text-rose-600 bg-rose-50 ring-2 ring-rose-300 animate-pulse"
+                  : hasSpeech
+                  ? "text-slate-400 hover:text-blue-600"
+                  : "text-slate-300"
               )}
             >
-              <Mic size={16} />
+              <Mic size={16} className={isListeningSpeech ? "animate-bounce" : ""} />
             </button>
 
             {/* Text Input */}
