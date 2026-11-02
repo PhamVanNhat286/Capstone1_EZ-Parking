@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -34,11 +34,16 @@ import {
   Image as ImageIcon,
   ShieldCheck,
   FileText,
+  SwitchCamera,
+  RotateCcw,
+  RefreshCw,
+  Check,
 } from "lucide-react";
 import { clsx } from "clsx";
 import { useStore, Vehicle } from "@/store";
 import { lots, Lot } from "@/lib/mock/lots";
 import { updateProfileApi, changePasswordApi, getMeApi, getLotsApi, addVehicleApi, updateVehicleApi, deleteVehicleApi } from "@/lib/api";
+import { Sedan4SeatsIcon, Suv7SeatsIcon, EvCarIcon } from "@/components/ui/VehicleIcons";
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -46,6 +51,8 @@ export default function ProfilePage() {
   // Store
   const user = useStore((s) => s.user);
   const updateUser = useStore((s) => s.updateUser);
+  const setUserAvatar = useStore((s) => s.setUserAvatar);
+  const removeUserAvatar = useStore((s) => s.removeUserAvatar);
   const logout = useStore((s) => s.logout);
   const vehicles = useStore((s) => s.vehicles);
   const setVehicles = useStore((s) => s.setVehicles);
@@ -64,6 +71,7 @@ export default function ProfilePage() {
     name: "Phạm Minh",
     email: "minh@example.com",
     phone: "0935313826",
+    avatar: "",
     isLoggedIn: true,
   };
 
@@ -99,6 +107,17 @@ export default function ProfilePage() {
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const [isPolicyModalOpen, setIsPolicyModalOpen] = useState(false);
 
+  // Camera & Avatar state
+  const [isCameraModalOpen, setIsCameraModalOpen] = useState(false);
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
+  const [isCameraLoading, setIsCameraLoading] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [cameraFacing, setCameraFacing] = useState<"user" | "environment">("user");
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const cameraInputRef = useRef<HTMLInputElement | null>(null);
+
   // Profile Form state
   const [nameInput, setNameInput] = useState(currentUser.name);
   const [emailInput, setEmailInput] = useState(currentUser.email || "minh@example.com");
@@ -117,6 +136,7 @@ export default function ProfilePage() {
               name: res.data.user.full_name,
               email: res.data.user.email,
               phone: res.data.user.phone,
+              avatar: res.data.user.avatar_url || "",
             });
             if (Array.isArray(res.data.vehicles)) {
               setVehicles(
@@ -212,6 +232,188 @@ export default function ProfilePage() {
         .join("")
         .toUpperCase()
     : "PM";
+
+  // Helper xử lý ảnh thành avatar vuông 400x400 sắc nét và nén nhẹ
+  const processImageToAvatar = (fileOrBlob: Blob): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          const size = 400;
+          canvas.width = size;
+          canvas.height = size;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) {
+            resolve(img.src);
+            return;
+          }
+          const minDim = Math.min(img.width, img.height);
+          const sx = (img.width - minDim) / 2;
+          const sy = (img.height - minDim) / 2;
+          ctx.drawImage(img, sx, sy, minDim, minDim, 0, 0, size, size);
+          resolve(canvas.toDataURL("image/jpeg", 0.85));
+        };
+        img.onerror = reject;
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(fileOrBlob);
+    });
+  };
+
+  const handleSaveAvatar = async (dataUrl: string) => {
+    setUserAvatar(dataUrl);
+    const token = user?.token || (typeof window !== "undefined" ? localStorage.getItem("ezspace_token") : null);
+    if (token) {
+      try {
+        await updateProfileApi(token, { avatar_url: dataUrl });
+      } catch (err) {
+        console.warn("Lưu avatar vào server thất bại:", err);
+      }
+    }
+    showToast("Cập nhật ảnh đại diện thành công!");
+  };
+
+  const handleRemoveAvatar = async () => {
+    removeUserAvatar();
+    setIsAvatarSheetOpen(false);
+    const token = user?.token || (typeof window !== "undefined" ? localStorage.getItem("ezspace_token") : null);
+    if (token) {
+      try {
+        await updateProfileApi(token, { avatar_url: "" });
+      } catch (err) {
+        console.warn("Lỗi gỡ avatar trên server:", err);
+      }
+    }
+    showToast("Đã gỡ ảnh đại diện");
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      showToast("Đang tải và tối ưu ảnh...");
+      const compressed = await processImageToAvatar(file);
+      await handleSaveAvatar(compressed);
+      setIsAvatarSheetOpen(false);
+      stopCamera();
+    } catch (err) {
+      showToast("Không thể tải ảnh này, vui lòng thử lại");
+    } finally {
+      if (e.target) e.target.value = "";
+    }
+  };
+
+  // Logic Camera Chụp Trực Tiếp
+  const startCamera = async (facing: "user" | "environment" = "user") => {
+    setIsCameraLoading(true);
+    setCameraError(null);
+    setCapturedPhoto(null);
+    try {
+      if (cameraStream) {
+        cameraStream.getTracks().forEach((track) => track.stop());
+      }
+      if (!navigator?.mediaDevices?.getUserMedia) {
+        throw new Error("Trình duyệt không hỗ trợ chụp ảnh trực tiếp");
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: facing,
+          width: { ideal: 640 },
+          height: { ideal: 640 },
+        },
+        audio: false,
+      });
+      setCameraStream(stream);
+      setIsCameraLoading(false);
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play().catch(() => {});
+      }
+    } catch (err: any) {
+      console.warn("Camera error:", err);
+      setIsCameraLoading(false);
+      setCameraError(
+        err.name === "NotAllowedError" || err.name === "PermissionDeniedError"
+          ? "Bạn chưa cấp quyền camera. Vui lòng cho phép truy cập camera hoặc chọn ảnh từ máy."
+          : "Không kết nối được camera. Bạn có thể sử dụng camera điện thoại/thiết bị."
+      );
+    }
+  };
+
+  const stopCamera = () => {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach((track) => track.stop());
+      setCameraStream(null);
+    }
+    setIsCameraModalOpen(false);
+    setCapturedPhoto(null);
+    setCameraError(null);
+  };
+
+  const takeSnapshot = () => {
+    if (!videoRef.current) return;
+    const video = videoRef.current;
+    const canvas = document.createElement("canvas");
+    const size = 480;
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const vWidth = video.videoWidth || 640;
+    const vHeight = video.videoHeight || 640;
+    const minDim = Math.min(vWidth, vHeight);
+    const sx = (vWidth - minDim) / 2;
+    const sy = (vHeight - minDim) / 2;
+
+    if (cameraFacing === "user") {
+      ctx.translate(size, 0);
+      ctx.scale(-1, 1);
+    }
+    ctx.drawImage(video, sx, sy, minDim, minDim, 0, 0, size, size);
+    const photoData = canvas.toDataURL("image/jpeg", 0.88);
+    setCapturedPhoto(photoData);
+
+    if (cameraStream) {
+      cameraStream.getTracks().forEach((track) => track.stop());
+      setCameraStream(null);
+    }
+  };
+
+  const confirmPhoto = async () => {
+    if (!capturedPhoto) return;
+    await handleSaveAvatar(capturedPhoto);
+    stopCamera();
+  };
+
+  const retakePhoto = () => {
+    setCapturedPhoto(null);
+    startCamera(cameraFacing);
+  };
+
+  const toggleCameraFacing = () => {
+    const nextFacing = cameraFacing === "user" ? "environment" : "user";
+    setCameraFacing(nextFacing);
+    startCamera(nextFacing);
+  };
+
+  useEffect(() => {
+    if (isCameraModalOpen && cameraStream && videoRef.current) {
+      videoRef.current.srcObject = cameraStream;
+      videoRef.current.play().catch(() => {});
+    }
+  }, [isCameraModalOpen, cameraStream]);
+
+  useEffect(() => {
+    return () => {
+      if (cameraStream) {
+        cameraStream.getTracks().forEach((track) => track.stop());
+      }
+    };
+  }, [cameraStream]);
 
   // Form Handlers
   const handleSaveProfile = async (e: React.FormEvent) => {
@@ -452,14 +654,22 @@ export default function ProfilePage() {
               <div className="absolute inset-0 rounded-full bg-blue-400/30 blur-md animate-pulse-ring"></div>
               <div
                 id="avatarContainer"
-                className="relative w-20 h-20 rounded-full bg-gradient-to-tr from-blue-700 via-primary to-blue-400 text-white font-extrabold text-2xl flex items-center justify-center shadow-lg border-4 border-white"
+                className="relative w-20 h-20 rounded-full bg-gradient-to-tr from-blue-700 via-primary to-blue-400 text-white font-extrabold text-2xl flex items-center justify-center shadow-lg border-4 border-white overflow-hidden"
               >
-                {initials}
+                {currentUser.avatar ? (
+                  <img
+                    src={currentUser.avatar}
+                    alt={currentUser.name}
+                    className="w-full h-full object-cover rounded-full"
+                  />
+                ) : (
+                  <span>{initials}</span>
+                )}
               </div>
               {/* Nút camera nhỏ đổi ảnh */}
               <button
                 onClick={() => setIsAvatarSheetOpen(true)}
-                className="absolute bottom-0 right-0 w-7 h-7 bg-white text-primary rounded-full shadow-md border border-slate-100 flex items-center justify-center hover:bg-slate-50 active:scale-90 transition-transform"
+                className="absolute bottom-0 right-0 w-7 h-7 bg-white text-primary rounded-full shadow-md border border-slate-100 flex items-center justify-center hover:bg-slate-50 active:scale-90 transition-transform cursor-pointer"
                 aria-label="Đổi ảnh đại diện"
               >
                 <Camera className="w-3.5 h-3.5" />
@@ -556,10 +766,11 @@ export default function ProfilePage() {
               </div>
             ) : (
               <div className="flex flex-col space-y-3 py-1">
-                {vehicles.map((v) => {
+                {/* Chỉ hiện xe đầu tiên */}
+                {(() => {
+                  const v = vehicles[0];
                   const isSuv = v.type === "SUV";
                   const isEv = v.type === "EV";
-
                   return (
                     <div
                       key={v.id}
@@ -579,19 +790,17 @@ export default function ProfilePage() {
                               )}
                             >
                               {isEv ? (
-                                <Zap className="w-5 h-5" />
+                                <EvCarIcon className="w-5 h-5" />
                               ) : isSuv ? (
-                                <Truck className="w-5 h-5" />
+                                <Suv7SeatsIcon className="w-5 h-5" />
                               ) : (
-                                <Car className="w-5 h-5" />
+                                <Sedan4SeatsIcon className="w-5 h-5" />
                               )}
                             </div>
                             <div>
                               <h3 className="text-sm font-bold text-slate-900">{v.name}</h3>
                             </div>
                           </div>
-
-                          {/* Nhãn phân loại xe */}
                           <span
                             className={clsx(
                               "px-2 py-0.5 rounded-md text-[10px] font-bold uppercase",
@@ -605,8 +814,6 @@ export default function ProfilePage() {
                             {isEv ? (v.evBodyType ? `EV • ${v.evBodyType}` : "EV") : v.type}
                           </span>
                         </div>
-
-                        {/* Biển số xe kiểu Việt Nam - Phông chữ giống tên xe, bỏ chữ SUV trong biển số */}
                         <div className="mt-3 bg-slate-50 border border-slate-800/80 rounded-lg p-2 shadow-inner flex items-center justify-between px-3">
                           <span className="text-[10px] font-bold text-slate-400">VN</span>
                           <span className="text-sm font-bold tracking-wider text-slate-900 flex-1 text-center pr-4">
@@ -614,8 +821,6 @@ export default function ProfilePage() {
                           </span>
                         </div>
                       </div>
-
-                      {/* Thao tác xe */}
                       <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-end text-xs">
                         <div className="flex items-center space-x-2">
                           <button
@@ -642,7 +847,18 @@ export default function ProfilePage() {
                       </div>
                     </div>
                   );
-                })}
+                })()}
+                {/* Nút xem thêm nếu có nhiều hơn 1 xe - Chuyển sang trang danh sách xe riêng */}
+                {vehicles.length > 1 && (
+                  <Link
+                    href="/xe-cua-toi"
+                    className="w-full flex items-center justify-center space-x-2 py-2.5 rounded-2xl border border-dashed border-slate-300 bg-white text-slate-500 text-xs font-bold hover:bg-slate-50 active:scale-95 transition-all cursor-pointer"
+                  >
+                    <Sedan4SeatsIcon className="w-3.5 h-3.5" />
+                    <span>Xem tất cả ({vehicles.length} xe)</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </Link>
+                )}
               </div>
             )}
           </section>
@@ -742,26 +958,21 @@ export default function ProfilePage() {
             </h2>
 
             <div className="divide-y divide-slate-100 text-sm">
-              {/* Phương thức thanh toán */}
-              <div className="py-2.5 flex items-center justify-between">
+              {/* Phương thức thanh toán - Link sang trang riêng */}
+              <Link
+                href="/phuong-thuc-thanh-toan"
+                className="w-full py-2.5 flex items-center justify-between text-left hover:bg-slate-50 active:bg-slate-100 rounded-lg px-1 transition-colors cursor-pointer"
+              >
                 <div className="flex items-center space-x-3">
                   <div className="w-8 h-8 rounded-xl bg-blue-50 text-primary flex items-center justify-center">
                     <CreditCard className="w-4 h-4" />
                   </div>
                   <div>
-                    <div className="font-bold text-slate-800 text-xs">Phương thức cọc</div>
-                    <div className="text-[11px] text-slate-400">Sandbox VNPay, MoMo QR</div>
+                    <div className="font-bold text-slate-800 text-xs">Phương thức thanh toán</div>
                   </div>
                 </div>
-                <div className="flex items-center space-x-1.5">
-                  <span className="px-2 py-0.5 bg-blue-50 text-blue-700 font-bold text-[10px] rounded-md border border-blue-100">
-                    VNPay
-                  </span>
-                  <span className="px-2 py-0.5 bg-pink-50 text-pink-700 font-bold text-[10px] rounded-md border border-pink-100">
-                    MoMo
-                  </span>
-                </div>
-              </div>
+                <ChevronRight className="w-4 h-4 text-slate-400" />
+              </Link>
 
               {/* Ưu đãi & voucher */}
               <Link
@@ -774,15 +985,9 @@ export default function ProfilePage() {
                   </div>
                   <div>
                     <div className="font-bold text-slate-800 text-xs">Ưu đãi & Khuyến mãi</div>
-                    <div className="text-[11px] text-slate-400">Giảm giá đỗ xe & mã quà tặng</div>
                   </div>
                 </div>
-                <div className="flex items-center space-x-1.5">
-                  <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-bold text-[10px]">
-                    2 mã mới
-                  </span>
-                  <ChevronRight className="w-4 h-4 text-slate-400" />
-                </div>
+                <ChevronRight className="w-4 h-4 text-slate-400" />
               </Link>
             </div>
           </section>
@@ -998,6 +1203,8 @@ export default function ProfilePage() {
         </div>
       )}
 
+
+
       {/* SHEET: THÊM XE MỚI */}
       {isAddVehicleOpen && (
         <div className="fixed inset-0 z-50 bg-slate-950/40 backdrop-blur-sm flex flex-col justify-end">
@@ -1031,8 +1238,8 @@ export default function ProfilePage() {
                         : "border-slate-200 text-slate-600 hover:bg-slate-50"
                     )}
                   >
-                    <Car className="w-4 h-4" />
-                    <span className="text-[11px]">Sedan / Cỡ nhỏ</span>
+                    <Sedan4SeatsIcon className="w-4 h-4" />
+                    <span className="text-[11px]">Xe 4 chỗ (Sedan)</span>
                   </button>
                   <button
                     type="button"
@@ -1040,12 +1247,12 @@ export default function ProfilePage() {
                     className={clsx(
                       "p-2.5 rounded-xl border text-center flex flex-col items-center space-y-1 transition-all",
                       newVType === "SUV"
-                        ? "border-primary bg-blue-50 text-orange-600 font-bold shadow-sm"
+                        ? "border-orange-500 bg-orange-50 text-orange-600 font-bold shadow-sm"
                         : "border-slate-200 text-slate-600 hover:bg-slate-50"
                     )}
                   >
-                    <Truck className="w-4 h-4" />
-                    <span className="text-[11px]">SUV / Bán tải</span>
+                    <Suv7SeatsIcon className="w-4 h-4" />
+                    <span className="text-[11px]">Xe 7 chỗ (SUV)</span>
                   </button>
                   <button
                     type="button"
@@ -1053,11 +1260,11 @@ export default function ProfilePage() {
                     className={clsx(
                       "p-2.5 rounded-xl border text-center flex flex-col items-center space-y-1 transition-all",
                       newVType === "EV"
-                        ? "border-primary bg-blue-50 text-emerald-600 font-bold shadow-sm"
+                        ? "border-emerald-500 bg-emerald-50 text-emerald-600 font-bold shadow-sm"
                         : "border-slate-200 text-slate-600 hover:bg-slate-50"
                     )}
                   >
-                    <Zap className="w-4 h-4" />
+                    <EvCarIcon className="w-4 h-4" />
                     <span className="text-[11px]">Xe điện (EV)</span>
                   </button>
                 </div>
@@ -1079,8 +1286,8 @@ export default function ProfilePage() {
                           : "bg-white text-emerald-800 border-emerald-200 hover:bg-emerald-100/50 font-semibold"
                       )}
                     >
-                      <Car className="w-3.5 h-3.5" />
-                      <span className="text-xs">Sedan (VF 3, VF 6...)</span>
+                      <Sedan4SeatsIcon className="w-3.5 h-3.5" />
+                      <span className="text-xs">Xe 4 chỗ (VF 3, VF 6...)</span>
                     </button>
                     <button
                       type="button"
@@ -1092,8 +1299,8 @@ export default function ProfilePage() {
                           : "bg-white text-emerald-800 border-emerald-200 hover:bg-emerald-100/50 font-semibold"
                       )}
                     >
-                      <Truck className="w-3.5 h-3.5" />
-                      <span className="text-xs">SUV (VF 8, VF 9...)</span>
+                      <Suv7SeatsIcon className="w-3.5 h-3.5" />
+                      <span className="text-xs">Xe 7 chỗ (VF 8, VF 9...)</span>
                     </button>
                   </div>
                 </div>
@@ -1168,8 +1375,8 @@ export default function ProfilePage() {
                         : "border-slate-200 text-slate-600 hover:bg-slate-50"
                     )}
                   >
-                    <Car className="w-4 h-4" />
-                    <span className="text-[11px]">Sedan / Cỡ nhỏ</span>
+                    <Sedan4SeatsIcon className="w-4 h-4" />
+                    <span className="text-[11px]">Xe 4 chỗ (Sedan)</span>
                   </button>
                   <button
                     type="button"
@@ -1177,12 +1384,12 @@ export default function ProfilePage() {
                     className={clsx(
                       "p-2.5 rounded-xl border text-center flex flex-col items-center space-y-1 transition-all",
                       editVType === "SUV"
-                        ? "border-primary bg-blue-50 text-orange-600 font-bold shadow-sm"
+                        ? "border-orange-500 bg-orange-50 text-orange-600 font-bold shadow-sm"
                         : "border-slate-200 text-slate-600 hover:bg-slate-50"
                     )}
                   >
-                    <Truck className="w-4 h-4" />
-                    <span className="text-[11px]">SUV / Bán tải</span>
+                    <Suv7SeatsIcon className="w-4 h-4" />
+                    <span className="text-[11px]">Xe 7 chỗ (SUV)</span>
                   </button>
                   <button
                     type="button"
@@ -1190,11 +1397,11 @@ export default function ProfilePage() {
                     className={clsx(
                       "p-2.5 rounded-xl border text-center flex flex-col items-center space-y-1 transition-all",
                       editVType === "EV"
-                        ? "border-primary bg-blue-50 text-emerald-600 font-bold shadow-sm"
+                        ? "border-emerald-500 bg-emerald-50 text-emerald-600 font-bold shadow-sm"
                         : "border-slate-200 text-slate-600 hover:bg-slate-50"
                     )}
                   >
-                    <Zap className="w-4 h-4" />
+                    <EvCarIcon className="w-4 h-4" />
                     <span className="text-[11px]">Xe điện (EV)</span>
                   </button>
                 </div>
@@ -1216,8 +1423,8 @@ export default function ProfilePage() {
                           : "bg-white text-emerald-800 border-emerald-200 hover:bg-emerald-100/50 font-semibold"
                       )}
                     >
-                      <Car className="w-3.5 h-3.5" />
-                      <span className="text-xs">Sedan (VF 3, VF 6...)</span>
+                      <Sedan4SeatsIcon className="w-3.5 h-3.5" />
+                      <span className="text-xs">Xe 4 chỗ (VF 3, VF 6...)</span>
                     </button>
                     <button
                       type="button"
@@ -1229,8 +1436,8 @@ export default function ProfilePage() {
                           : "bg-white text-emerald-800 border-emerald-200 hover:bg-emerald-100/50 font-semibold"
                       )}
                     >
-                      <Truck className="w-3.5 h-3.5" />
-                      <span className="text-xs">SUV (VF 8, VF 9...)</span>
+                      <Suv7SeatsIcon className="w-3.5 h-3.5" />
+                      <span className="text-xs">Xe 7 chỗ (VF 8, VF 9...)</span>
                     </button>
                   </div>
                 </div>
@@ -1358,36 +1565,217 @@ export default function ProfilePage() {
 
       {/* SHEET: CHỌN ẢNH ĐẠI DIỆN */}
       {isAvatarSheetOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/40 backdrop-blur-sm flex flex-col justify-end">
-          <div className="bg-white rounded-t-[32px] p-5 shadow-2xl sheet-transition space-y-2.5 text-xs font-semibold max-w-[430px] w-full mx-auto animate-in slide-in-from-bottom duration-300">
+        <div 
+          onClick={() => setIsAvatarSheetOpen(false)}
+          className="fixed inset-0 z-50 bg-slate-950/40 backdrop-blur-sm flex flex-col justify-end"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-t-[32px] p-5 shadow-2xl sheet-transition space-y-2.5 text-xs font-semibold max-w-[430px] w-full mx-auto animate-in slide-in-from-bottom duration-300"
+          >
             <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-3" />
-            <h4 className="text-center font-bold text-slate-900 mb-3">Ảnh đại diện</h4>
+            <h4 className="text-center font-bold text-slate-900 mb-3 text-sm">Ảnh đại diện</h4>
+            
             <button
               onClick={() => {
                 setIsAvatarSheetOpen(false);
-                showToast("Đã mở camera để chụp ảnh mới");
+                setIsCameraModalOpen(true);
+                startCamera("user");
               }}
-              className="w-full py-3 px-4 bg-slate-50 hover:bg-blue-50 text-slate-700 hover:text-primary rounded-xl flex items-center space-x-2.5 transition-colors"
+              className="w-full py-3.5 px-4 bg-slate-50 hover:bg-blue-50 text-slate-700 hover:text-primary rounded-xl flex items-center space-x-3 transition-colors cursor-pointer active:scale-[0.99]"
             >
-              <Camera className="w-4 h-4 text-primary" />
-              <span>Chụp ảnh mới</span>
+              <div className="w-8 h-8 rounded-lg bg-blue-50 text-primary flex items-center justify-center">
+                <Camera className="w-4 h-4 text-primary" />
+              </div>
+              <span className="font-semibold text-slate-800 text-[13px]">Chụp ảnh mới</span>
             </button>
+            
             <button
               onClick={() => {
-                setIsAvatarSheetOpen(false);
-                showToast("Đã chọn ảnh từ thư viện");
+                fileInputRef.current?.click();
               }}
-              className="w-full py-3 px-4 bg-slate-50 hover:bg-blue-50 text-slate-700 hover:text-primary rounded-xl flex items-center space-x-2.5 transition-colors"
+              className="w-full py-3.5 px-4 bg-slate-50 hover:bg-blue-50 text-slate-700 hover:text-primary rounded-xl flex items-center space-x-3 transition-colors cursor-pointer active:scale-[0.99]"
             >
-              <ImageIcon className="w-4 h-4 text-primary" />
-              <span>Chọn ảnh từ thư viện</span>
+              <div className="w-8 h-8 rounded-lg bg-blue-50 text-primary flex items-center justify-center">
+                <ImageIcon className="w-4 h-4 text-primary" />
+              </div>
+              <span className="font-semibold text-slate-800 text-[13px]">Chọn ảnh từ thư viện</span>
             </button>
+
+            {currentUser.avatar && (
+              <button
+                onClick={handleRemoveAvatar}
+                className="w-full py-3 px-4 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl flex items-center space-x-3 transition-colors cursor-pointer active:scale-[0.99]"
+              >
+                <div className="w-8 h-8 rounded-lg bg-red-100 text-red-600 flex items-center justify-center">
+                  <Trash2 className="w-4 h-4" />
+                </div>
+                <span className="font-semibold text-[13px]">Gỡ ảnh đại diện</span>
+              </button>
+            )}
+
             <button
               onClick={() => setIsAvatarSheetOpen(false)}
-              className="w-full py-3 text-slate-400 font-bold hover:text-slate-600 transition-colors"
+              className="w-full py-3 text-slate-400 font-bold hover:text-slate-600 transition-colors text-xs text-center cursor-pointer"
             >
               Hủy bỏ
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* INPUT FILE ẨN CHO TẢI ẢNH VÀ CHỤP ẢNH */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleFileChange}
+      />
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="user"
+        className="hidden"
+        onChange={handleFileChange}
+      />
+
+      {/* MODAL: CHỤP ẢNH TRỰC TIẾP TỪ CAMERA */}
+      {isCameraModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-2xl max-w-[420px] w-full text-white flex flex-col items-center animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="w-full flex items-center justify-between mb-4">
+              <div className="flex items-center space-x-2">
+                <Camera className="w-5 h-5 text-primary" />
+                <h3 className="font-bold text-sm text-white">Chụp ảnh đại diện</h3>
+              </div>
+              <button
+                onClick={stopCamera}
+                className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Khung ngắm tròn (Circular Viewfinder) */}
+            <div className="relative w-64 h-64 sm:w-72 sm:h-72 rounded-full overflow-hidden border-4 border-primary/80 shadow-glow bg-black flex items-center justify-center my-2">
+              {capturedPhoto ? (
+                <img
+                  src={capturedPhoto}
+                  alt="Captured Avatar"
+                  className="w-full h-full object-cover"
+                />
+              ) : cameraError ? (
+                <div className="px-5 text-center flex flex-col items-center">
+                  <AlertTriangle className="w-10 h-10 text-amber-400 mb-2" />
+                  <p className="text-xs text-slate-300 font-medium leading-relaxed mb-3">
+                    {cameraError}
+                  </p>
+                  <button
+                    onClick={() => cameraInputRef.current?.click()}
+                    className="px-3.5 py-2 bg-primary text-white rounded-xl text-xs font-bold hover:bg-primary-dark transition-all cursor-pointer shadow-sm"
+                  >
+                    Mở Camera trên thiết bị
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <video
+                    ref={videoRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    className={`w-full h-full object-cover ${cameraFacing === "user" ? "-scale-x-100" : ""}`}
+                  />
+                  {isCameraLoading && (
+                    <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center space-y-2">
+                      <RefreshCw className="w-7 h-7 text-primary animate-spin" />
+                      <span className="text-xs text-slate-300 font-medium">Đang khởi động camera...</span>
+                    </div>
+                  )}
+                  {/* Guideline target circle */}
+                  <div className="absolute inset-3 rounded-full border border-dashed border-white/40 pointer-events-none" />
+                </>
+              )}
+            </div>
+
+            <p className="text-[11px] text-slate-400 text-center mt-2 mb-4">
+              {capturedPhoto
+                ? "Kiểm tra ảnh chụp chân dung của bạn trước khi lưu"
+                : "Căn chỉnh khuôn mặt vào giữa khung tròn để có ảnh đại diện đẹp nhất"}
+            </p>
+
+            {/* Controls */}
+            {capturedPhoto ? (
+              <div className="w-full grid grid-cols-2 gap-3 mt-1">
+                <button
+                  onClick={retakePhoto}
+                  className="py-3 px-4 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl flex items-center justify-center space-x-2 transition-all cursor-pointer"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  <span>Chụp lại</span>
+                </button>
+                <button
+                  onClick={confirmPhoto}
+                  className="py-3 px-4 bg-primary hover:bg-primary-dark text-white font-bold rounded-xl flex items-center justify-center space-x-2 shadow-glow transition-all cursor-pointer active:scale-95"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>Dùng ảnh này</span>
+                </button>
+              </div>
+            ) : cameraError ? (
+              <div className="w-full flex space-x-2.5">
+                <button
+                  onClick={() => {
+                    fileInputRef.current?.click();
+                  }}
+                  className="flex-1 py-3 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl text-xs flex items-center justify-center space-x-2 cursor-pointer"
+                >
+                  <ImageIcon className="w-4 h-4" />
+                  <span>Chọn từ thư viện</span>
+                </button>
+                <button
+                  onClick={stopCamera}
+                  className="py-3 px-4 bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold rounded-xl text-xs cursor-pointer"
+                >
+                  Đóng
+                </button>
+              </div>
+            ) : (
+              <div className="w-full flex items-center justify-around px-2 mt-2">
+                {/* Switch camera facing mode */}
+                <button
+                  onClick={toggleCameraFacing}
+                  className="w-11 h-11 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center transition-colors cursor-pointer"
+                  title="Đổi camera trước/sau"
+                >
+                  <SwitchCamera className="w-5 h-5" />
+                </button>
+
+                {/* Shutter button */}
+                <button
+                  onClick={takeSnapshot}
+                  disabled={isCameraLoading}
+                  className="w-16 h-16 rounded-full border-4 border-white/80 p-1 flex items-center justify-center shadow-glow hover:scale-105 active:scale-90 transition-all cursor-pointer disabled:opacity-50"
+                  title="Chụp ảnh"
+                >
+                  <div className="w-full h-full rounded-full bg-primary flex items-center justify-center">
+                    <Camera className="w-6 h-6 text-white" />
+                  </div>
+                </button>
+
+                {/* Fallback to native device camera */}
+                <button
+                  onClick={() => cameraInputRef.current?.click()}
+                  className="w-11 h-11 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center transition-colors cursor-pointer"
+                  title="Chụp bằng camera máy"
+                >
+                  <ImageIcon className="w-5 h-5" />
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

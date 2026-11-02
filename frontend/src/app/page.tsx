@@ -432,8 +432,16 @@ function ExploreContent() {
         {/* User Avatar + Greeting + Location */}
         <div className="flex items-center gap-2.5">
           <div className="relative">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-600 via-blue-500 to-sky-400 text-white font-bold text-xs flex items-center justify-center shadow-md shadow-blue-500/25 border-2 border-white ring-1 ring-blue-100">
-              {userInitials}
+            <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-600 via-blue-500 to-sky-400 text-white font-bold text-xs flex items-center justify-center shadow-md shadow-blue-500/25 border-2 border-white ring-1 ring-blue-100 overflow-hidden">
+              {user?.avatar ? (
+                <img
+                  src={user.avatar}
+                  alt={userName}
+                  className="w-full h-full object-cover rounded-full"
+                />
+              ) : (
+                userInitials
+              )}
             </div>
             <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full" />
           </div>

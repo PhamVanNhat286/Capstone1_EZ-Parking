@@ -62,7 +62,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     const insertSql = `
       INSERT INTO users (full_name, email, phone, password_hash, role, status)
       VALUES ($1, $2, $3, $4, $5, 'active')
-      RETURNING id, full_name, email, phone, role, status, created_at;
+      RETURNING id, full_name, email, phone, role, status, avatar_url, created_at;
     `;
     const result = await query(insertSql, [cleanName, cleanEmail, cleanPhone, passwordHash, role]);
     const newUser = result.rows[0];
@@ -201,6 +201,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
           phone: user.phone,
           role: user.role,
           status: user.status,
+          avatar_url: user.avatar_url,
         },
         token,
         vehicles: vehiclesRes.rows,
@@ -225,7 +226,7 @@ export const getMe = async (req: AuthRequest, res: Response): Promise<void> => {
 
     // Lấy thông tin người dùng
     const userSql = `
-      SELECT id, full_name, email, phone, role, status, created_at, updated_at
+      SELECT id, full_name, email, phone, role, status, avatar_url, created_at, updated_at
       FROM users
       WHERE id = $1;
     `;
@@ -269,9 +270,10 @@ export const updateProfile = async (req: AuthRequest, res: Response): Promise<vo
       return;
     }
 
-    const { full_name, email, phone } = req.body;
+    const { full_name, email, phone, avatar_url, avatar } = req.body;
+    const newAvatar = avatar_url !== undefined ? avatar_url : avatar;
 
-    if (!full_name && !email && !phone) {
+    if (!full_name && !email && !phone && newAvatar === undefined) {
       res.status(400).json({
         success: false,
         message: "Không có thông tin nào cần cập nhật",
@@ -313,16 +315,25 @@ export const updateProfile = async (req: AuthRequest, res: Response): Promise<vo
       }
     }
 
+    const shouldUpdateAvatar = newAvatar !== undefined;
     const updateSql = `
       UPDATE users
       SET full_name = COALESCE($1, full_name),
           email = COALESCE($2, email),
           phone = COALESCE($3, phone),
+          avatar_url = CASE WHEN $4::boolean THEN $5::text ELSE avatar_url END,
           updated_at = NOW()
-      WHERE id = $4
-      RETURNING id, full_name, email, phone, role, status, updated_at;
+      WHERE id = $6
+      RETURNING id, full_name, email, phone, role, status, avatar_url, updated_at;
     `;
-    const result = await query(updateSql, [cleanName, cleanEmail, cleanPhone, req.user.id]);
+    const result = await query(updateSql, [
+      cleanName,
+      cleanEmail,
+      cleanPhone,
+      shouldUpdateAvatar,
+      newAvatar ?? null,
+      req.user.id,
+    ]);
 
     if (result.rows.length === 0) {
       res.status(404).json({ success: false, message: "Không tìm thấy người dùng" });
