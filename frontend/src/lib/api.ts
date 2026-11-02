@@ -175,7 +175,7 @@ export async function getMeApi(token: string) {
 
 export async function updateProfileApi(
   token: string,
-  data: { full_name?: string; email?: string; phone?: string }
+  data: { full_name?: string; email?: string; phone?: string; avatar_url?: string; avatar?: string }
 ) {
   const res = await fetch(`${API_BASE_URL}/auth/profile`, {
     method: "PUT",

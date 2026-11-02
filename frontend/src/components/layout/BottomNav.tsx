@@ -10,10 +10,13 @@ export default function BottomNav() {
   // Ẩn BottomNav trên các trang flow (có header back riêng)
   if (
     pathname.startsWith("/dang-nhap") ||
-    pathname.startsWith("/ve/") ||
-    pathname.startsWith("/thanh-toan/") ||
-    pathname.startsWith("/chi-duong/") ||
-    pathname.startsWith("/bai/")
+    pathname.startsWith("/ve") ||
+    pathname.startsWith("/thanh-toan") ||
+    pathname.startsWith("/chi-duong") ||
+    pathname.startsWith("/bai") ||
+    pathname.startsWith("/dat-cho") ||
+    pathname.startsWith("/phuong-thuc-thanh-toan") ||
+    pathname.startsWith("/xe-cua-toi")
   ) {
     return null;
   }

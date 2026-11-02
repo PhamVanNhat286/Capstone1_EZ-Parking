@@ -30,6 +30,16 @@ export type Booking = {
   createdAt: number;
 };
 
+export type SavedPaymentAccount = {
+  id: string;
+  type: "vnpay" | "momo" | "banking";
+  accountName: string;
+  accountNumber: string;
+  bankName?: string;
+  isDefault?: boolean;
+  createdAt: number;
+};
+
 
 export type AIMessage = {
   id: string;
@@ -50,7 +60,7 @@ export const getUserChatKey = (user?: { email?: string; phone?: string } | null)
 };
 
 type StoreState = {
-  user: { name: string; phone: string; email?: string; token?: string; role?: string; isLoggedIn: boolean } | null;
+  user: { id?: string | number; name: string; phone: string; email?: string; token?: string; role?: string; avatar?: string; isLoggedIn: boolean } | null;
   vehicles: Vehicle[];
   setVehicles: (vehicles: Vehicle[]) => void;
   activeBooking: Booking | null;
@@ -74,9 +84,20 @@ type StoreState = {
   favoriteLots: string[];
   toggleFavoriteLot: (lotId: string) => void;
 
+  userAvatars?: Record<string, string>;
+  setUserAvatar: (avatar: string) => void;
+  removeUserAvatar: () => void;
+
+  userPaymentAccounts?: Record<string, SavedPaymentAccount[]>;
+  savedPaymentAccounts: SavedPaymentAccount[];
+  addSavedPaymentAccount: (account: SavedPaymentAccount) => void;
+  updateSavedPaymentAccount: (id: string, updates: Partial<SavedPaymentAccount>) => void;
+  deleteSavedPaymentAccount: (id: string) => void;
+  setDefaultPaymentAccount: (id: string) => void;
+
   // Actions
-  login: (userData?: { name?: string; phone?: string; email?: string; token?: string; role?: string; vehicles?: Vehicle[] }) => void;
-  updateUser: (data: Partial<{ name: string; phone: string; email: string }>) => void;
+  login: (userData?: { id?: string | number; name?: string; phone?: string; email?: string; token?: string; role?: string; avatar?: string; vehicles?: Vehicle[] }) => void;
+  updateUser: (data: Partial<{ name: string; phone: string; email: string; avatar: string }>) => void;
   logout: () => void;
   holdSpot: (lotId: string, spotId: string, vehicleId: string, estimatedHours?: number, startTime?: string, endTime?: string, backendId?: number, serverHoldExpiresAt?: number) => void;
   setBookingHours: (hours: number, startTime?: string, endTime?: string) => void;
@@ -110,6 +131,110 @@ export const useStore = create<StoreState>()(
       lastPaymentMethod: null,
       settings: { theme: "light", notifications: true },
       linkedWallet: false,
+      userPaymentAccounts: {},
+      savedPaymentAccounts: [],
+
+      addSavedPaymentAccount: (account) =>
+        set((state) => {
+          const key = getUserChatKey(state.user);
+          const allMap = state.userPaymentAccounts || {};
+          const currentList = allMap[key] || state.savedPaymentAccounts || [];
+          const isFirst = currentList.length === 0;
+          const newAccount = { ...account, isDefault: account.isDefault ?? isFirst };
+          const list = newAccount.isDefault
+            ? currentList.map((a) => ({ ...a, isDefault: false }))
+            : currentList;
+          const updated = [newAccount, ...list];
+
+          if (typeof window !== "undefined") {
+            try {
+              localStorage.setItem(`ez_payments_${key}`, JSON.stringify(updated));
+            } catch {}
+          }
+
+          return {
+            savedPaymentAccounts: updated,
+            userPaymentAccounts: {
+              ...allMap,
+              [key]: updated,
+            },
+            lastPaymentMethod: newAccount.type === "banking" ? "card" : (newAccount.type as any),
+          };
+        }),
+
+      updateSavedPaymentAccount: (id, updates) =>
+        set((state) => {
+          const key = getUserChatKey(state.user);
+          const allMap = state.userPaymentAccounts || {};
+          const currentList = allMap[key] || state.savedPaymentAccounts || [];
+          const updated = currentList.map((a) => (a.id === id ? { ...a, ...updates } : a));
+
+          if (typeof window !== "undefined") {
+            try {
+              localStorage.setItem(`ez_payments_${key}`, JSON.stringify(updated));
+            } catch {}
+          }
+
+          return {
+            savedPaymentAccounts: updated,
+            userPaymentAccounts: {
+              ...allMap,
+              [key]: updated,
+            },
+          };
+        }),
+
+      deleteSavedPaymentAccount: (id) =>
+        set((state) => {
+          const key = getUserChatKey(state.user);
+          const allMap = state.userPaymentAccounts || {};
+          const currentList = allMap[key] || state.savedPaymentAccounts || [];
+          const remaining = currentList.filter((a) => a.id !== id);
+          if (remaining.length > 0 && !remaining.some((a) => a.isDefault)) {
+            remaining[0].isDefault = true;
+          }
+
+          if (typeof window !== "undefined") {
+            try {
+              localStorage.setItem(`ez_payments_${key}`, JSON.stringify(remaining));
+            } catch {}
+          }
+
+          return {
+            savedPaymentAccounts: remaining,
+            userPaymentAccounts: {
+              ...allMap,
+              [key]: remaining,
+            },
+          };
+        }),
+
+      setDefaultPaymentAccount: (id) =>
+        set((state) => {
+          const key = getUserChatKey(state.user);
+          const allMap = state.userPaymentAccounts || {};
+          const currentList = allMap[key] || state.savedPaymentAccounts || [];
+          const found = currentList.find((a) => a.id === id);
+          const updated = currentList.map((a) => ({
+            ...a,
+            isDefault: a.id === id,
+          }));
+
+          if (typeof window !== "undefined") {
+            try {
+              localStorage.setItem(`ez_payments_${key}`, JSON.stringify(updated));
+            } catch {}
+          }
+
+          return {
+            savedPaymentAccounts: updated,
+            userPaymentAccounts: {
+              ...allMap,
+              [key]: updated,
+            },
+            lastPaymentMethod: found?.type === "banking" ? "card" : ((found?.type as any) || null),
+          };
+        }),
 
       setSettings: (updates) => set((state) => ({ settings: { ...state.settings, ...updates } })),
       toggleWallet: () => set((state) => ({ linkedWallet: !state.linkedWallet })),
@@ -184,8 +309,40 @@ export const useStore = create<StoreState>()(
         }),
 
       setDemo: (val) => set({ isDemo: val }),
+      userAvatars: {},
+      setUserAvatar: (avatar) =>
+        set((state) => {
+          const key = getUserChatKey(state.user);
+          const currentAvatars = state.userAvatars || {};
+          const updatedAvatars = { ...currentAvatars, [key]: avatar };
+          if (typeof window !== "undefined") {
+            try {
+              localStorage.setItem(`ez_avatar_${key}`, avatar);
+            } catch {}
+          }
+          return {
+            user: state.user ? { ...state.user, avatar } : null,
+            userAvatars: updatedAvatars,
+          };
+        }),
+      removeUserAvatar: () =>
+        set((state) => {
+          const key = getUserChatKey(state.user);
+          const currentAvatars = { ...(state.userAvatars || {}) };
+          delete currentAvatars[key];
+          if (typeof window !== "undefined") {
+            try {
+              localStorage.removeItem(`ez_avatar_${key}`);
+            } catch {}
+          }
+          return {
+            user: state.user ? { ...state.user, avatar: "" } : null,
+            userAvatars: currentAvatars,
+          };
+        }),
       login: (userData) => {
-        const newUser = {
+        const tempUser = {
+          id: userData?.id,
           name: userData?.name || "Người dùng",
           phone: userData?.phone || "",
           email: userData?.email || "",
@@ -193,21 +350,64 @@ export const useStore = create<StoreState>()(
           role: userData?.role || "customer",
           isLoggedIn: true,
         };
-        const key = getUserChatKey(newUser);
+        const key = getUserChatKey(tempUser);
+        let cachedAvatar = "";
+        let cachedPayments: SavedPaymentAccount[] = [];
+        if (typeof window !== "undefined") {
+          try {
+            cachedAvatar = localStorage.getItem(`ez_avatar_${key}`) || "";
+            const rawPay = localStorage.getItem(`ez_payments_${key}`);
+            if (rawPay) cachedPayments = JSON.parse(rawPay);
+          } catch {}
+        }
+        const resolvedAvatar = userData?.avatar || cachedAvatar || "";
+        const newUser = {
+          ...tempUser,
+          avatar: resolvedAvatar,
+        };
         set((state) => {
           const histories = state.chatHistories || {};
+          const avatars = state.userAvatars || {};
+          const paymentMap = state.userPaymentAccounts || {};
+          const updatedAvatars = resolvedAvatar ? { ...avatars, [key]: resolvedAvatar } : avatars;
+          const userAccounts = cachedPayments.length > 0 ? cachedPayments : (paymentMap[key] || []);
+
           return {
             user: newUser,
+            userAvatars: updatedAvatars,
             vehicles: userData?.vehicles || [],
             // Chỉ tải đúng lịch sử chat của tài khoản này
             aiMessages: histories[key] || [],
+            // Chỉ tải đúng phương thức thanh toán riêng của tài khoản này
+            savedPaymentAccounts: userAccounts,
+            userPaymentAccounts: {
+              ...paymentMap,
+              [key]: userAccounts,
+            },
           };
         });
       },
       updateUser: (data) =>
-        set((state) => ({
-          user: state.user ? { ...state.user, ...data } : null,
-        })),
+        set((state) => {
+          if (!state.user) return { user: null };
+          const updatedUser = { ...state.user, ...data };
+          const key = getUserChatKey(updatedUser);
+          const avatars = state.userAvatars || {};
+          const updatedAvatars = data.avatar !== undefined ? { ...avatars, [key]: data.avatar } : avatars;
+          if (data.avatar !== undefined && typeof window !== "undefined") {
+            try {
+              if (data.avatar) {
+                localStorage.setItem(`ez_avatar_${key}`, data.avatar);
+              } else {
+                localStorage.removeItem(`ez_avatar_${key}`);
+              }
+            } catch {}
+          }
+          return {
+            user: updatedUser,
+            userAvatars: updatedAvatars,
+          };
+        }),
       logout: () => {
         if (typeof window !== "undefined") {
           localStorage.removeItem("ezspace_token");
@@ -222,7 +422,8 @@ export const useStore = create<StoreState>()(
             vehicles: [],
             activeBooking: null,
             history: [],
-            // Đăng xuất: chuyển sang phiên khách hoặc làm sạch, không để lộ dữ liệu tài khoản cũ
+            // Đăng xuất: dọn sạch dữ liệu thanh toán để bảo mật cho từng tài khoản
+            savedPaymentAccounts: [],
             aiMessages: histories["guest"] || [],
           };
         });
@@ -383,6 +584,10 @@ export const useStore = create<StoreState>()(
           const key = getUserChatKey(state.user);
           const histories = state.chatHistories || {};
           state.aiMessages = histories[key] || [];
+
+          // Tải đúng danh sách tài khoản thanh toán của user này khi tải lại trang
+          const paymentMap = state.userPaymentAccounts || {};
+          state.savedPaymentAccounts = paymentMap[key] || [];
         }
       },
       partialize: (state) =>
@@ -401,6 +606,13 @@ export const useStore = create<StoreState>()(
           }
           if (!persistedState.chatHistories) {
             persistedState.chatHistories = {};
+          }
+          if (!persistedState.userPaymentAccounts) {
+            persistedState.userPaymentAccounts = {};
+            if (Array.isArray(persistedState.savedPaymentAccounts) && persistedState.savedPaymentAccounts.length > 0) {
+              const key = getUserChatKey(persistedState.user);
+              persistedState.userPaymentAccounts[key] = persistedState.savedPaymentAccounts;
+            }
           }
           if (Array.isArray(persistedState.aiMessages) && persistedState.aiMessages.length > 0) {
             const key = getUserChatKey(persistedState.user);

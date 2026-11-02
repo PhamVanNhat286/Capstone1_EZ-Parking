@@ -300,12 +300,14 @@ export default function AuthPage() {
             }))
           : [];
         login({
+          id: res.data.user.id,
           name: res.data.user.full_name,
           email: res.data.user.email,
           phone: res.data.user.phone,
           role: userRole,
           token: res.data.token,
           vehicles: userVehicles,
+          avatar: res.data.user.avatar_url || "",
         });
         setStatus("success");
         setSuccessMsg("Đăng nhập thành công! Đang chuyển hướng...");
@@ -481,12 +483,14 @@ export default function AuthPage() {
 
       if (res.data?.user && res.data?.token) {
         login({
+          id: res.data.user.id,
           name: res.data.user.full_name || regData.fullName,
           email: res.data.user.email || regData.email,
           phone: res.data.user.phone || regData.phone,
           role: res.data.user.role || "customer",
           token: res.data.token,
           vehicles: returnedVehicles,
+          avatar: res.data.user.avatar_url || "",
         });
       }
 

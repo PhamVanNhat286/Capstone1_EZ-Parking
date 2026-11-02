@@ -42,8 +42,9 @@ export const initDbTables = async () => {
         created_at  TIMESTAMPTZ     NOT NULL DEFAULT NOW()
       );
       CREATE INDEX IF NOT EXISTS idx_email_otps_email_purpose ON email_otps (email, purpose);
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT;
     `);
-    console.log("[Database] Table 'email_otps' initialized successfully.");
+    console.log("[Database] Table 'email_otps' and 'users.avatar_url' initialized successfully.");
   } catch (error) {
     console.error("[Database] Error initializing tables:", error);
   }

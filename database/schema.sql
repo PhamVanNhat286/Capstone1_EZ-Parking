@@ -116,6 +116,7 @@ CREATE TABLE users (
     password_hash   VARCHAR(255)    NOT NULL,
     role            user_role       NOT NULL DEFAULT 'customer',
     status          user_status     NOT NULL DEFAULT 'active',
+    avatar_url      TEXT,
     created_at      TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
     updated_at      TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
 
