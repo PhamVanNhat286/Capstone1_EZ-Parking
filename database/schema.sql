@@ -373,6 +373,21 @@ CREATE INDEX idx_email_otps_email_purpose ON email_otps (email, purpose);
 CREATE INDEX idx_email_otps_expires       ON email_otps (expires_at) WHERE is_used = FALSE;
 
 -- =============================================================
+-- 5.8 BẢNG LƯU TRỮ LỊCH SỬ CHAT TRỢ LÝ AI (ĐỒNG BỘ ĐA THIẾT BỊ)
+CREATE TABLE IF NOT EXISTS chat_messages (
+    id          BIGSERIAL       PRIMARY KEY,
+    user_id     BIGINT          NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role        VARCHAR(20)     NOT NULL, -- 'user' | 'ai'
+    message     TEXT            NOT NULL,
+    cards       JSONB           DEFAULT '[]'::jsonb,
+    chips       JSONB           DEFAULT '[]'::jsonb,
+    created_at  TIMESTAMPTZ     NOT NULL DEFAULT NOW()
+);
+
+COMMENT ON TABLE chat_messages IS 'Luu tru toan bo lich su hoi dap voi AI cua tung user de dong bo xuyen suot moi thiet bi va trinh duyet.';
+CREATE INDEX IF NOT EXISTS idx_chat_messages_user_created ON chat_messages (user_id, created_at ASC);
+
+-- =============================================================
 -- 6. AUTO updated_at TRIGGER
 -- =============================================================
 CREATE OR REPLACE FUNCTION set_updated_at()
