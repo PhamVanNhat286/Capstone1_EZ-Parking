@@ -37,21 +37,35 @@ export default function BankPaymentPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState('');
+  const [now, setNow] = useState<number | null>(null);
   const [hourlyRate, setHourlyRate] = useState(lots.find((lot) => lot.id === booking?.lotId)?.price ?? 0);
+  const [lotName, setLotName] = useState(lots.find((lot) => lot.id === booking?.lotId)?.name || booking?.lotId || 'Chưa có');
 
   const hours = booking?.estimatedHours || 2;
   const estimatedStart = booking?.createdAt || 0;
   const estimatedEnd = estimatedStart + hours * 60 * 60 * 1000;
   const estimatedPrice = hourlyRate * hours;
-  const lot = lots.find((item) => item.id === booking?.lotId);
   const vehicle = vehicles.find((item) => item.id === booking?.vehicleId);
+  const expiresAt = payment ? new Date(payment.expires_at).getTime() : 0;
+  const remainingSeconds = now === null || !Number.isFinite(expiresAt) ? 0 : Math.max(0, Math.ceil((expiresAt - now) / 1000));
+  const expired = payment?.status === 'expired' || (payment?.status === 'pending' && now !== null && remainingSeconds === 0);
+  const canTransfer = payment?.status === 'pending' && !expired;
+  const countdown = `${String(Math.floor(remainingSeconds / 60)).padStart(2, '0')}:${String(remainingSeconds % 60).padStart(2, '0')}`;
+
+  useEffect(() => {
+    setNow(Date.now());
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     if (!booking?.lotId) return;
     let cancelled = false;
     setHourlyRate(lots.find((item) => item.id === booking.lotId)?.price ?? 0);
+    setLotName(lots.find((item) => item.id === booking.lotId)?.name || booking.lotId);
     void getLotByIdApi(booking.lotId).then((result) => {
       if (cancelled || !result) return;
+      if (result.name) setLotName(result.name);
       const price = Number(result.pricing_rules?.[0]?.hourly_rate || result.price || 0);
       if (price > 0) setHourlyRate(price);
     });
@@ -181,11 +195,12 @@ export default function BankPaymentPage() {
 
           {payment && (
             <div className="px-5 pb-6 pt-5">
-              {payment.status === 'pending' ? (
+              {canTransfer ? (
                 <>
                   <div className="flex items-center justify-center gap-2 text-sm font-semibold text-amber-700">
                     <span className="h-2 w-2 animate-pulse rounded-full bg-amber-500" /> Đang chờ chuyển khoản
                   </div>
+                  <p className="mt-2 text-center text-sm font-semibold tabular-nums text-slate-700">Mã QR còn hiệu lực {now === null ? '--:--' : countdown}</p>
                   <div className="mx-auto mt-4 w-fit rounded-[22px] border border-slate-200 bg-white p-3 shadow-sm">
                     <img src={payment.qr_url} alt="Mã VietQR thanh toán tiền cọc" className="h-[230px] w-[230px] object-contain" />
                   </div>
@@ -222,7 +237,7 @@ export default function BankPaymentPage() {
                     <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">Số tài khoản</p>
                     <p className="mt-0.5 select-all break-all text-base font-bold tabular-nums">{payment.account_number}</p>
                   </div>
-                  {payment.status === 'pending' && <button onClick={() => void copy(payment.account_number, 'account')} aria-label="Sao chép số tài khoản" className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white text-emerald-700 shadow-sm">
+                  {canTransfer && <button onClick={() => void copy(payment.account_number, 'account')} aria-label="Sao chép số tài khoản" className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white text-emerald-700 shadow-sm">
                     {copied === 'account' ? <Check size={17} /> : <Copy size={17} />}
                   </button>}
                 </div>
@@ -231,13 +246,13 @@ export default function BankPaymentPage() {
                     <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">Nội dung chuyển khoản</p>
                     <p className="mt-0.5 select-all break-all text-base font-bold tracking-wide text-emerald-800">{payment.transfer_content}</p>
                   </div>
-                  {payment.status === 'pending' && <button onClick={() => void copy(payment.transfer_content, 'content')} aria-label="Sao chép nội dung chuyển khoản" className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white text-emerald-700 shadow-sm">
+                  {canTransfer && <button onClick={() => void copy(payment.transfer_content, 'content')} aria-label="Sao chép nội dung chuyển khoản" className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white text-emerald-700 shadow-sm">
                     {copied === 'content' ? <Check size={17} /> : <Copy size={17} />}
                   </button>}
                 </div>
               </div>
 
-              {payment.status === 'pending' && (
+              {canTransfer && (
                 <div className="mt-4 rounded-2xl bg-emerald-50 px-4 py-3 text-xs leading-5 text-emerald-900">
                   <strong>Dùng cùng một điện thoại?</strong> Sao chép số tài khoản và nội dung ở trên, rồi chuyển trong ứng dụng ngân hàng. Hệ thống sẽ tự xác nhận khi tiền vào.
                   <p className="mt-1 text-emerald-700">Mã có hiệu lực đến {new Date(payment.expires_at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}.</p>
@@ -257,7 +272,7 @@ export default function BankPaymentPage() {
           <div className="space-y-3 text-sm">
             <div className="flex items-start gap-3">
               <Building2 size={18} className="mt-0.5 shrink-0 text-slate-400" />
-              <div className="min-w-0"><p className="text-xs text-slate-500">Bãi đỗ</p><p className="font-semibold">{lot?.name || booking.lotId}</p></div>
+              <div className="min-w-0"><p className="text-xs text-slate-500">Bãi đỗ</p><p className="font-semibold">{lotName}</p></div>
             </div>
             <div className="flex items-start gap-3">
               <CarFront size={18} className="mt-0.5 shrink-0 text-slate-400" />
