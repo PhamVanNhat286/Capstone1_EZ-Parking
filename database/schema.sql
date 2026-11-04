@@ -64,6 +64,7 @@ CREATE TYPE reservation_status AS ENUM (
 
 CREATE TYPE payment_provider AS ENUM (
     'vnpay',
+    'bank',
     'momo',
     'card'
 );
