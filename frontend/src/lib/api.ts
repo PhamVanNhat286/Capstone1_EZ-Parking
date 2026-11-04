@@ -295,6 +295,18 @@ export async function releaseSpotApi(reservationId: string | number, token?: str
   return res.json().catch(() => ({ success: false }));
 }
 
+export async function payDepositApi(reservationId: string | number, provider = "vnpay", token?: string) {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
+  const res = await fetch(`${API_BASE_URL}/reservations/${reservationId}/pay-deposit`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ provider }),
+  });
+  return res.json().catch(() => ({ success: false }));
+}
+
 export async function getActiveReservationApi(token?: string) {
   const headers: Record<string, string> = {};
   if (token) headers["Authorization"] = `Bearer ${token}`;
