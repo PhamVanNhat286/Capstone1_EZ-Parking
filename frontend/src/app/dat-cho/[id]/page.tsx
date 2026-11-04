@@ -11,7 +11,7 @@ import { calculateDetailedFee } from "@/lib/pricing";
 const DEPOSIT = 50_000;
 const money = (n: number) => Math.max(0, Math.round(n)).toLocaleString("vi-VN") + "đ";
 const clock = (seconds: number) => `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
-type Method = "vnpay" | "momo" | "card";
+type Method = "vnpay" | "bank";
 
 export default function CheckoutPage() {
   const { id } = useParams<{ id: string }>();
@@ -154,7 +154,7 @@ export default function CheckoutPage() {
         </p>
       </section>
       <section className="space-y-2"><h3 className="text-sm font-extrabold px-1">Phương thức thanh toán</h3>
-        {([{ key: "vnpay", name: "VNPay", desc: "Quét mã qua ứng dụng ngân hàng", symbol: "VNP", color: "text-blue-700" }, { key: "momo", name: "MoMo", desc: "Thanh toán ví MoMo (mô phỏng)", symbol: "M", color: "text-pink-600" }, { key: "card", name: "Thẻ quốc tế", desc: "Visa / Mastercard (mô phỏng)", symbol: "VISA", color: "text-blue-700" }] as const).map((m) => <button key={m.key} onClick={() => setMethod(m.key)} className={`w-full bg-white rounded-2xl p-3.5 flex items-center gap-3 border-2 text-left ${method === m.key ? "border-blue-600 shadow-sm" : "border-transparent"}`}><div className={`w-12 h-11 bg-slate-50 rounded-xl grid place-items-center font-black ${m.color}`}>{m.symbol}</div><span className="flex-1"><strong className="block text-sm">{m.name}</strong><span className="block text-[11px] text-slate-500">{m.desc}</span></span><div className={`w-5 h-5 rounded-full border-2 grid place-items-center ${method === m.key ? "border-blue-600" : "border-slate-300"}`}>{method === m.key && <span className="w-2.5 h-2.5 rounded-full bg-blue-600"/>}</div></button>)}
+        {([{ key: "vnpay", name: "VNPay", desc: "Chọn ngân hàng hoặc thẻ trên cổng VNPay", symbol: "VNP", color: "text-blue-700" }, { key: "bank", name: "Chuyển khoản ngân hàng", desc: "Quét VietQR, xác nhận tự động qua SePay", symbol: "QR", color: "text-emerald-700" }] as const).map((m) => <button key={m.key} onClick={() => setMethod(m.key)} className={`w-full bg-white rounded-2xl p-3.5 flex items-center gap-3 border-2 text-left ${method === m.key ? "border-blue-600 shadow-sm" : "border-transparent"}`}><div className={`w-12 h-11 bg-slate-50 rounded-xl grid place-items-center font-black ${m.color}`}>{m.symbol}</div><span className="flex-1"><strong className="block text-sm">{m.name}</strong><span className="block text-[11px] text-slate-500">{m.desc}</span></span><div className={`w-5 h-5 rounded-full border-2 grid place-items-center ${method === m.key ? "border-blue-600" : "border-slate-300"}`}>{method === m.key && <span className="w-2.5 h-2.5 rounded-full bg-blue-600"/>}</div></button>)}
       </section>
       <section className="bg-white rounded-3xl border border-slate-100 shadow-sm p-4 space-y-3">
         <h3 className="font-extrabold text-sm">Chi tiết giá tạm tính</h3>
@@ -184,7 +184,7 @@ export default function CheckoutPage() {
         </p>
       </section>
       <label className="flex gap-2.5 text-xs leading-5 text-slate-600 px-1 cursor-pointer"><input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} className="accent-blue-600 mt-1 w-4 h-4 shrink-0"/><span>Tôi đồng ý với chính sách đặt cọc của EZ-Parking và hiểu rằng có thể mất cọc khi đến quá hạn.</span></label>
-      <div className="bg-blue-50 border border-blue-100 text-blue-800 rounded-xl p-3 flex items-start gap-2"><ShieldCheck size={17} className="shrink-0"/><p className="text-[11px]">Đây là cổng thanh toán <strong>mô phỏng cho đồ án</strong>, không tự động thu tiền thật.</p></div>
+      <div className="bg-blue-50 border border-blue-100 text-blue-800 rounded-xl p-3 flex items-start gap-2"><ShieldCheck size={17} className="shrink-0"/><p className="text-[11px]">Chỉ thanh toán khi thông tin đơn đặt chỗ và số tiền cọc đã chính xác.</p></div>
     </div>
     <div className="sticky bottom-0 z-10 bg-white border-t border-slate-200 p-4 shadow-lg"><button disabled={!agree || remaining <= 0} onClick={proceed} className="w-full bg-blue-600 disabled:bg-slate-300 text-white rounded-2xl py-3.5 font-extrabold flex items-center justify-center gap-2 shadow-sm">Xác nhận</button></div>
 
