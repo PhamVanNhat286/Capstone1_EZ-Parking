@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Building2, CalendarClock, CarFront, Check, ChevronRight, Clock3, CreditCard, Info, MapPin, Minus, Plus, ShieldCheck, Wallet, X } from "lucide-react";
+import { ArrowLeft, Building2, CalendarClock, CarFront, Check, ChevronRight, Clock3, CreditCard, Info, Landmark, MapPin, Minus, Plus, ShieldCheck, Wallet, X } from "lucide-react";
 import { getLotByIdApi, releaseSpotApi } from "@/lib/api";
 import { lots } from "@/lib/mock/lots";
 import { useStore } from "@/store";
@@ -154,7 +154,7 @@ export default function CheckoutPage() {
         </p>
       </section>
       <section className="space-y-2"><h3 className="text-sm font-extrabold px-1">Phương thức thanh toán</h3>
-        {([{ key: "vnpay", name: "VNPay", desc: "Chọn ngân hàng hoặc thẻ trên cổng VNPay", symbol: "VNP", color: "text-blue-700" }, { key: "bank", name: "Chuyển khoản ngân hàng", desc: "Quét VietQR, xác nhận tự động qua SePay", symbol: "QR", color: "text-emerald-700" }] as const).map((m) => <button key={m.key} onClick={() => setMethod(m.key)} className={`w-full bg-white rounded-2xl p-3.5 flex items-center gap-3 border-2 text-left ${method === m.key ? "border-blue-600 shadow-sm" : "border-transparent"}`}><div className={`w-12 h-11 bg-slate-50 rounded-xl grid place-items-center font-black ${m.color}`}>{m.symbol}</div><span className="flex-1"><strong className="block text-sm">{m.name}</strong><span className="block text-[11px] text-slate-500">{m.desc}</span></span><div className={`w-5 h-5 rounded-full border-2 grid place-items-center ${method === m.key ? "border-blue-600" : "border-slate-300"}`}>{method === m.key && <span className="w-2.5 h-2.5 rounded-full bg-blue-600"/>}</div></button>)}
+        {([{ key: "vnpay", name: "VNPay", desc: "Chọn ngân hàng hoặc thẻ trên cổng VNPay", symbol: "VNP", color: "text-blue-700" }, { key: "bank", name: "Chuyển khoản ngân hàng", desc: "Quét VietQR, xác nhận tự động qua SePay", symbol: "QR", color: "text-emerald-700" }] as const).map((m) => <button key={m.key} onClick={() => setMethod(m.key)} className={`w-full bg-white rounded-2xl p-3.5 flex items-center gap-3 border-2 text-left ${method === m.key ? "border-blue-600 shadow-sm" : "border-transparent"}`}><div className={`w-12 h-11 bg-slate-50 rounded-xl grid place-items-center font-black ${m.color}`}>{m.key === "bank" ? <Landmark size={24} strokeWidth={2.2} /> : m.symbol}</div><span className="flex-1"><strong className="block text-sm">{m.name}</strong><span className="block text-[11px] text-slate-500">{m.desc}</span></span><div className={`w-5 h-5 rounded-full border-2 grid place-items-center ${method === m.key ? "border-blue-600" : "border-slate-300"}`}>{method === m.key && <span className="w-2.5 h-2.5 rounded-full bg-blue-600"/>}</div></button>)}
       </section>
       <section className="bg-white rounded-3xl border border-slate-100 shadow-sm p-4 space-y-3">
         <h3 className="font-extrabold text-sm">Chi tiết giá tạm tính</h3>
