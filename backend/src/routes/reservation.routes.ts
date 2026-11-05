@@ -2,7 +2,6 @@ import { Router } from "express";
 import {
   holdSpot,
   releaseSpot,
-  payDeposit,
   getActiveReservation,
 } from "../controllers/reservation.controller";
 import { optionalAuthenticateToken } from "../middlewares/auth.middleware";
@@ -17,8 +16,5 @@ router.post("/hold", optionalAuthenticateToken, holdSpot);
 
 // Hủy giữ chỗ / giải phóng ô
 router.post("/:id/release", optionalAuthenticateToken, releaseSpot);
-
-// Thanh toán cọc
-router.post("/:id/pay-deposit", optionalAuthenticateToken, payDeposit);
 
 export default router;

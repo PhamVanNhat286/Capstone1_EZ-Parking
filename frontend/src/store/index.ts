@@ -26,7 +26,7 @@ export type Booking = {
   arrivalExpiresAt?: number; // timestamp
   enteredAt?: number; // timestamp
   exitedAt?: number; // timestamp
-  paymentMethod?: "vnpay" | "momo" | "card";
+  paymentMethod?: "vnpay" | "bank" | "momo" | "card";
   createdAt: number;
 };
 
@@ -103,8 +103,8 @@ type StoreState = {
   setBookingHours: (hours: number, startTime?: string, endTime?: string) => void;
   isDemo: boolean;
   setDemo: (val: boolean) => void;
-  lastPaymentMethod: "vnpay" | "momo" | "card" | null;
-  payDeposit: (method: "vnpay" | "momo" | "card") => void;
+  lastPaymentMethod: "vnpay" | "bank" | "momo" | "card" | null;
+  payDeposit: (method: "vnpay" | "bank" | "momo" | "card") => void;
   cancelBooking: () => void;
   releaseSpot: () => void;
   completeBooking: () => void;
@@ -158,7 +158,7 @@ export const useStore = create<StoreState>()(
               ...allMap,
               [key]: updated,
             },
-            lastPaymentMethod: newAccount.type === "banking" ? "card" : (newAccount.type as any),
+            lastPaymentMethod: newAccount.type === "banking" ? "bank" : (newAccount.type as any),
           };
         }),
 
@@ -232,7 +232,7 @@ export const useStore = create<StoreState>()(
               ...allMap,
               [key]: updated,
             },
-            lastPaymentMethod: found?.type === "banking" ? "card" : ((found?.type as any) || null),
+            lastPaymentMethod: found?.type === "banking" ? "bank" : ((found?.type as any) || null),
           };
         }),
 

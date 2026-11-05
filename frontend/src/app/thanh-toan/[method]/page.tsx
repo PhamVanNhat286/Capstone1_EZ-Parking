@@ -11,9 +11,9 @@ import { useStore, type Booking } from "@/store";
 const DEPOSIT = 50_000;
 const money = (n: number) => Math.max(0, n).toLocaleString("vi-VN") + "đ";
 const timeText = (s: number) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
-type Provider = "vnpay" | "momo" | "card";
-const providerName = (m: Provider) => m === "momo" ? "Ví MoMo" : m === "card" ? "Thẻ quốc tế" : "VNPay";
-const getProvider = (p: string | null): Provider => p === "momo" || p === "card" ? p : "vnpay";
+type Provider = "vnpay" | "bank" | "momo" | "card";
+const providerName = (m: Provider) => m === "momo" ? "Ví MoMo" : m === "card" ? "Thẻ quốc tế" : m === "bank" ? "Chuyển khoản ngân hàng" : "VNPay";
+const getProvider = (p: string | null): Provider => p === "momo" || p === "card" || p === "bank" ? p : "vnpay";
 
 function useBookingLot(lotId?: string) {
   const fallback = lots.find((l) => l.id === lotId) || lots[0];
@@ -51,6 +51,10 @@ function CopyButton({ value, label = "Sao chép" }: { value: string; label?: str
 }
 
 export default function PaymentFlowPage() {
+  const { method } = useParams<{ method: string }>();
+  if (method !== 'vnpay' && method !== 'bank') {
+    return <div className="min-h-full bg-slate-50 p-6 text-center text-slate-600">Phương thức này hiện không khả dụng.</div>;
+  }
   return <Suspense fallback={<div className="min-h-full grid place-items-center text-slate-500">Đang tải thanh toán...</div>}><PaymentContent/></Suspense>;
 }
 
