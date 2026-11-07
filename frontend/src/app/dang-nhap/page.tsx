@@ -724,16 +724,56 @@ export default function AuthPage() {
               </p>
             </div>
           </div>
+
         </div>
 
         {/* HERO SECTION: INTERACTIVE 2D PARKING SIMULATION */}
         <div
-          className={`relative mx-6 mt-3.5 mb-3 rounded-2xl overflow-hidden border p-3 z-10 transition-all ${
+          className={`relative mx-6 mt-3 mb-2 rounded-2xl overflow-hidden border p-3 z-10 transition-all ${
             isDark
               ? "border-slate-700/40 bg-slate-900/60 shadow-inner"
               : "border-slate-200/80 bg-white/90 shadow-sm backdrop-blur-md"
           }`}
         >
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-1.5">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-600"></span>
+              </span>
+              <span
+                className={`text-[11px] font-semibold ${
+                  isDark ? "text-slate-300" : "text-slate-800"
+                }`}
+              >
+                Bãi đỗ số 1 - Tầng B1
+              </span>
+            </div>
+            <div className="flex items-center gap-2 text-[10px]">
+              <span
+                className={`flex items-center gap-1 font-semibold ${
+                  isDark ? "text-emerald-400" : "text-emerald-700"
+                }`}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Trống
+              </span>
+              <span
+                className={`flex items-center gap-1 font-semibold ${
+                  isDark ? "text-amber-400" : "text-amber-700"
+                }`}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>Giữ chỗ
+              </span>
+              <span
+                className={`flex items-center gap-1 font-semibold ${
+                  isDark ? "text-rose-400" : "text-rose-700"
+                }`}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>Đầy
+              </span>
+            </div>
+          </div>
+
           {/* 2D Parking Grid Canvas Simulator */}
           <div
             className={`relative w-full h-[76px] rounded-xl border p-2 overflow-hidden flex items-center justify-between transition-colors ${
@@ -841,9 +881,9 @@ export default function AuthPage() {
             {/* ANIMATED CAR TRAVELLING INTO SPOT */}
             <div className="absolute top-0 left-0 animate-car-loop pointer-events-none z-20">
               <div className="w-5 h-3 bg-gradient-to-r from-blue-600 to-sky-500 rounded-sm shadow-[0_2px_8px_rgba(37,99,235,0.4)] flex items-center justify-between px-0.5 border border-white">
-                <div className="w-1 h-1.5 bg-amber-300 rounded-2xs"></div>
-                <div className="w-1 h-1 bg-white/70 rounded-2xs"></div>
-                <div className="w-1 h-1.5 bg-rose-500 rounded-2xs"></div>
+                <div className="w-1 h-1.5 bg-amber-300 rounded-[1px]"></div>
+                <div className="w-1 h-1 bg-white/70 rounded-[1px]"></div>
+                <div className="w-1 h-1.5 bg-rose-500 rounded-[1px]"></div>
               </div>
             </div>
           </div>
@@ -852,7 +892,7 @@ export default function AuthPage() {
 
 
         {/* MAIN SCROLLABLE FORM CONTAINER */}
-        <div className="flex-1 overflow-y-auto no-scrollbar px-6 pb-3 pt-1 z-20 flex flex-col min-h-0">
+        <div className="flex-1 overflow-y-auto no-scrollbar px-6 pb-4 pt-3 z-20 flex flex-col min-h-0">
           {/* STATUS TOAST NOTIFICATION */}
           {status === "success" && (
             <div
@@ -928,7 +968,7 @@ export default function AuthPage() {
                         onChange={(e) =>
                           setLoginData({ ...loginData, account: e.target.value })
                         }
-                        placeholder="Nhập email hoặc SĐT"
+                        placeholder="Nhập email hoặc sđt"
                         className={`w-full pl-10 pr-3.5 py-3.5 rounded-2xl text-xs border transition-all outline-none ${
                           errors.account
                             ? "border-rose-500 focus:ring-1 focus:ring-rose-500"
@@ -986,7 +1026,7 @@ export default function AuthPage() {
                         onChange={(e) =>
                           setLoginData({ ...loginData, password: e.target.value })
                         }
-                        placeholder="Nhập mật khẩu"
+                        placeholder="Nhập Mật khẩu"
                         className={`w-full pl-10 pr-10 py-3.5 rounded-2xl text-xs border transition-all outline-none ${
                           errors.password
                             ? "border-rose-500 focus:ring-1 focus:ring-rose-500"
