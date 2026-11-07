@@ -1,0 +1,12 @@
+/* Chỉ giao diện biểu đồ và thanh doanh thu. */
+.ref-chart-items {display:flex;flex-direction:column;gap:15px;padding:12px 24px 25px;}
+.ref-chart-item {display:grid;gap:8px;}
+.ref-chart-item-head {display:flex;justify-content:space-between;gap:10px;font-size:12px;}
+.ref-chart-item-head b {font-weight:700;}
+.ref-chart-track {height:10px;border-radius:9px;background:#f1f5f9;overflow:hidden;}
+.ref-chart-track>i {height:100%;display:block;border-radius:9px;background:#2563eb;}
+.ref-revenue-bars {height:230px; padding:20px 18px 18px; overflow-x:auto; align-items:flex-end; gap:7px;}
+.ref-revenue-bars .graph-col {min-width:22px;}
+.ref-revenue-bars .graph-value {font-size:10px;white-space:nowrap;}
+.ref-revenue-bars small {font-size:9px;}
+.reference-layout .live-section .ref-chart-items {margin:0;}

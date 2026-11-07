@@ -1,0 +1,5 @@
+/* Trang Tổng quan - tránh badge "Đã cọc" bị kéo cao vì .brand trong brand header. */
+.reference-layout .live-table .reservation-status {min-width:102px;white-space:nowrap;vertical-align:middle;}
+.reference-layout .live-table .reservation-status .pill {display:inline-flex;align-items:center;justify-content:center;min-width:max-content;min-height:26px;height:auto;width:max-content;max-width:none;white-space:nowrap;flex:none;padding:5px 9px;line-height:1.2;border-radius:7px;}
+.reference-dashboard-hero .live-table {min-width:670px;}
+.reference-dashboard-hero .table-wrap,.reference-section-grid .table-wrap {overflow-x:auto;}

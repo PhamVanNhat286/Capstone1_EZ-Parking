@@ -1,0 +1,8 @@
+/* Thao tác lot-detail; API ghi dữ liệu MySQL (không phải dữ liệu demo). */
+async function lotDetail(id){
+ const d=await api('lot','GET',undefined,{id});const x=d.lot;
+ const types=d.vehicles.map(v=>v.vehicle_type).join(', ')||'Chưa cấu hình';
+ const slots=d.slots.map(s=>`<span title="${e(s.code)} (${e(s.slot_type)})" class="slot ${e(s.status)}">${e(s.code)}<small>${e(s.slot_type)}</small></span>`).join('');
+ const prices=d.pricing.map(p=>`<tr><td>${e(p.name)}</td><td>${e(p.start_time)}–${e(p.end_time)}</td><td>${money(p.hourly_rate)}</td><td>${money(p.surcharge)}</td><td>${e(p.effective_from)}–${e(p.effective_to)}</td></tr>`);
+ modal(x.name,`<div class="live-info"><p><b>ID:</b> #${n(x.id)} · ${pill(x.status,LOT[x.status])}</p><p><b>Địa chỉ:</b> ${e(x.address)}</p><p><b>Mô tả:</b> ${e(x.description||'—')}</p><p><b>Tọa độ:</b> ${e(x.latitude||'—')}, ${e(x.longitude||'—')}</p><p><b>Quản lý:</b> ${e(d.managers.map(m=>m.full_name+' ('+m.phone+')').join(', ')||'Chưa có')}</p><p><b>Sức chứa khai báo:</b> ${nf(x.capacity)} · <b>Ô thiết lập:</b> ${nf(d.slots.length)}</p><p><b>Loại xe:</b> ${e(types)}</p><p><b>Giờ:</b> ${e(x.open_time||'—')}–${e(x.close_time||'—')}</p><p><b>Tạo lúc:</b> ${dt(x.created_at)} · <b>Duyệt lúc:</b> ${dt(x.approved_at)}</p><p><b>Đơn:</b> ${e(d.reservations.map(r=>`${RES[r.status]||r.status}: ${nf(r.amount)}`).join(' · ')||'0')}</p></div><h3>Sơ đồ ô đỗ (${d.slots.length})</h3><div class="slot-grid">${slots||'<span>Chưa tạo ô</span>'}</div><div class="muted">Xanh: trống · Vàng: giữ chỗ · Đỏ: đang đỗ · Xám: không sử dụng.</div><h3>Quy tắc giá</h3>${table(['Tên quy tắc','Khung giờ','Giá / giờ','Phụ phí','Áp dụng'],prices)}`);
+}

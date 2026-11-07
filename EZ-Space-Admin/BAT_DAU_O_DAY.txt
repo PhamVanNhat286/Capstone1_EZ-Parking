@@ -1,0 +1,12 @@
+EZ-Space Admin — ĐÃ TÁCH FILE + SỬA NHÃN ĐÃ CỌC
+
+1. Giải nén ZIP vào một thư mục (ví dụ D:\Projects\ez-space-admin).
+2. VS Code > File > Open Folder: mở chính thư mục có package.json.
+3. Bật MySQL trên XAMPP, cổng 3307, database ez_space. Không cần chạy Apache.
+4. Terminal: npm install
+5. Terminal: npm run check-db
+6. Terminal: npm run dev
+7. Mở http://127.0.0.1:8000/
+
+KHÔNG chạy lại file seed hoặc xóa dữ liệu MySQL đang dùng.
+Xem CAU-TRUC-DU-AN.md để biết chính xác phần nào nằm ở file nào.

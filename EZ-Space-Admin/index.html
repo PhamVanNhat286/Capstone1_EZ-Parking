@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>EZ-Space Admin — Tổng quan nền tảng (Platform Overview)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Material+Symbols+Outlined" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css"><link rel="stylesheet" href="css/live.css"><link rel="stylesheet" href="css/reference-theme.css">
+<link rel="stylesheet" href="css/pages/dashboard.css">
+</head>
+<body data-page="dashboard" class="reference-layout">
+<aside class="sidebar" aria-label="Điều hướng hệ thống">
+  <div class="sidebar-body">
+    <div class="brand"><div class="brand-logo"><div class="logo">P</div><div><b>EZ-Space</b><small>PLATFORM CORE</small></div></div><span class="pill brand-tag">Admin</span></div>
+    <div class="nav-title">Điều hướng hệ thống</div>
+    <nav class="nav"><a href="index.html" class="active" aria-current="page"><span class="ms">dashboard</span><span>Tổng quan nền tảng</span></a>
+<a href="lots.html" class="" ><span class="ms">apartment</span><span>Quản lý bãi đỗ</span><span class="badge" data-pending-badge hidden>0</span></a>
+<a href="users.html" class="" ><span class="ms">group</span><span>Quản lý người dùng</span></a>
+<a href="revenue.html" class="" ><span class="ms">account_balance_wallet</span><span>Báo cáo doanh thu</span></a>
+<a href="logs.html" class="" ><span class="ms">history</span><span>Nhật ký hệ thống</span></a>
+<a href="data.html" class="" ><span class="ms">database</span><span>Dữ liệu nghiệp vụ</span></a>
+<a href="settings.html" class="" ><span class="ms">settings</span><span>Cài đặt nền tảng</span></a></nav>
+  </div>
+  <div class="sidebar-bottom"><div class="status-box col"><div class="sb-top"><span class="live-dot">MySQL · kết nối thật</span><span id="platform-pct" class="live-status-label">Đang kiểm tra</span></div><p id="sync-side">Đang đọc dữ liệu từ ez_space...</p></div>
+    <div class="side-foot"><div class="user-info"><div class="avatar sm">SA</div><div><b id="admin-name">Quản trị cục bộ</b><small>Chỉ dùng trên máy này · Không login</small></div></div></div>
+  </div>
+</aside>
+<main class="main">
+  <div class="reference-topbar"><div class="crumb top-crumb"><span>Admin Portal</span><span class="ms">chevron_right</span><b>Tổng quan nền tảng</b></div><div class="topbar-actions"><span class="topbar-live"><span class="topbar-dot"></span>Live Sync · MySQL</span><span id="sync-time" class="sync-time"></span><button class="btn" id="btn-refresh" type="button"><span class="ms">refresh</span> Làm mới</button></div></div>
+  <nav class="mobile-nav"><a href="index.html" class="active"><span class="ms">dashboard</span>Tổng quan nền tảng</a>
+<a href="lots.html" class=""><span class="ms">apartment</span>Quản lý bãi đỗ</a>
+<a href="users.html" class=""><span class="ms">group</span>Quản lý người dùng</a>
+<a href="revenue.html" class=""><span class="ms">account_balance_wallet</span>Báo cáo doanh thu</a>
+<a href="logs.html" class=""><span class="ms">history</span>Nhật ký hệ thống</a>
+<a href="data.html" class=""><span class="ms">database</span>Dữ liệu nghiệp vụ</a>
+<a href="settings.html" class=""><span class="ms">settings</span>Cài đặt nền tảng</a></nav>
+  <div class="container live-container reference-content">
+    <header class="page-head"><div class="heading-area"><div class="title-row"><h1>Tổng quan nền tảng (Platform Overview)</h1><span class="pill ok dot live" id="sync-pill">Đang kết nối...</span></div><p class="sub">Giám sát sức khỏe hệ thống, lưu lượng đặt chỗ và phê duyệt đối tác theo dữ liệu MySQL thời gian thực.</p></div></header>
+    <div id="error-banner" class="live-error" role="alert" hidden></div>
+    <div id="live-root" aria-live="polite"><section class="card live-loading"><span class="ms spin">sync</span> Đang truy vấn dữ liệu từ MySQL...</section></div>
+  </div>
+  <footer class="app-footer">EZ-Space Smart Parking · Dữ liệu từ <b>ez_space</b> · Giao diện dành riêng cho máy cục bộ.</footer>
+</main>
+<div class="live-modal" id="detail-modal" hidden role="dialog" aria-modal="true" aria-labelledby="modal-title"><div class="live-modal-card"><div class="live-modal-head"><h2 id="modal-title">Thông tin</h2><button id="modal-close" class="btn btn-sm" type="button">Đóng <span class="ms">close</span></button></div><div id="modal-content"></div></div></div>
+<div class="toast" id="toast" role="status"><span class="ms" id="toast-icon">check_circle</span><span id="toast-msg"></span></div>
+<script src="js/icons.js" defer></script>
+<script src="js/core.js" defer></script>
+<script src="js/pages/dashboard.js" defer></script>
+<script src="js/actions/modal.js" defer></script>
+<script src="js/actions/export.js" defer></script>
+<script src="js/actions/lot-status.js" defer></script>
+<script src="js/app.js" defer></script>
+</body>
+</html>

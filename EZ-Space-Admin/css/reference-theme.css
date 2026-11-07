@@ -1,0 +1,111 @@
+/* Phong cách tham chiếu từ 6 giao diện EZ-Space do người dùng cung cấp.
+   Nội dung dữ liệu vẫn do PHP API/MySQL sinh, không dùng chỉ số giả. */
+:root { --radius:14px; --brand:#2563EB; --brand-hover:#1D4ED8; --page:#F8FAFC; --line:#E2E8F0; --ink:#0F172A; --ink2:#475569; --tint:#EFF6FF; --sidebar:260px; }
+.reference-layout { font-family:'Plus Jakarta Sans',system-ui,sans-serif; background:#F8FAFC; color:#0F172A; }
+.reference-layout .sidebar {width:260px; background:#fff; box-shadow:0 1px 5px rgba(15,23,42,.015);}
+.reference-layout .sidebar-body { flex:1; overflow-y:auto; }
+.reference-layout .sidebar .brand {height:76px;padding:0 20px; border-bottom:1px solid #E2E8F0; }
+.reference-layout .sidebar .brand small {font-weight:700;color:#94A3B8;font-size:10px;letter-spacing:.09em;}
+.reference-layout .logo {box-shadow:0 3px 10px rgba(37,99,235,.18);}
+.reference-layout .brand-tag {background:#eff6ff;color:#2563eb;white-space:nowrap;display:inline-flex;align-items:center;justify-content:center;font-size:10px;border:1px solid #bfdbfe;height:24px;}
+.reference-layout .nav-title {font-size:11px;color:#94A3B8; padding:22px 24px 10px;letter-spacing:.06em;}
+.reference-layout .nav {padding:0 12px;gap:5px;}
+.reference-layout .nav a {font-size:13px;font-weight:600;border-radius:11px;min-height:42px;padding:11px 13px;gap:12px;}
+.reference-layout .nav a .ms {font-size:19px;}
+.reference-layout .nav a.active {border:1px solid rgba(191,219,254,.65);box-shadow:0 1px 3px rgba(37,99,235,.035);}
+.reference-layout .nav a.active::before {top:7px;bottom:7px;}
+.reference-layout .sidebar-bottom {flex-shrink:0;}
+.reference-layout .status-box {display:flex; flex-direction:column; align-items:stretch; padding:13px 15px; margin:6px 12px 12px; gap:5px; font-size:11px;}
+.reference-layout .status-box .sb-top { width:100%;display:flex;justify-content:space-between;gap:5px;align-items:center; }
+.reference-layout .status-box p {color:#94A3B8; font-weight:500; font-size:10px;line-height:1.6;}
+.reference-layout .live-dot::before {content:'';display:inline-block;width:8px;height:8px;border-radius:50%;background:#16A34A;margin-right:7px;}
+.reference-layout .live-status-label {font-weight:800;color:#16A34A;font-size:10px;}
+.reference-layout .side-foot {padding:14px 16px;}
+.reference-layout .side-foot .user-info .avatar {border-radius:12px;}
+.reference-layout .side-foot .user-info small {font-size:10px;}
+.reference-layout .side-foot .user-info b {font-size:12px;}
+.reference-layout .main {margin-left:260px;padding:0;min-height:100vh;display:flex;flex-direction:column;}
+.reference-topbar {height:76px;flex-shrink:0;background:#fff;border-bottom:1px solid #e2e8f0;padding:0 clamp(22px,3vw,42px);display:flex;align-items:center;justify-content:space-between;gap:12px;}
+.reference-topbar .top-crumb {margin:0;display:flex;gap:7px;align-items:center;font-size:12px;white-space:nowrap;}
+.top-crumb b {color:#0f172a;}
+.topbar-actions {display:flex;align-items:center;gap:14px;}
+.topbar-live {display:inline-flex;align-items:center;gap:8px;font-size:11px;font-weight:700;color:#15803D;border:1px solid #bbf7d0;background:#f0fdf4;padding:6px 11px;border-radius:999px;white-space:nowrap;}
+.topbar-dot {height:7px;width:7px;border-radius:50%;background:#22c55e;}
+.reference-content {max-width:1600px;width:100%;padding:30px clamp(22px,3vw,42px) 50px;margin:0 auto;}
+.reference-content .page-head {padding:3px 0 20px;border-bottom:1px solid #e2e8f0;margin-bottom:24px;align-items:center;}
+.reference-content .page-head .title-row {gap:14px;}
+.reference-content .page-head h1 {font-size:clamp(22px,1.65vw,27px);line-height:1.45;letter-spacing:-.035em;font-weight:800;}
+.reference-content .page-head .sub {font-size:13px;line-height:1.65;color:#64748b;max-width:840px;margin-top:5px;}
+.reference-content .page-head .pill {border:1px solid #bbf7d0;}
+.reference-layout .card {border-radius:13px;box-shadow:0 2px 5px rgba(15,23,42,.025);}
+.reference-layout .grid-4 {gap:18px;}
+.reference-layout .live-cards .kpi {padding:22px 24px 20px;min-height:150px;position:relative;transition:transform .18s ease,box-shadow .18s ease;}
+.reference-layout .live-cards .kpi:hover {transform:translateY(-2px);box-shadow:0 9px 21px rgba(15,23,42,.055);}
+.reference-layout .kpi-top {font-size:12px;font-weight:700;color:#475569;}
+.reference-layout .kpi-value {font-size:29px;letter-spacing:-.035em;margin-top:13px;line-height:1.3;}
+.reference-layout .kpi-sub {font-size:11px;line-height:1.6;color:#64748b;margin-top:7px;}
+.reference-layout .ico {background:#EFF6FF;border-radius:11px; width:43px;height:43px;}
+.reference-layout .ico .ms {color:#2563EB;font-size:23px;}
+.reference-layout .live-section {box-shadow:0 1px 3px rgba(15,23,42,.035);}
+.reference-layout .live-section >.card-head {padding:23px 25px 18px;align-items:center;}
+.reference-layout #live-root h2 {font-size:17px;line-height:1.55;font-weight:800;}
+.reference-layout .card-head p {line-height:1.65;color:#64748B;font-size:12px;}
+.reference-layout .live-table th {background:#F8FAFC;padding:14px 12px;text-transform:uppercase;font-size:10px;letter-spacing:.04em;color:#94A3B8;}
+.reference-layout .live-table td {font-size:12px;color:#334155;padding:17px 12px;line-height:1.6;}
+.reference-layout .live-table td b {font-weight:700;color:#0f172a;}
+.reference-layout .btn {border-radius:9px;box-shadow:0 1px 3px rgba(15,23,42,.035);}
+.reference-layout .btn-primary {box-shadow:0 2px 8px rgba(37,99,235,.13);}
+.reference-layout .live-toolbar {gap:15px;}
+.reference-layout .live-filters {gap:8px;}
+.reference-layout .live-search {border-radius:10px;}
+.reference-layout .pill {font-size:11px;border-radius:7px;padding:4px 8px;}
+.reference-layout .pill.dot {border-radius:999px;}
+.reference-layout .live-explain {border-radius:12px;border-color:#dbeafe;}
+.reference-layout .live-section>.occupancy,.reference-layout .live-section>.simple-graph,.reference-layout .live-section>.live-info {margin-left:25px;margin-right:25px;}
+.reference-layout .table-wrap {overscroll-behavior-x:contain;}
+.reference-layout .app-footer {margin-top:auto;padding:22px 35px;text-align:center;border-top:1px solid #e2e8f0;color:#94a3b8;font-size:11px;background:#fff;}
+/* Khối chuyên biệt theo mẫu 6 màn hình */
+.reference-dashboard-hero {display:grid;grid-template-columns: minmax(0,1.7fr) minmax(275px,1fr);gap:22px;}
+.reference-dashboard-hero>* {min-width:0;}
+.reference-metrics-row {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;border-top:1px solid #f1f5f9;padding:16px 24px;}
+.reference-metrics-row > div {text-align:center;min-width:0;}
+.reference-metrics-row b {display:block;font-size:18px;color:#0f172a;}
+.reference-metrics-row small {color:#94a3b8;font-size:10px;}
+.reference-metrics-row > div + div {border-left:1px solid #f1f5f9;}
+.reference-dashboard-hero .simple-graph {height:198px;margin-bottom:16px;}
+.reference-dashboard-hero .graph-bar {background:linear-gradient(180deg,#60a5fa,#2563eb);}
+.service-list {padding:8px 22px 20px;}
+.service-row {display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 0;border-bottom:1px solid #f1f5f9;}
+.service-row:last-child {border:0;}
+.service-row .service-label {display:flex;align-items:center;gap:10px;font-size:12px;font-weight:700;color:#334155;}
+.service-row .ms {color:#2563eb;font-size:21px;}
+.service-row small {font-size:10px;color:#94a3b8;line-height:1.4;display:block;font-weight:500;margin-top:5px;}
+.service-tag {font-size:10px;font-weight:800;border-radius:7px;padding:5px 8px;background:#dcfce7;color:#15803d;white-space:nowrap;}
+.service-tag.warn {background:#fef3c7;color:#b45309;}
+.ref-note {display:flex;gap:10px;align-items:start;padding:14px 17px;border:1px solid #bfdbfe;background:#eff6ff;border-radius:12px;color:#475569;font-size:12px;line-height:1.65;}
+.ref-note .ms {color:#2563eb;}
+.reference-section-grid {display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+.reference-section-grid>* {min-width:0;}
+.ref-tiny-tag {display:inline-flex;align-items:center;padding:4px 9px;border-radius:7px;background:#eff6ff;color:#2563eb;font-size:11px;font-weight:800;}
+.ref-highlight-row {display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;flex-wrap:wrap;}
+.ref-highlight-row h3 {font-size:14px;font-weight:800;}
+.reference-dashboard-hero .live-section {height:100%;}
+.reference-dashboard-hero .card-head {padding-bottom:12px;}
+.reference-layout #live-root {gap:22px;}
+.reference-layout #live-root > .live-toolbar:first-child {margin-bottom:-3px;}
+.reference-layout #live-root>.live-toolbar:first-child .muted {font-size:11px;}
+.reference-layout .range-summary {padding:8px 0 0;}
+@media (max-width:1220px){.reference-dashboard-hero{grid-template-columns:1fr;}.reference-section-grid{grid-template-columns:1fr;}.reference-layout .grid-4{grid-template-columns:repeat(2,minmax(0,1fr));}}
+@media (max-width:1000px){.reference-topbar{padding:14px 22px;height:auto;min-height:66px;}.reference-layout .main{margin-left:0;}.reference-layout .sidebar{display:none;}.reference-layout .mobile-nav{display:flex;gap:7px;margin:10px 20px 0;}.reference-content{padding:20px 18px 40px;}.reference-layout .live-container .page-head{padding-top:6px;}}
+@media (max-width:680px){.reference-layout .grid-4{grid-template-columns:1fr;}.reference-dashboard-hero{grid-template-columns:1fr;}.reference-topbar .top-crumb{display:none;}.topbar-actions{width:100%;justify-content:space-between;gap:8px;}.reference-content .page-head h1{font-size:22px;}.reference-layout .live-section>.card-head{padding:16px;}.reference-metrics-row{padding:12px 10px;}.reference-layout .app-footer{padding:18px;}}
+
+.reference-layout .reference-section-grid>.live-section{min-width:0;}
+.reference-layout .reference-section-grid .table-wrap {overflow-x:auto;}
+
+/* Inline SVG icon fallback: tránh hiển thị chữ "groups", "dashboard" nếu máy không có font biểu tượng */
+.reference-layout .ms {font-family:inherit;display:inline-flex;align-items:center;justify-content:center;min-width:19px;vertical-align:middle;font-size:0;}
+.reference-layout .ms svg {width:20px;height:20px;display:block;flex-shrink:0;}
+.reference-layout .ico .ms svg{width:23px;height:23px;}
+.reference-layout .crumb .ms svg{width:14px;height:14px;}
+.reference-layout .btn .ms svg{width:17px;height:17px;}
+.reference-layout .status-box .ms svg{width:18px;height:18px;}

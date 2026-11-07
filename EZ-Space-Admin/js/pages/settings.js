@@ -1,0 +1,13 @@
+/* Giao diện settings: chỉ chứa trình bày và dữ liệu cho trang này. */
+function settings(d){
+ const obj=Object.fromEntries(d.items.map(x=>[x.setting_key,x.setting_value]));
+ const field=(label,id,val,min,max,unit,help)=>`<div class="live-field"><label for="${id}">${label}</label><div class="live-number"><input type="number" id="${id}" min="${min}" max="${max}" value="${e(val)}"><span>${e(unit)}</span></div><small>${e(help)}</small></div>`;
+ return `<form id="settings-live-form" class="settings-reference-form">`+
+ section('Tham số thời gian & Vòng đời đặt chỗ',`<div class="live-settings-grid">${field('Thời gian giữ chỗ chờ cọc','hold',obj.hold_minutes??10,3,30,'phút','TTL giữ ô đỗ trước khi quá hạn.')}${field('Giới hạn trễ hẹn (No-show)','no-show',obj.no_show_minutes??20,5,60,'phút','Khoảng thời gian cho phép khách tới bãi.')}${field('Hoa hồng nền tảng mặc định','commission',obj.commission_percent??10,0,30,'%','Phần trăm ước tính trên doanh thu thu ròng.')}</div>`,'Cấu hình lưu vào app_settings. Việc thực thi quy tắc ở ứng dụng khách cần tích hợp backend tương ứng.')+
+ section('Cổng thanh toán VNPay / MoMo Sandbox',`<div class="live-info"><p>${pill('pending','Chưa cấu hình cổng thật')}</p><p>Ứng dụng quản trị này chỉ đọc bảng <code>payments</code> hiện có. Không có cấu hình khóa bí mật, IPN webhook hoặc môi trường Sandbox thực tế trong dữ liệu được cung cấp.</p><p>Vì vậy không hiển thị giả trạng thái “đã kết nối ổn định” như giao diện tham chiếu.</p></div>`,'Thông tin trạng thái tích hợp; không hiển thị hay yêu cầu nhập khóa bí mật thanh toán.')+
+ section('Quản lý hệ thống & Bảo trì',`<label class="maintenance-toggle"><input type="checkbox" id="maintenance" ${obj.maintenance==='1'?'checked':''}><span><b>Chế độ bảo trì hệ thống (Maintenance Mode)</b><small>Lưu cờ bảo trì trong database. Để ngừng các đơn mới, backend đặt chỗ của app người dùng phải kiểm tra cờ này.</small></span></label><div class="live-toolbar"><button class="btn btn-primary" type="submit"><span class="ms">save</span> Lưu thay đổi cấu hình</button><span id="settings-updated" class="muted">Mọi thay đổi sẽ được ghi vào bảng audit_logs.</span></div>`,'Không có Redis cache được cấu hình trong dự án này, vì vậy không cung cấp nút xóa cache giả.')+
+ `</form>`+
+ section('Trạng thái hạ tầng',`<div class="live-info"><p><b>Database:</b> ${e(d.mysql)} (MySQL/MariaDB qua PDO)</p><p><b>Thời gian máy chủ:</b> ${dt(d.server_time)} · Asia/Ho_Chi_Minh</p><p><b>PHP API:</b> <code>api/index.php</code></p><p><b>Cron:</b> <code>api/cron.php</code> — cần lập lịch Windows Task Scheduler riêng; chưa thể kết luận đang chạy.</p></div>`);
+}
+
+window.EZ_RENDER = settings;
