@@ -195,7 +195,12 @@ export const holdSpot = async (req: AuthRequest, res: Response): Promise<void> =
 export const releaseSpot = async (req: AuthRequest, res: Response): Promise<void> => {
   const client = await pool.connect();
   try {
-    const reservationId = req.params.id;
+    const rawId = String(req.params.id).replace(/^[eE][zZ]-/, "");
+    const reservationId = parseInt(rawId, 10);
+    if (isNaN(reservationId)) {
+      res.status(404).json({ success: false, message: "Mã đơn đặt chỗ không hợp lệ" });
+      return;
+    }
     await client.query("BEGIN");
 
     // Lấy thông tin đơn đặt chỗ
@@ -239,7 +244,12 @@ export const releaseSpot = async (req: AuthRequest, res: Response): Promise<void
 export const payDeposit = async (req: AuthRequest, res: Response): Promise<void> => {
   const client = await pool.connect();
   try {
-    const reservationId = req.params.id;
+    const rawId = String(req.params.id).replace(/^[eE][zZ]-/, "");
+    const reservationId = parseInt(rawId, 10);
+    if (isNaN(reservationId)) {
+      res.status(404).json({ success: false, message: "Mã đơn đặt chỗ không hợp lệ" });
+      return;
+    }
     const { provider = "vnpay", transaction_ref = `TX-${Date.now()}` } = req.body;
 
     await client.query("BEGIN");
@@ -339,6 +349,149 @@ export const getActiveReservation = async (req: AuthRequest, res: Response): Pro
     });
   } catch (error) {
     console.error("Lỗi khi lấy thông tin đặt chỗ:", error);
+    res.status(500).json({ success: false, message: "Lỗi máy chủ" });
+  }
+};
+
+
+// GET /api/reservations - Lấy danh sách lịch sử đặt chỗ của người dùng
+export const getMyReservations = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.id || req.query.user_id || 3;
+    const { status, limit = 50, offset = 0 } = req.query;
+
+    let filterStatus = "";
+    const params: any[] = [userId, Number(limit), Number(offset)];
+
+    if (status === "active") {
+      filterStatus = "AND r.status IN ('holding', 'paid', 'entered')";
+    } else if (status === "completed") {
+      filterStatus = "AND r.status = 'completed'";
+    } else if (status === "cancelled") {
+      filterStatus = "AND r.status IN ('cancelled', 'forfeited', 'refunded')";
+    }
+
+    const sql = `
+      SELECT 
+        r.id,
+        r.parking_lot_id,
+        l.name AS lot_name,
+        l.address AS lot_address,
+        r.slot_id,
+        s.code AS slot_code,
+        s.slot_type,
+        r.vehicle_id,
+        v.license_plate,
+        v.vehicle_name,
+        v.vehicle_type,
+        r.start_time,
+        r.expected_end_time,
+        r.status,
+        r.hold_expires_at,
+        r.arrival_expires_at,
+        r.deposit_amount,
+        r.hourly_rate,
+        r.total_amount,
+        r.created_at,
+        ps.check_in_at,
+        ps.check_out_at,
+        CASE 
+          WHEN r.status::text = 'cancelled' THEN 'Đã hủy'
+          WHEN r.status::text = 'forfeited' THEN 'Mất cọc (Quá hạn)'
+          WHEN r.status::text = 'completed' THEN 'Hoàn thành'
+          WHEN r.status::text = 'entered' THEN 'Đang đỗ'
+          WHEN r.status::text = 'paid' THEN 'Đã trả cọc'
+          WHEN r.status::text = 'holding' THEN 'Chờ thanh toán cọc'
+          ELSE r.status::text
+        END AS status_label
+      FROM reservations r
+      JOIN slots s ON s.id = r.slot_id
+      JOIN parking_lots l ON l.id = r.parking_lot_id
+      LEFT JOIN vehicles v ON v.id = r.vehicle_id
+      LEFT JOIN parking_sessions ps ON ps.reservation_id = r.id
+      WHERE r.user_id = $1 ${filterStatus}
+      ORDER BY r.id DESC
+      LIMIT $2 OFFSET $3;
+    `;
+
+    const { rows } = await query(sql, params);
+
+    res.json({
+      success: true,
+      data: rows,
+    });
+  } catch (error) {
+    console.error("Lỗi khi lấy danh sách lịch sử đặt chỗ:", error);
+    res.status(500).json({ success: false, message: "Lỗi máy chủ khi lấy lịch sử" });
+  }
+};
+
+// GET /api/reservations/:id - Lấy chi tiết đơn đặt chỗ & mã vé QR
+export const getReservationById = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const rawId = String(req.params.id).replace(/^[eE][zZ]-/, "");
+    const resId = parseInt(rawId, 10);
+    if (isNaN(resId)) {
+      res.status(404).json({ success: false, message: "Mã đơn đặt chỗ không hợp lệ" });
+      return;
+    }
+    const sql = `
+      SELECT 
+        r.id,
+        r.user_id,
+        r.parking_lot_id,
+        l.name AS lot_name,
+        l.address AS lot_address,
+        l.latitude,
+        l.longitude,
+        r.slot_id,
+        s.code AS slot_code,
+        s.slot_type,
+        r.vehicle_id,
+        v.license_plate,
+        v.vehicle_name,
+        v.vehicle_type,
+        r.start_time,
+        r.expected_end_time,
+        r.status,
+        r.hold_expires_at,
+        r.arrival_expires_at,
+        r.deposit_amount,
+        r.hourly_rate,
+        r.total_amount,
+        r.created_at,
+        ps.check_in_at,
+        ps.check_out_at,
+        u.full_name AS customer_name,
+        u.phone AS customer_phone
+      FROM reservations r
+      JOIN slots s ON s.id = r.slot_id
+      JOIN parking_lots l ON l.id = r.parking_lot_id
+      LEFT JOIN vehicles v ON v.id = r.vehicle_id
+      LEFT JOIN parking_sessions ps ON ps.reservation_id = r.id
+      JOIN users u ON u.id = r.user_id
+      WHERE r.id = $1
+      LIMIT 1;
+    `;
+    const { rows } = await query(sql, [resId]);
+
+    if (rows.length === 0) {
+      res.status(404).json({ success: false, message: "Không tìm thấy đơn đặt chỗ" });
+      return;
+    }
+
+    const item = rows[0];
+    const qrPayload = `EZPARKING-DEMO-TICKET|ID=${item.id}|LOT=${item.parking_lot_id}|SPOT=${item.slot_code}|VEHICLE=${item.license_plate || "UNKNOWN"}`;
+
+    res.json({
+      success: true,
+      data: {
+        ...item,
+        qr_payload: qrPayload,
+      },
+    });
+  } catch (error) {
+    console.error("Lỗi khi lấy chi tiết đơn đặt chỗ:", error);
     res.status(500).json({ success: false, message: "Lỗi máy chủ" });
   }
 };

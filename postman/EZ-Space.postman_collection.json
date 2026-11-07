@@ -1,0 +1,950 @@
+{
+  "info": {
+    "_postman_id": "ez-space-smart-parking-collection",
+    "name": "EZ-Space Smart Parking API",
+    "description": "Bộ sưu tập Postman đầy đủ 31 API endpoints của hệ thống EZ-Space Smart Parking (Capstone CMU-SE 450). Đã tích hợp trọn vẹn: Xác thực, Bãi xe 2D, Quản lý xe, Đặt chỗ & Giữ ô, Lịch sử đặt chỗ, Trạm Kiosk Soát vé và Bộ quét tự động Cronjob (Dọn dẹp ô quá hạn 10p/20p).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5000/api",
+      "type": "string"
+    },
+    {
+      "key": "rootUrl",
+      "value": "http://localhost:5000",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "lotId",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "slotId",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "vehicleId",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "reservationId",
+      "value": "1",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "0. System & Health",
+      "item": [
+        {
+          "name": "Root API Info",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{rootUrl}}/",
+              "host": [
+                "{{rootUrl}}"
+              ],
+              "path": [
+                ""
+              ]
+            },
+            "description": "Kiểm tra thông tin phiên bản backend đang chạy"
+          }
+        },
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "Kiểm tra trạng thái sẵn sàng của dịch vụ API"
+          }
+        }
+      ]
+    },
+    {
+      "name": "1. Authentication (Xác thực & Tài khoản)",
+      "item": [
+        {
+          "name": "1.1 Login (Đăng nhập)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.success && jsonData.data && jsonData.data.token) {",
+                  "    pm.environment.set('token', jsonData.data.token);",
+                  "    pm.collectionVariables.set('token', jsonData.data.token);",
+                  "    console.log('Saved JWT token successfully:', jsonData.data.token);",
+                  "}",
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"customer@ezspace.vn\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Đăng nhập vào hệ thống. Script sẽ tự lưu token vào biến {{token}} để dùng cho các request sau."
+          }
+        },
+        {
+          "name": "1.2 Register (Đăng ký tài khoản)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.success && jsonData.data && jsonData.data.token) {",
+                  "    pm.environment.set('token', jsonData.data.token);",
+                  "    pm.collectionVariables.set('token', jsonData.data.token);",
+                  "}",
+                  "pm.test('Status code is 200 or 201', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Nguyễn Văn Test\",\n  \"email\": \"test_driver_1793706440936@ezspace.vn\",\n  \"phone\": \"0903149656\",\n  \"password\": \"password123\",\n  \"role\": \"customer\",\n  \"vehicles\": [\n    {\n      \"license_plate\": \"43A-905.26\",\n      \"vehicle_name\": \"Toyota Vios\",\n      \"vehicle_type\": \"Sedan\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
+            },
+            "description": "Đăng ký tài khoản khách hàng mới kèm xe ban đầu."
+          }
+        },
+        {
+          "name": "1.3 Get Current User (Xem profile)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "me"
+              ]
+            },
+            "description": "Lấy thông tin tài khoản hiện tại từ JWT token."
+          }
+        },
+        {
+          "name": "1.4 Update Profile (Cập nhật thông tin)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Nguyễn Văn A (Cập nhật)\",\n  \"phone\": \"0905123456\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/profile",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "profile"
+              ]
+            },
+            "description": "Cập nhật tên, số điện thoại hoặc avatar."
+          }
+        },
+        {
+          "name": "1.5 Change Password (Đổi mật khẩu)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"old_password\": \"password123\",\n  \"new_password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/change-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "change-password"
+              ]
+            },
+            "description": "Đổi mật khẩu tài khoản đang đăng nhập."
+          }
+        },
+        {
+          "name": "1.6 Check Exists (Kiểm tra trùng lặp email/phone)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"customer@ezspace.vn\",\n  \"phone\": \"0905123456\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/check-exists",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "check-exists"
+              ]
+            },
+            "description": "Kiểm tra nhanh email hoặc sđt đã được đăng ký chưa trước khi submit form."
+          }
+        },
+        {
+          "name": "1.7 Send OTP (Gửi mã OTP qua Email)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"customer@ezspace.vn\",\n  \"purpose\": \"FORGOT_PASSWORD\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/send-otp",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "send-otp"
+              ]
+            },
+            "description": "Gửi mã OTP 6 số qua Gmail. Purpose: FORGOT_PASSWORD | VERIFY_EMAIL | REGISTER"
+          }
+        },
+        {
+          "name": "1.8 Verify OTP (Xác minh mã OTP)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"customer@ezspace.vn\",\n  \"otp_code\": \"123456\",\n  \"purpose\": \"FORGOT_PASSWORD\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/verify-otp",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "verify-otp"
+              ]
+            },
+            "description": "Xác thực mã OTP 6 số nhận được trong email."
+          }
+        },
+        {
+          "name": "1.9 Reset Password (Đặt lại mật khẩu qua OTP)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"customer@ezspace.vn\",\n  \"new_password\": \"password123\",\n  \"otp_code\": \"123456\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/reset-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "reset-password"
+              ]
+            },
+            "description": "Đặt mật khẩu mới sau khi đã xác thực OTP thành công."
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Parking Lots (Bãi đỗ xe & Sơ đồ ô)",
+      "item": [
+        {
+          "name": "2.1 Get All Lots (Danh sách bãi xe)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/lots",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "lots"
+              ]
+            },
+            "description": "Lấy tất cả các bãi đỗ xe kèm sức chứa, số ô trống theo từng loại xe (Sedan, SUV, EV), số ô đang giữ/đang đỗ và giá tiền."
+          }
+        },
+        {
+          "name": "2.2 Get Lot Detail (Chi tiết bãi xe)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/lots/{{lotId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "lots",
+                "{{lotId}}"
+              ]
+            },
+            "description": "Xem chi tiết 1 bãi xe kèm quy tắc tính giá (pricing_rules). Có thể truyền ID số (1) hoặc slug (hai-chau-a, cau-rong, san-bay-t1)."
+          }
+        },
+        {
+          "name": "2.3 Get Lot Slots (Sơ đồ ô đỗ 2D)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/lots/{{lotId}}/slots",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "lots",
+                "{{lotId}}",
+                "slots"
+              ]
+            },
+            "description": "Lấy ma trận tọa độ hàng/cột và trạng thái (available/holding/occupied) của tất cả ô đỗ để hiển thị sơ đồ 2D trực quan."
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Vehicles (Quản lý xe cá nhân)",
+      "item": [
+        {
+          "name": "3.1 Get My Vehicles (Danh sách xe của tôi)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/vehicles",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "vehicles"
+              ]
+            },
+            "description": "Lấy danh sách các phương tiện đã liên kết với tài khoản hiện tại."
+          }
+        },
+        {
+          "name": "3.2 Add Vehicle (Thêm xe mới)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.success && jsonData.data && jsonData.data.id) {",
+                  "    pm.environment.set('vehicleId', jsonData.data.id);",
+                  "    pm.collectionVariables.set('vehicleId', jsonData.data.id);",
+                  "    console.log('Saved vehicleId:', jsonData.data.id);",
+                  "}",
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"license_plate\": \"43A-946.92\",\n  \"vehicle_name\": \"VinFast VF9\",\n  \"vehicle_type\": \"EV\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/vehicles",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "vehicles"
+              ]
+            },
+            "description": "Thêm phương tiện mới vào tài khoản. Loại xe chấp nhận: Sedan, SUV, EV."
+          }
+        },
+        {
+          "name": "3.3 Update Vehicle (Cập nhật thông tin xe)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"license_plate\": \"43A-999.88\",\n  \"vehicle_name\": \"VinFast VF9 Plus\",\n  \"vehicle_type\": \"EV\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/vehicles/{{vehicleId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "vehicles",
+                "{{vehicleId}}"
+              ]
+            },
+            "description": "Sửa biển số, tên xe hoặc loại xe theo vehicleId."
+          }
+        },
+        {
+          "name": "3.4 Delete Vehicle (Xóa xe)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/vehicles/{{vehicleId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "vehicles",
+                "{{vehicleId}}"
+              ]
+            },
+            "description": "Xóa phương tiện khỏi danh sách quản lý."
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Reservations (Đặt chỗ & Lịch sử)",
+      "item": [
+        {
+          "name": "4.1 Get My Reservations History (Lịch sử đặt chỗ)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/reservations?status=all",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "reservations"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "all"
+                }
+              ]
+            },
+            "description": "Lấy toàn bộ lịch sử các lần đặt chỗ của tài xế (phục vụ màn hình /lich-su)."
+          }
+        },
+        {
+          "name": "4.2 Get Reservation Detail & QR (Chi tiết vé)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/reservations/{{reservationId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "reservations",
+                "{{reservationId}}"
+              ]
+            },
+            "description": "Lấy chi tiết đơn đặt chỗ và chuỗi qr_payload (phục vụ màn hình /ve/[id])."
+          }
+        },
+        {
+          "name": "4.3 Get Active Reservation (Lấy đơn đang hoạt động)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/reservations/active",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "reservations",
+                "active"
+              ]
+            },
+            "description": "Lấy thông tin lượt giữ chỗ/đặt chỗ đang hoạt động của người dùng (status = holding hoặc paid)."
+          }
+        },
+        {
+          "name": "4.4 Hold Spot (Giữ chỗ chống trùng lặp)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.success && jsonData.data && jsonData.data.reservation_id) {",
+                  "    pm.environment.set('reservationId', jsonData.data.reservation_id);",
+                  "    pm.collectionVariables.set('reservationId', jsonData.data.reservation_id);",
+                  "    console.log('Saved reservationId:', jsonData.data.reservation_id);",
+                  "}",
+                  "pm.test('Status is 201 or 409', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([201, 409]);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"parking_lot_id\": 1,\n  \"slot_id\": 1,\n  \"vehicle_id\": 1,\n  \"estimated_hours\": 2,\n  \"hold_duration_minutes\": 10\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/reservations/hold",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "reservations",
+                "hold"
+              ]
+            },
+            "description": "Giữ ô đỗ trong 10 phút. Sử dụng cơ chế Atomic Conditional Update của PostgreSQL để chống xung đột/đặt trùng (nếu ô đã có người giữ sẽ trả về 409 Conflict)."
+          }
+        },
+        {
+          "name": "4.5 Pay Deposit (Thanh toán cọc & Cấp vé QR)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"provider\": \"vnpay\",\n  \"transaction_ref\": \"TX-VNPay-Sandbox-Test\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/reservations/{{reservationId}}/pay-deposit",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "reservations",
+                "{{reservationId}}",
+                "pay-deposit"
+              ]
+            },
+            "description": "Mô phỏng thanh toán tiền cọc thành công, chuyển đơn giữ chỗ sang trạng thái 'paid' và kích hoạt thời hạn đến bãi 20 phút."
+          }
+        },
+        {
+          "name": "4.6 Release Spot (Hủy giữ chỗ / Giải phóng ô)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/reservations/{{reservationId}}/release",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "reservations",
+                "{{reservationId}}",
+                "release"
+              ]
+            },
+            "description": "Người dùng chủ động hủy giữ ô khi chưa thanh toán, hoặc hệ thống giải phóng ô đỗ về trạng thái available."
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Kiosk Gate (Trạm Soát Vé Cổng Bãi)",
+      "item": [
+        {
+          "name": "5.1 Kiosk Scan-In (Quét vé xe vào cổng)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reservation_id\": \"{{reservationId}}\",\n  \"ticket_code\": \"EZPARKING-DEMO-TICKET|ID={{reservationId}}|LOT=1|SPOT=A-01\",\n  \"parking_lot_id\": 1\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/kiosk/scan-in",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "kiosk",
+                "scan-in"
+              ]
+            },
+            "description": "Bảo vệ / Kiosk quét QR tài xế lúc vào cổng. Xác thực cọc ➔ Chuyển ô đỗ sang ĐỎ (occupied) ➔ Tạo lượt đỗ parking_sessions."
+          }
+        },
+        {
+          "name": "5.2 Kiosk Scan-Out (Quét vé xe rời bãi & tính tiền)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reservation_id\": \"{{reservationId}}\",\n  \"parking_lot_id\": 1\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/kiosk/scan-out",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "kiosk",
+                "scan-out"
+              ]
+            },
+            "description": "Bảo vệ quét QR lúc xe ra. Tự động tính thời gian đỗ thực tế, cấn trừ cọc, tính tiền thêm và chuyển ô đỗ lại màu XANH (available)."
+          }
+        },
+        {
+          "name": "5.3 Kiosk Active Sessions (Danh sách xe trong bãi)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/kiosk/sessions?parking_lot_id=1&status=all",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "kiosk",
+                "sessions"
+              ],
+              "query": [
+                {
+                  "key": "parking_lot_id",
+                  "value": "1"
+                },
+                {
+                  "key": "status",
+                  "value": "all"
+                }
+              ]
+            },
+            "description": "Hiển thị danh sách các xe đang đỗ trong bãi và các xe đã cọc sắp đến bãi (phục vụ màn hình giám sát trực cổng)."
+          }
+        },
+        {
+          "name": "5.4 Kiosk Quick Stats (Thống kê trạm gác)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/kiosk/stats?parking_lot_id=1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "kiosk",
+                "stats"
+              ],
+              "query": [
+                {
+                  "key": "parking_lot_id",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "Thống kê nhanh số ô trống, số ô occupied, số xe vào/ra hôm nay tại bãi xe."
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Background Cron & Simulation (Dọn dẹp ô quá hạn)",
+      "item": [
+        {
+          "name": "6.1 Check Worker Status (Kiểm tra trạng thái bộ quét)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/cron/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "cron",
+                "status"
+              ]
+            },
+            "description": "Kiểm tra bộ quét nền đang bật hay tắt, chu kỳ bao nhiêu giây, số lần đã quét và kết quả lần quét gần nhất."
+          }
+        },
+        {
+          "name": "6.2 Trigger Cleanup Now (Kích hoạt dọn dẹp ngay)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/cron/trigger-cleanup",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "cron",
+                "trigger-cleanup"
+              ]
+            },
+            "description": "Chủ động kích hoạt 1 chu kỳ quét dọn dẹp ngay lập tức mà không cần chờ chu kỳ 15 giây."
+          }
+        },
+        {
+          "name": "6.3 Simulate Expiration (Mô phỏng quá hạn để Demo)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reservation_id\": \"{{reservationId}}\",\n  \"type\": \"hold\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/cron/simulate-expire",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "cron",
+                "simulate-expire"
+              ]
+            },
+            "description": "Mô phỏng đơn bị quá hạn 10 phút (type='hold') hoặc quá hạn 20 phút không đến bãi (type='arrival') để biểu diễn trước hội đồng chấm điểm."
+          }
+        }
+      ]
+    }
+  ]
+}

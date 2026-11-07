@@ -172,24 +172,8 @@ export default function MyVehiclesPage() {
 
   return (
     <div className="relative min-h-full bg-slate-50 flex flex-col font-sans text-slate-800 antialiased selection:bg-blue-100 selection:text-blue-700 pb-16">
-      {/* 1. DYNAMIC ISLAND & STATUS BAR */}
-      <div className="sticky top-0 left-0 right-0 h-11 z-40 bg-white/80 backdrop-blur-md flex items-center justify-between px-6 pt-1 pointer-events-none select-none border-b border-slate-100">
-        <span className="text-[13px] font-bold text-slate-900 tracking-tight">09:41</span>
-        <div className="w-24 h-6 bg-slate-950 rounded-full flex items-center justify-end px-2 space-x-1.5 shadow-sm">
-          <div className="w-2.5 h-2.5 rounded-full bg-slate-900 border border-slate-800" />
-          <div className="w-2.5 h-2.5 rounded-full bg-blue-950 border border-blue-900" />
-        </div>
-        <div className="flex items-center space-x-1.5 text-slate-900 text-xs">
-          <span>📶</span>
-          <span>📶</span>
-          <div className="w-5 h-2.5 border border-slate-800 rounded-xs p-0.5 flex items-center">
-            <div className="h-full w-3/4 bg-slate-900 rounded-[1px]" />
-          </div>
-        </div>
-      </div>
-
-      {/* 2. HEADER */}
-      <header className="sticky top-11 z-30 px-4 py-3 bg-white/95 backdrop-blur-md border-b border-slate-200/80 flex items-center justify-between shadow-xs">
+      {/* HEADER */}
+      <header className="sticky top-0 z-30 px-4 py-3 bg-white/95 backdrop-blur-md border-b border-slate-200/80 flex items-center justify-between shadow-xs">
         <div className="flex items-center space-x-2.5">
           <button
             type="button"
