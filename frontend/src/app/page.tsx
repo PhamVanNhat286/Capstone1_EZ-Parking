@@ -54,9 +54,9 @@ function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: num
   const a =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
     Math.cos(lat1 * (Math.PI / 180)) *
-      Math.cos(lat2 * (Math.PI / 180)) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
+    Math.cos(lat2 * (Math.PI / 180)) *
+    Math.sin(dLon / 2) *
+    Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return Math.round(R * c * 10) / 10;
 }
@@ -102,7 +102,7 @@ function ExploreContent() {
           try {
             sessionStorage.setItem("ez_gps_coords", JSON.stringify({ lat: latitude, lng: longitude }));
             sessionStorage.setItem("ez_gps_status", "active");
-          } catch {}
+          } catch { }
         },
         (error) => {
           setIsLocating(false);
@@ -112,7 +112,7 @@ function ExploreContent() {
           try {
             sessionStorage.setItem("ez_gps_status", "denied");
             sessionStorage.removeItem("ez_gps_coords");
-          } catch {}
+          } catch { }
           console.warn("Lỗi hoặc từ chối GPS:", error.message);
         },
         { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
@@ -133,7 +133,7 @@ function ExploreContent() {
           setIsGpsActive(true);
           setCurrentArea("Vị trí hiện tại");
           return;
-        } catch {}
+        } catch { }
       } else if (gpsStatus === "denied") {
         setIsGpsActive(false);
         setCurrentArea("");
@@ -167,14 +167,28 @@ function ExploreContent() {
     return () => clearInterval(interval);
   }, []);
 
-  // Real lots from API
+  // Real lots from API with 5s Auto-refresh Polling
   const [lotsList, setLotsList] = useState<Lot[]>(lots);
   useEffect(() => {
-    getLotsApi().then((data) => {
-      if (data && data.length > 0) {
-        setLotsList(data);
-      }
-    });
+    const fetchLots = () => {
+      getLotsApi().then((data) => {
+        if (data && data.length > 0) {
+          setLotsList(data);
+        }
+      }).catch(() => { });
+    };
+
+    fetchLots();
+    const timer = setInterval(fetchLots, 5000);
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") fetchLots();
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
   }, []);
 
   // Filter chips state
@@ -219,7 +233,7 @@ function ExploreContent() {
       if (speechRecognitionRef.current) {
         try {
           speechRecognitionRef.current.stop();
-        } catch {}
+        } catch { }
       }
       setIsListening(false);
       return;
@@ -314,8 +328,8 @@ function ExploreContent() {
     ? activeBooking.status === "entered"
       ? "ENTERED"
       : activeBooking.status === "paid"
-      ? "PAID"
-      : "HOLDING"
+        ? "PAID"
+        : "HOLDING"
     : demoParkingState;
 
   // Realtime duration clock for ENTERED state
@@ -405,29 +419,8 @@ function ExploreContent() {
 
   return (
     <div className="relative w-full min-h-screen flex flex-col bg-gradient-to-b from-[#FFFFFF] via-[#F8FAFC] to-[#F1F5F9] text-slate-800 font-sans pb-6">
-      
-      {/* ================= 1. DYNAMIC ISLAND & STATUS BAR ================= */}
-      <div className="relative z-40 flex items-center justify-between px-6 pt-3 pb-1 select-none pointer-events-none bg-white/70 backdrop-blur-md">
-        <span className="text-[13px] font-bold text-slate-900 tracking-tight">09:41</span>
 
-        {/* Dynamic Island Pill */}
-        <div className="w-24 h-6 bg-slate-950 rounded-full mx-auto flex items-center justify-between px-2.5 shadow-inner">
-          <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-          <div className="w-2.5 h-2.5 rounded-full bg-slate-800 flex items-center justify-center">
-            <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-          </div>
-        </div>
-
-        <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-900">
-          <span className="text-xs">📶</span>
-          <span className="text-xs">📶</span>
-          <div className="w-5 h-2.5 border border-current rounded-[3px] p-0.5 flex items-center">
-            <div className="w-full h-full bg-current rounded-2xs" />
-          </div>
-        </div>
-      </div>
-
-      {/* ================= 2. FIXED HEADER ================= */}
+      {/* ================= HEADER ================= */}
       <header className="relative z-30 px-5 pt-2 pb-2.5 bg-white/95 backdrop-blur-md border-b border-slate-100 flex items-center justify-between shadow-xs">
         {/* User Avatar + Greeting + Location */}
         <div className="flex items-center gap-2.5">
@@ -486,7 +479,7 @@ function ExploreContent() {
                 try {
                   sessionStorage.setItem("ez_gps_status", "denied");
                   sessionStorage.removeItem("ez_gps_coords");
-                } catch {}
+                } catch { }
               } else {
                 // Yêu cầu bật lại GPS
                 requestGpsLocation(true);
@@ -606,20 +599,20 @@ function ExploreContent() {
               <div className="space-y-1 mt-2 max-h-52 overflow-y-auto no-scrollbar">
                 {(searchQuery.trim()
                   ? lotsList
-                      .filter((l) =>
-                        normalize(l.name).includes(normalize(searchQuery.trim())) ||
-                        normalize(l.district).includes(normalize(searchQuery.trim())) ||
-                        (l.address && normalize(l.address).includes(normalize(searchQuery.trim())))
-                      )
-                      .slice(0, 5)
-                      .map((lot) => lot.name)
+                    .filter((l) =>
+                      normalize(l.name).includes(normalize(searchQuery.trim())) ||
+                      normalize(l.district).includes(normalize(searchQuery.trim())) ||
+                      (l.address && normalize(l.address).includes(normalize(searchQuery.trim())))
+                    )
+                    .slice(0, 5)
+                    .map((lot) => lot.name)
                   : [
-                      "Bãi Hải Châu A",
-                      "Bãi Cầu Rồng",
-                      "Sân bay Đà Nẵng T1",
-                      "15 Lê Duẩn, Hải Châu",
-                      "Đường Trần Hưng Đạo, Sơn Trà",
-                    ]
+                    "Bãi Hải Châu A",
+                    "Bãi Cầu Rồng",
+                    "Sân bay Đà Nẵng T1",
+                    "15 Lê Duẩn, Hải Châu",
+                    "Đường Trần Hưng Đạo, Sơn Trà",
+                  ]
                 ).map((item, idx) => (
                   <div
                     key={idx}
@@ -666,199 +659,199 @@ function ExploreContent() {
               </span>
             </div>
 
-          {/* --- STATE 1: ĐANG ĐỖ (ENTERED) --- */}
-          {currentParkingState === "ENTERED" && (
-            <div className="space-y-3 animate-fade-up">
-              <div className="flex items-start justify-between">
-                <div>
-                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[11px] font-bold">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                    Đang đỗ xe • Bãi {activeBooking?.spotId || "A1"}
+            {/* --- STATE 1: ĐANG ĐỖ (ENTERED) --- */}
+            {currentParkingState === "ENTERED" && (
+              <div className="space-y-3 animate-fade-up">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[11px] font-bold">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                      Đang đỗ xe • Bãi {activeBooking?.spotId || "A1"}
+                    </div>
+                    <h3 className="font-extrabold text-sm text-slate-900 mt-1.5">{bookedLotName}</h3>
+                    <p className="text-[11px] text-slate-500">Vào bãi lúc 07:22 • Cổng chính</p>
                   </div>
-                  <h3 className="font-extrabold text-sm text-slate-900 mt-1.5">{bookedLotName}</h3>
-                  <p className="text-[11px] text-slate-500">Vào bãi lúc 07:22 • Cổng chính</p>
-                </div>
 
-                {/* Circular visual progress 62% */}
-                <div className="relative w-14 h-14 flex items-center justify-center shrink-0">
-                  <svg className="w-14 h-14 -rotate-90" viewBox="0 0 36 36">
-                    <path
-                      className="text-slate-100"
-                      strokeWidth="3.5"
-                      stroke="currentColor"
-                      fill="none"
-                      d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                    />
-                    <path
-                      className="text-emerald-500"
-                      strokeDasharray="62, 100"
-                      strokeWidth="3.5"
-                      strokeLinecap="round"
-                      stroke="currentColor"
-                      fill="none"
-                      d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                    />
-                  </svg>
-                  <div className="absolute flex flex-col items-center">
-                    <span className="text-[11px] font-black text-slate-800">62%</span>
-                    <span className="text-[8px] text-slate-400 leading-none">gói 4h</span>
+                  {/* Circular visual progress 62% */}
+                  <div className="relative w-14 h-14 flex items-center justify-center shrink-0">
+                    <svg className="w-14 h-14 -rotate-90" viewBox="0 0 36 36">
+                      <path
+                        className="text-slate-100"
+                        strokeWidth="3.5"
+                        stroke="currentColor"
+                        fill="none"
+                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                      />
+                      <path
+                        className="text-emerald-500"
+                        strokeDasharray="62, 100"
+                        strokeWidth="3.5"
+                        strokeLinecap="round"
+                        stroke="currentColor"
+                        fill="none"
+                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                      />
+                    </svg>
+                    <div className="absolute flex flex-col items-center">
+                      <span className="text-[11px] font-black text-slate-800">62%</span>
+                      <span className="text-[8px] text-slate-400 leading-none">gói 4h</span>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Slot Details Box */}
-              <div className="grid grid-cols-3 gap-2 bg-slate-50 rounded-xl p-2.5 border border-slate-100 text-center">
-                <div>
-                  <p className="text-[10px] text-slate-400 font-semibold">Biển số</p>
-                  <p className="text-xs font-black text-blue-900 font-mono mt-0.5">{activeVehicle.plate}</p>
-                </div>
-                <div className="border-x border-slate-200">
-                  <p className="text-[10px] text-slate-400 font-semibold">Ô đỗ xe</p>
-                  <p className="text-xs font-black text-emerald-600 mt-0.5">{activeBooking?.spotId || "A1 - 04"}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] text-slate-400 font-semibold">Tạm tính</p>
-                  <p className="text-xs font-black text-slate-800 mt-0.5">35.000đ</p>
-                </div>
-              </div>
-
-              {/* Realtime Live Timer Counter */}
-              <div className="flex items-center justify-between px-1">
-                <div className="flex items-center gap-1.5 text-xs text-slate-600 font-medium">
-                  <Clock size={14} className="text-blue-600" />
-                  <span>Thời gian đỗ:</span>
-                </div>
-                <div className="font-mono text-sm font-black text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100">
-                  {formatTime(parkedSeconds)}
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="grid grid-cols-2 gap-2 pt-0.5">
-                <button
-                  onClick={() => addToast("Đã chọn gia hạn thêm 2 giờ (+30.000đ)", "success")}
-                  className="py-2.5 px-3 rounded-xl border border-blue-200 bg-blue-50/70 hover:bg-blue-100 text-blue-700 font-bold text-xs flex items-center justify-center gap-1.5 transition active:scale-95"
-                >
-                  <PlusCircle size={14} />
-                  + Gia hạn thêm
-                </button>
-                <button
-                  onClick={() => addToast(`Đang bật dẫn đường tới ô ${activeBooking?.spotId || "A1-04"}`, "info")}
-                  className="py-2.5 px-3 rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 text-white font-bold text-xs shadow-md shadow-blue-500/25 flex items-center justify-center gap-1.5 transition active:scale-95"
-                >
-                  <Navigation size={14} />
-                  Dẫn đường xe
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* --- STATE 2: ĐANG GIỮ CHỖ (HOLDING) --- */}
-          {currentParkingState === "HOLDING" && (
-            <div className="space-y-3 animate-fade-up border-l-4 border-amber-400 pl-2">
-              <div className="flex items-start justify-between">
-                <div>
-                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-[11px] font-bold">
-                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
-                    Đang giữ chỗ trước (Tối đa 15p)
+                {/* Slot Details Box */}
+                <div className="grid grid-cols-3 gap-2 bg-slate-50 rounded-xl p-2.5 border border-slate-100 text-center">
+                  <div>
+                    <p className="text-[10px] text-slate-400 font-semibold">Biển số</p>
+                    <p className="text-xs font-black text-blue-900 font-mono mt-0.5">{activeVehicle.plate}</p>
                   </div>
-                  <h3 className="font-extrabold text-sm text-slate-900 mt-1.5">{bookedLotName}</h3>
-                  <p className="text-[11px] text-slate-500">
-                    Giữ chỗ ô: <strong className="text-slate-800">{activeBooking?.spotId || "A1-02"}</strong>
-                  </p>
-                </div>
-
-                <div className="text-right">
-                  <span className="text-[10px] text-slate-400 font-semibold block">Hết hạn sau</span>
-                  <span className="font-mono text-base font-extrabold text-amber-600">
-                    {formatMinSec(holdingSeconds)}
-                  </span>
-                </div>
-              </div>
-
-              <p className="text-xs text-slate-600 bg-amber-50/60 p-2 rounded-lg border border-amber-100">
-                ⚠️ Vui lòng đến bãi đỗ trước khi hết thời gian giữ chỗ để không bị hủy lượt.
-              </p>
-
-              <div className="grid grid-cols-2 gap-2 pt-0.5">
-                <button
-                  onClick={() => {
-                    cancelBooking();
-                    setDemoParkingState("ENTERED");
-                    addToast("Đã hủy giữ chỗ thành công", "info");
-                  }}
-                  className="py-2.5 px-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-rose-600 font-bold text-xs transition active:scale-95"
-                >
-                  Hủy giữ chỗ
-                </button>
-                <Link
-                  href={activeBooking ? `/dat-cho/${activeBooking.spotId}` : `/bai/${lotsList[0]?.id || "hai-chau-a"}`}
-                  className="py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 text-white font-bold text-xs shadow-md shadow-amber-500/20 flex items-center justify-center gap-1.5 transition active:scale-95"
-                >
-                  <CreditCard size={14} />
-                  Thanh toán cọc (20k)
-                </Link>
-              </div>
-            </div>
-          )}
-
-          {/* --- STATE 3: ĐÃ THANH TOÁN (PAID) --- */}
-          {currentParkingState === "PAID" && (
-            <div className="space-y-3 animate-fade-up border-l-4 border-blue-500 pl-2">
-              <div className="flex items-start justify-between">
-                <div>
-                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-[11px] font-bold">
-                    <CheckCircle size={12} className="text-blue-600" />
-                    Chờ đến bãi • Đã thanh toán
+                  <div className="border-x border-slate-200">
+                    <p className="text-[10px] text-slate-400 font-semibold">Ô đỗ xe</p>
+                    <p className="text-xs font-black text-emerald-600 mt-0.5">{activeBooking?.spotId || "A1 - 04"}</p>
                   </div>
-                  <h3 className="font-extrabold text-sm text-slate-900 mt-1.5">{bookedLotName}</h3>
-                  <p className="text-[11px] text-slate-500">
-                    Mã ô đỗ định danh: <strong className="text-blue-600">{activeBooking?.spotId || "B2-07"}</strong>
-                  </p>
+                  <div>
+                    <p className="text-[10px] text-slate-400 font-semibold">Tạm tính</p>
+                    <p className="text-xs font-black text-slate-800 mt-0.5">35.000đ</p>
+                  </div>
                 </div>
 
-                <div className="text-right">
-                  <span className="text-[10px] text-slate-400 font-semibold block">Barie mở sau</span>
-                  <span className="font-mono text-base font-extrabold text-blue-600">
-                    {formatMinSec(paidSeconds)}
-                  </span>
+                {/* Realtime Live Timer Counter */}
+                <div className="flex items-center justify-between px-1">
+                  <div className="flex items-center gap-1.5 text-xs text-slate-600 font-medium">
+                    <Clock size={14} className="text-blue-600" />
+                    <span>Thời gian đỗ:</span>
+                  </div>
+                  <div className="font-mono text-sm font-black text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100">
+                    {formatTime(parkedSeconds)}
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="grid grid-cols-2 gap-2 pt-0.5">
+                  <button
+                    onClick={() => addToast("Đã chọn gia hạn thêm 2 giờ (+30.000đ)", "success")}
+                    className="py-2.5 px-3 rounded-xl border border-blue-200 bg-blue-50/70 hover:bg-blue-100 text-blue-700 font-bold text-xs flex items-center justify-center gap-1.5 transition active:scale-95"
+                  >
+                    <PlusCircle size={14} />
+                    + Gia hạn thêm
+                  </button>
+                  <button
+                    onClick={() => addToast(`Đang bật dẫn đường tới ô ${activeBooking?.spotId || "A1-04"}`, "info")}
+                    className="py-2.5 px-3 rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 text-white font-bold text-xs shadow-md shadow-blue-500/25 flex items-center justify-center gap-1.5 transition active:scale-95"
+                  >
+                    <Navigation size={14} />
+                    Dẫn đường xe
+                  </button>
                 </div>
               </div>
+            )}
 
-              <div className="flex items-center justify-between bg-blue-50 p-2.5 rounded-xl border border-blue-100">
-                <div className="flex items-center gap-2">
-                  <Camera size={16} className="text-blue-600" />
-                  <span className="text-xs text-slate-700 font-medium">
-                    Camera AI đã nhận dạng biển <strong>{activeVehicle.plate}</strong>
-                  </span>
+            {/* --- STATE 2: ĐANG GIỮ CHỖ (HOLDING) --- */}
+            {currentParkingState === "HOLDING" && (
+              <div className="space-y-3 animate-fade-up border-l-4 border-amber-400 pl-2">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-[11px] font-bold">
+                      <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
+                      Đang giữ chỗ trước (Tối đa 15p)
+                    </div>
+                    <h3 className="font-extrabold text-sm text-slate-900 mt-1.5">{bookedLotName}</h3>
+                    <p className="text-[11px] text-slate-500">
+                      Giữ chỗ ô: <strong className="text-slate-800">{activeBooking?.spotId || "A1-02"}</strong>
+                    </p>
+                  </div>
+
+                  <div className="text-right">
+                    <span className="text-[10px] text-slate-400 font-semibold block">Hết hạn sau</span>
+                    <span className="font-mono text-base font-extrabold text-amber-600">
+                      {formatMinSec(holdingSeconds)}
+                    </span>
+                  </div>
+                </div>
+
+                <p className="text-xs text-slate-600 bg-amber-50/60 p-2 rounded-lg border border-amber-100">
+                  ⚠️ Vui lòng đến bãi đỗ trước khi hết thời gian giữ chỗ để không bị hủy lượt.
+                </p>
+
+                <div className="grid grid-cols-2 gap-2 pt-0.5">
+                  <button
+                    onClick={() => {
+                      cancelBooking();
+                      setDemoParkingState("ENTERED");
+                      addToast("Đã hủy giữ chỗ thành công", "info");
+                    }}
+                    className="py-2.5 px-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-rose-600 font-bold text-xs transition active:scale-95"
+                  >
+                    Hủy giữ chỗ
+                  </button>
+                  <Link
+                    href={activeBooking ? `/dat-cho/${activeBooking.spotId}` : `/bai/${lotsList[0]?.id || "hai-chau-a"}`}
+                    className="py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 text-white font-bold text-xs shadow-md shadow-amber-500/20 flex items-center justify-center gap-1.5 transition active:scale-95"
+                  >
+                    <CreditCard size={14} />
+                    Thanh toán cọc (20k)
+                  </Link>
                 </div>
               </div>
+            )}
 
-              <div className="grid grid-cols-2 gap-2 pt-0.5">
-                <button
-                  onClick={() => {
-                    const bookedLot = lots.find((l) => l.id === activeBooking?.lotId) || lots[0];
-                    const query = encodeURIComponent(`${bookedLot.name}, ${bookedLot.address}`);
-                    const url = `https://www.google.com/maps/dir/?api=1&destination=${query}&travelmode=driving`;
-                    window.open(url, "_blank");
-                  }}
-                  className="py-2.5 px-3 rounded-xl border border-blue-200 bg-white hover:bg-blue-50 text-blue-700 font-bold text-xs flex items-center justify-center gap-1.5 transition active:scale-95"
-                >
-                  <Navigation size={14} />
-                  Dẫn đường
-                </button>
-                <Link
-                  href={activeBooking ? `/ve/${activeBooking.id}` : "/lich-su"}
-                  className="py-2.5 px-3 rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 text-white font-bold text-xs shadow-md shadow-blue-500/25 flex items-center justify-center gap-1.5 transition active:scale-95"
-                >
-                  <QrCode size={14} />
-                  Xem vé QR
-                </Link>
+            {/* --- STATE 3: ĐÃ THANH TOÁN (PAID) --- */}
+            {currentParkingState === "PAID" && (
+              <div className="space-y-3 animate-fade-up border-l-4 border-blue-500 pl-2">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-[11px] font-bold">
+                      <CheckCircle size={12} className="text-blue-600" />
+                      Chờ đến bãi • Đã thanh toán
+                    </div>
+                    <h3 className="font-extrabold text-sm text-slate-900 mt-1.5">{bookedLotName}</h3>
+                    <p className="text-[11px] text-slate-500">
+                      Mã ô đỗ định danh: <strong className="text-blue-600">{activeBooking?.spotId || "B2-07"}</strong>
+                    </p>
+                  </div>
+
+                  <div className="text-right">
+                    <span className="text-[10px] text-slate-400 font-semibold block">Barie mở sau</span>
+                    <span className="font-mono text-base font-extrabold text-blue-600">
+                      {formatMinSec(paidSeconds)}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between bg-blue-50 p-2.5 rounded-xl border border-blue-100">
+                  <div className="flex items-center gap-2">
+                    <Camera size={16} className="text-blue-600" />
+                    <span className="text-xs text-slate-700 font-medium">
+                      Camera AI đã nhận dạng biển <strong>{activeVehicle.plate}</strong>
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 pt-0.5">
+                  <button
+                    onClick={() => {
+                      const bookedLot = lots.find((l) => l.id === activeBooking?.lotId) || lots[0];
+                      const query = encodeURIComponent(`${bookedLot.name}, ${bookedLot.address}`);
+                      const url = `https://www.google.com/maps/dir/?api=1&destination=${query}&travelmode=driving`;
+                      window.open(url, "_blank");
+                    }}
+                    className="py-2.5 px-3 rounded-xl border border-blue-200 bg-white hover:bg-blue-50 text-blue-700 font-bold text-xs flex items-center justify-center gap-1.5 transition active:scale-95"
+                  >
+                    <Navigation size={14} />
+                    Dẫn đường
+                  </button>
+                  <Link
+                    href={activeBooking ? `/ve/${activeBooking.id}` : "/lich-su"}
+                    className="py-2.5 px-3 rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 text-white font-bold text-xs shadow-md shadow-blue-500/25 flex items-center justify-center gap-1.5 transition active:scale-95"
+                  >
+                    <QrCode size={14} />
+                    Xem vé QR
+                  </Link>
+                </div>
               </div>
-            </div>
-          )}
-        </div>
-      )}
+            )}
+          </div>
+        )}
 
         {/* 3.4 TRUY CẬP NHANH (QUICK ACTIONS 4 BUTTONS) */}
         <div>
@@ -931,11 +924,10 @@ function ExploreContent() {
                 <button
                   key={chip}
                   onClick={() => setActiveFilter(chip)}
-                  className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 ${
-                    isActive
+                  className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 ${isActive
                       ? "bg-blue-600 text-white shadow-sm shadow-blue-500/25 scale-[1.02]"
                       : "bg-white text-slate-600 border border-slate-200/90 hover:bg-slate-50"
-                  }`}
+                    }`}
                 >
                   {chip === "Ô tô" && <Car size={13} />}
                   {chip === "Sạc xe điện (EV)" && (
@@ -973,8 +965,8 @@ function ExploreContent() {
                           isFull
                             ? "bg-rose-50 text-rose-700 border-rose-200"
                             : availableCount <= 3
-                            ? "bg-amber-50 text-amber-700 border-amber-200"
-                            : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                              ? "bg-amber-50 text-amber-700 border-amber-200"
+                              : "bg-emerald-50 text-emerald-700 border-emerald-200"
                         )}
                       >
                         <span
