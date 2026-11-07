@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import PartnerKiosk from "@/components/partner/PartnerKiosk";
+import SqlPortal from "@/components/partner/SqlPortal";
 
 export const metadata: Metadata = { title: "Gate Kiosk | EZ-Space Partner" };
-export default function Page() { return <PartnerKiosk />; }
+export default function Page() { return <SqlPortal key="kiosk" view="kiosk" />; }

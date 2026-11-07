@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import PartnerSessions from "@/components/partner/PartnerSessions";
+import SqlPortal from "@/components/partner/SqlPortal";
 
 export const metadata: Metadata = { title: "Đặt chỗ & Phiên đỗ | EZ-Space Partner" };
-export default function Page() { return <PartnerSessions />; }
+export default function Page() { return <SqlPortal key="sessions" view="sessions" />; }

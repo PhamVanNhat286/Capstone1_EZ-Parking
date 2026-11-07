@@ -1,76 +1,79 @@
-# Partner portal implementation
+# Partner: SQL alignment
 
-`partner-frontend` is an independent Next.js application with its own dependencies,
-layout and styles. It does not import the customer frontend and runs on port 3001.
-See [README.md](README.md) for setup and review instructions.
+Authoritative source selected by the user:
+[develop/database/schema.sql](https://github.com/PhamVanNhat286/Capstone1_EZ-Parking/blob/ba5fb8d51289d70c112d3671e7ce13c7aa692a3b/database/schema.sql).
+The branch was synchronized with develop at ba5fb8d before this change.
+SQL files and the customer frontend/backend were not changed by the Partner rewrite.
 
-## Screens
+## Data model
 
-| Route | Scope | Figma reference |
-| --- | --- | --- |
-| `/design-system` | Colors, typography and component states | `1:2` |
-| `/` | Operational parking overview | `1:569` |
-| `/lots` | Lot registration and management | `1:1257` |
-| `/layout` | Interactive parking layout editor | `1:1732` and supplied screenshot |
-| `/pricing` | Standalone pricing rules and quote simulator | Supplied screenshot |
-| `/sessions` | Reservations and parking sessions | `7:4111` |
-| `/kiosk` | QR gate kiosk and scan simulator | `7:4812` |
-| `/dashboard` | Dashboard overview | `7:5187` |
-| `/revenue` | Revenue report | `7:6955` |
-| `/audit` | Operation history and reconciliation UI | `7:8525` |
-| `/settings` | Account profile and security prototype | `7:9164` |
+The old Figma fixture models were removed from operational routes.
+database-model.ts uses actual table/column names and exact enums:
 
-Design file: `https://www.figma.com/design/3heUuXWQXhGGaOUY9o4i3V`.
-The security tab follows the profile screen's style, as requested; no separate security
-reference was supplied. Later screens were visually inspected in Figma when design-context
-tools reached their quota. This is not a claim of exhaustive pixel matching.
+- BIGSERIAL/BIGINT IDs remain strings; they are not UUIDs, slugs or display slot codes.
+- Vehicle types: Sedan, SUV, EV.
+- Lot statuses: pending, active, inactive, rejected.
+- Slot statuses: available, holding, occupied, unavailable.
+- Slot types: standard, ev_charging, large, disabled.
+- Reservation statuses: holding, paid, entered, completed, cancelled, forfeited, refunded.
 
-## State and limitations
+| Screen | Source / relationship |
+| --- | --- |
+| Lots | parking_lots plus parking_lot_managers and parking_lot_vehicle_types |
+| Layout | slots.id, code, row_index, col_index, slot_type, status, is_active |
+| Pricing | pricing_rules with hourly_rate, surcharge, start/end_time, effective_from/to |
+| Reservations | reservations joined through user_id, vehicle_id, slot_id, parking_lot_id |
+| Sessions | parking_sessions through reservation_id; actual check-in/out timestamps |
+| Kiosk | reservation plus qr_tickets and parking_sessions; never payment QR |
+| Revenue | payments through reservation_id; provider, payment_type, amount and status |
+| Audit | audit_logs plus manager_history; no fabricated signature or ledger counters |
+| Settings | public users fields; assigned lots through parking_lot_managers |
 
-- `PartnerWorkspace` shares lots, slots, sessions, pricing, saved layouts and layout drafts
-  across operational routes. Refresh resets this demo state.
-- Check-in/out, cancellation, walk-ins and maintenance update the operational model.
-  Busy slots and active sessions are protected; paused lots cannot accept new arrivals.
-- Layout tools include floors, multi-selection, placement, automatic grids, lanes, gates,
-  undo/redo, zoom and publishing. Removing a cell does not delete its session history.
-- Pricing supports per-vehicle rates, peak rules, grace periods and overtime calculation.
-- Kiosk supports manual tickets, scenarios and QR decoding where BarcodeDetector is
-  available. Camera access is opt-in with cleanup. No gate hardware is controlled.
-- Dashboard values derive from operational demo state. Completions without an absolute
-  hour are not silently assigned to hourly buckets. Operational counters and layouts can
-  therefore differ from the original static reference snapshot.
-- Revenue intentionally starts with the October 2026 Figma fixture: 48.250.000đ and 412
-  transactions. Filters, search, pagination, details, CSV and print use
-  `revenue-design-data.ts`. The displayed report is separate from operational receipt
-  helpers in `revenue-report.ts`.
-- Audit uses six reference rows with table/timeline, filtering, read-only details and CSV.
-  Ledger counters, live reconciliation and SHA-256 labels are reference content; no
-  backend audit verification or tamper-proof storage is implemented.
-- Account edits stay on the settings page; email and role are fixed. JPG/PNG avatar
-  previews are local and limited to 2MB. Password validation clears its inputs without
-  storing or sending credentials. Two-factor and session controls are labelled demos.
+The schema has no floors, arbitrary lane/gate geometry, per-vehicle pricing,
+grace-period or overtime-fee configuration, 2FA or device-session records.
+Those unsupported controls were removed from operational screens.
+Physical slots and vehicle profiles remain because the selected SQL includes them.
 
-There is no Partner authentication, API integration, persistent storage, signed-ticket
-verification, VNPay/bank reconciliation, real refund/payment or account security change.
-The kiosk camera scene is a code illustration; the lot placeholder is the local Figma
-export at `public/figma/parking-placeholder.png`.
+## Seed generation
+
+scripts/generate-database.mjs parses only the INSERT expressions currently used by seed.sql,
+including NOW() offsets and its SHA-256 seed ticket expression. Unknown expressions fail
+explicitly; there is no eval, SQL execution or database connection.
+The generated artifact contains SQL hashes, enum/table metadata and public seed rows.
+Password hashes and raw provider IPN payloads are excluded.
+
+NOW() expressions resolve against one clock when the browser preview opens.
+The dataset has 4 users, 4 vehicles, 3 lots, 55 slots, 5 pricing rules, 3 reservations,
+3 payments, 1 QR ticket, 1 completed parking session and 2 audit rows.
+Manager 2 can view lots 1 and 2. No fake active session is generated from occupied slots.
+Capacity 80 does not mean 80 slots exist: lot 1 contains only 20 seed slot rows.
+
+Reservation 2 paid / slot A-04 occupied is an upstream seed inconsistency.
+It is displayed and blocks invalid check-in instead of being silently repaired.
+
+## Preview mutations
+
+- New lots are pending with no approval; they receive a manager assignment, not fake slots.
+- Lot editing enforces SQL field limits and prevents shrinking below the declared inventory.
+- Slot editing enforces unique code/grid within a lot, valid types, and protects unfinished bookings.
+- Pricing is per lot, handles overnight/null periods and decimal precision, and leaves reservation snapshots unchanged.
+- Cancellation is restricted to unpaid holding reservations; no fake refund is created.
+- Check-in preview requires paid, valid QR metadata/deadline, active lot and holding slot; it updates
+  reservation, slot, QR and session together. It is not signed QR verification.
+- Check-out preview requires entered plus active session, occupied slot and sufficient recorded
+  successful funds. The final amount is entered explicitly; no invented fee or payment is added.
+- Changes append schema-shaped audit rows/history using valid action types.
+- Reports count successful deposit/final payments as receipts and successful refund rows separately.
+  Reservation totals and session final_amount are not added again. Date filters use Vietnam dates.
+- Profile editing changes public full_name/phone only; no credential is collected or stored.
+
+All state is browser memory shared across routes. No API authentication, DB persistence,
+concurrency protection, provider reconciliation, production QR verification or hardware control
+is claimed. Permission and transaction checks must also run on the backend before live integration.
 
 ## Validation
 
-Run in `partner-frontend`:
-
-```sh
-npm run typecheck
-npm test
-npm run build
-```
-
-The suite has 38 model tests for operational state, capacity, layouts, kiosk validation,
-dashboard totals, receipts, audit filtering/CSV and settings validation. TypeScript and
-the production Webpack build also pass.
-
-Browser review covered operational transitions, editor tools, pricing examples, kiosk
-validation, report filters/details, audit table/timeline, and settings save/cancel with
-security demo controls. Some operational screens were checked at mobile width. Revenue,
-audit and settings preserve the 1280px reference desktop width and can scroll horizontally
-on narrower viewports.
+- 18 model/contract tests cover source hashes, exact columns/enums, seed counts/links,
+  ownership, capacity vs inventory, SQL uniqueness, pricing snapshots, money aggregation,
+  unpaid cancellation, seed diagnostics, gate transitions/replay/expiry, profiles and safe CSV.
+- TypeScript and production build are run for the complete app.

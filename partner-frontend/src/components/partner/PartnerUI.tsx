@@ -24,8 +24,8 @@ export function PartnerBadge({ children, tone = "neutral" }: { children: ReactNo
   return <span className={clsx(styles.badge, styles[tone])}><span className={styles.dot} />{children}</span>;
 }
 
-export type SlotState = "available" | "holding" | "occupied" | "locked";
-const slotLabels: Record<SlotState, string> = { available: "Trống", holding: "Đang giữ chỗ", occupied: "Đang đỗ", locked: "Khóa / Bảo trì" };
+export type SlotState = "available" | "holding" | "occupied" | "unavailable";
+const slotLabels: Record<SlotState, string> = { available: "Trống", holding: "Đang giữ chỗ", occupied: "Đang đỗ", unavailable: "Không khả dụng" };
 export function PartnerSlot({ code, state, selected = false, onClick, inspectable = false, className, iconSize = 16 }: { code: string; state: SlotState; selected?: boolean; onClick?: () => void; inspectable?: boolean; className?: string; iconSize?: number }) {
   const StateIcon = selected ? Check : state === "available" ? Check : state === "holding" ? Clock3 : state === "occupied" ? Car : LockKeyhole;
   return <button type="button" className={clsx(styles.slot, styles[state], selected && styles.selected, className)}

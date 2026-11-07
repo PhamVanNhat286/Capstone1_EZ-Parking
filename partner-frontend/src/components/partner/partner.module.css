@@ -103,7 +103,7 @@
 .legend .available { background: #22c55e; }
 .legend .holding { background: #facc15; }
 .legend .occupied { background: #ef4444; }
-.legend .locked { background: #cbd5e1; }
+.legend .unavailable { background: #cbd5e1; }
 .slotExamples { display: flex; gap: 22px; margin: 28px 0 20px; align-items: start; }
 .slotExamples > div { display: grid; gap: 8px; justify-items: center; }
 .slotExamples small { font-size: 10px; color: #64748b; }
@@ -112,7 +112,7 @@
 .slot.available:hover { box-shadow: 0 0 0 3px #bbf7d0; transform: translateY(-2px); }
 .slot.holding { background: #fef9c3; color: #a16207; border-color: #fef08a; }
 .slot.occupied { background: #fee2e2; color: #dc2626; border-color: #fecaca; }
-.slot.locked { background: #e2e8f0; color: #64748b; border-color: #cbd5e1; }
+.slot.unavailable { background: #e2e8f0; color: #64748b; border-color: #cbd5e1; }
 .slot:disabled { cursor: not-allowed; }
 .slot.selected { background: #2563eb; color: white; border-color: #2563eb; box-shadow: 0 0 0 3px #bfdbfe; }
 .slotNote { display: flex; align-items: start; gap: 7px; font-size: 11px; line-height: 18px; padding: 10px 12px; border-radius: 8px; background: #f8fafc; color: #64748b; }
