@@ -4,8 +4,6 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
-  Signal,
-  Wifi,
   Camera,
   BadgeCheck,
   Pencil,
@@ -74,20 +72,6 @@ export default function ProfilePage() {
     avatar: "",
     isLoggedIn: true,
   };
-
-  // Status bar real-time clock
-  const [timeStr, setTimeStr] = useState("09:41");
-  useEffect(() => {
-    const updateTime = () => {
-      const d = new Date();
-      const h = String(d.getHours()).padStart(2, "0");
-      const m = String(d.getMinutes()).padStart(2, "0");
-      setTimeStr(`${h}:${m}`);
-    };
-    updateTime();
-    const timer = setInterval(updateTime, 10000);
-    return () => clearInterval(timer);
-  }, []);
 
   // Toast state
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -617,32 +601,11 @@ export default function ProfilePage() {
 
   return (
     <div className="relative min-h-full bg-slate-50 flex flex-col font-sans text-slate-800 antialiased selection:bg-blue-100 selection:text-blue-700">
-      {/* Dynamic Island & Status Bar Cố Định */}
-      <div className="sticky top-0 left-0 right-0 h-11 z-40 bg-slate-50/80 backdrop-blur-md flex items-center justify-between px-6 pt-1 pointer-events-none select-none">
-        <span className="text-[13px] font-bold text-slate-900 tracking-tight" suppressHydrationWarning>
-          {timeStr}
-        </span>
-
-        {/* Dynamic Island Capsule */}
-        <div className="w-24 h-6 bg-slate-950 rounded-full flex items-center justify-end px-2 space-x-1.5 shadow-sm">
-          <div className="w-2.5 h-2.5 rounded-full bg-slate-900 border border-slate-800"></div>
-          <div className="w-2.5 h-2.5 rounded-full bg-blue-950 border border-blue-900"></div>
-        </div>
-
-        {/* Icon Pin, Sóng, Wifi */}
-        <div className="flex items-center space-x-1.5 text-slate-900">
-          <Signal className="w-3.5 h-3.5" />
-          <Wifi className="w-3.5 h-3.5" />
-          <div className="w-5 h-2.5 border border-slate-800 rounded-sm p-0.5 flex items-center">
-            <div className="h-full w-3/4 bg-slate-900 rounded-[1px]"></div>
-          </div>
-        </div>
-      </div>
 
       {/* Vùng Nội Dung Cuộn Chính */}
       <div className="flex-1 overflow-y-auto no-scrollbar pb-24">
         {/* 4.1 Header Hồ Sơ (Hero Card) */}
-        <div className="relative bg-gradient-to-b from-[#EFF6FF] via-[#DBEAFE]/70 to-[#EFF6FF]/30 pt-3 pb-6 px-5 rounded-b-[32px] border-b border-blue-100/60 overflow-hidden">
+        <div className="relative bg-gradient-to-b from-[#EFF6FF] via-[#DBEAFE]/70 to-[#EFF6FF]/30 pt-6 pb-6 px-5 rounded-b-[32px] border-b border-blue-100/60 overflow-hidden">
           {/* Background Blobs nhẹ nhàng */}
           <div className="absolute -top-10 -right-10 w-44 h-44 bg-blue-200/50 rounded-full blur-2xl pointer-events-none animate-float-blob" />
           <div className="absolute top-20 -left-12 w-36 h-36 bg-sky-200/40 rounded-full blur-xl pointer-events-none" />
@@ -873,7 +836,7 @@ export default function ProfilePage() {
                 </h2>
               </div>
               <Link
-                href="/"
+                href="/kham-pha"
                 className="inline-flex items-center space-x-1 px-2.5 py-1 bg-blue-50 text-primary border border-blue-200 rounded-xl text-xs font-bold hover:bg-blue-100 active:scale-95 transition-all"
               >
                 <Plus className="w-3.5 h-3.5" />
@@ -891,7 +854,7 @@ export default function ProfilePage() {
                   Bạn chưa lưu bãi đỗ nào. Khám phá các bãi đỗ gần bạn và bấm biểu tượng trái tim để lưu lại nhé!
                 </p>
                 <Link
-                  href="/"
+                  href="/kham-pha"
                   className="mt-3 inline-flex items-center space-x-1.5 px-3.5 py-1.5 bg-blue-50 text-primary border border-blue-200 rounded-xl text-xs font-bold hover:bg-blue-100 active:scale-95 transition-all shadow-sm"
                 >
                   <Plus className="w-3.5 h-3.5" />

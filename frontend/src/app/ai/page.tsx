@@ -29,7 +29,13 @@ import {
 import { clsx } from "clsx";
 import { useStore, AIMessage, getUserChatKey } from "@/store";
 import { lots, Lot } from "@/lib/mock/lots";
-import { getLotsApi } from "@/lib/api";
+import {
+  getLotsApi,
+  getChatHistoryApi,
+  saveChatMessageApi,
+  syncChatHistoryApi,
+  clearChatHistoryApi,
+} from "@/lib/api";
 import { getFallbackResponse, calculateDistance } from "@/lib/ai/fallback";
 
 const PRESET_LOCATIONS = [
@@ -65,15 +71,66 @@ function AIContent() {
     });
   }, []);
 
-  // Đồng bộ lịch sử chat tương ứng với tài khoản đang đăng nhập
+  // Quản lý trạng thái đang tải lịch sử từ Database Backend
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+
+  // Đồng bộ lịch sử chat tương ứng với tài khoản đang đăng nhập (Database + LocalStorage)
   useEffect(() => {
     const key = getUserChatKey(user);
     const store = useStore.getState();
-    const userHistory = store.chatHistories?.[key] || [];
-    if (JSON.stringify(aiMessages) !== JSON.stringify(userHistory)) {
-      useStore.setState({ aiMessages: userHistory });
+    const localHistory = store.chatHistories?.[key] || [];
+
+    if (user?.token) {
+      let isCancelled = false;
+      setIsLoadingHistory(true);
+      getChatHistoryApi(user.token)
+        .then(async (res) => {
+          if (isCancelled) return;
+          setIsLoadingHistory(false);
+          if (res.success && Array.isArray(res.data)) {
+            const guestMessages = store.chatHistories?.["guest"] || [];
+            // Nếu trên DB chưa có gì nhưng khách từng nhắn lúc chưa đăng nhập -> tự động chuyển vào tài khoản
+            if (res.data.length === 0 && guestMessages.length > 0) {
+              await syncChatHistoryApi(user.token!, guestMessages);
+              useStore.setState((s) => ({
+                aiMessages: guestMessages,
+                chatHistories: {
+                  ...(s.chatHistories || {}),
+                  [key]: guestMessages,
+                  guest: [],
+                },
+              }));
+              return;
+            }
+
+            if (res.data.length > 0) {
+              useStore.setState((s) => ({
+                aiMessages: res.data,
+                chatHistories: {
+                  ...(s.chatHistories || {}),
+                  [key]: res.data,
+                },
+              }));
+            } else if (localHistory.length > 0) {
+              // Đồng bộ bản lưu cũ của chính tài khoản này lên DB
+              await syncChatHistoryApi(user.token!, localHistory);
+            }
+          }
+        })
+        .catch(() => {
+          if (!isCancelled) setIsLoadingHistory(false);
+        });
+
+      return () => {
+        isCancelled = true;
+      };
+    } else {
+      if (JSON.stringify(aiMessages) !== JSON.stringify(localHistory)) {
+        useStore.setState({ aiMessages: localHistory });
+      }
     }
-  }, [user]);
+  }, [user?.token, user?.email, user?.phone]);
+
 
   // Chat input & state
   const [input, setInput] = useState("");
@@ -98,20 +155,6 @@ function AIContent() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-
-  // Realtime clock for status bar
-  const [clockTime, setClockTime] = useState("");
-  useEffect(() => {
-    const updateClock = () => {
-      const now = new Date();
-      setClockTime(
-        `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`
-      );
-    };
-    updateClock();
-    const interval = setInterval(updateClock, 10000);
-    return () => clearInterval(interval);
-  }, []);
 
   // Auto GPS on mount
   useEffect(() => {
@@ -140,7 +183,7 @@ function AIContent() {
               }
             };
           })
-          .catch(() => {});
+          .catch(() => { });
       }
 
       if (navigator.geolocation && !userLocation) {
@@ -324,6 +367,12 @@ function AIContent() {
       timestamp: Date.now(),
     };
     addAiMessage(userMsg);
+    if (user?.token) {
+      saveChatMessageApi(user.token, {
+        role: "user",
+        message: trimmed,
+      });
+    }
     setInput("");
     setIsTyping(true);
     scrollToBottom();
@@ -364,6 +413,14 @@ function AIContent() {
         timestamp: Date.now(),
       };
       addAiMessage(aiMsg);
+      if (user?.token) {
+        saveChatMessageApi(user.token, {
+          role: "ai",
+          message: aiMsg.text,
+          cards: aiMsg.cards,
+          chips: aiMsg.chips,
+        });
+      }
     } catch (err) {
       clearInterval(stateInterval);
       console.warn("Using fallback AI response:", err);
@@ -380,6 +437,14 @@ function AIContent() {
         timestamp: Date.now(),
       };
       addAiMessage(aiMsg);
+      if (user?.token) {
+        saveChatMessageApi(user.token, {
+          role: "ai",
+          message: aiMsg.text,
+          cards: aiMsg.cards,
+          chips: aiMsg.chips,
+        });
+      }
     } finally {
       setIsTyping(false);
       scrollToBottom();
@@ -389,7 +454,7 @@ function AIContent() {
   const handleConfirmBooking = () => {
     if (!bookingModal) return;
     holdSpot(bookingModal.lotId, bookingModal.slotCode, activeVehicle.id);
-    addToast(`Đã giữ ô ${bookingModal.slotCode} trong 10 phút!`, "success");
+    useStore.getState().clearToasts();
     const targetSpot = bookingModal.slotCode;
     setBookingModal(null);
     router.push(`/dat-cho/${targetSpot}`);
@@ -418,36 +483,12 @@ function AIContent() {
 
   return (
     <div className="relative w-full h-full bg-[#F8FAFC] text-slate-800 font-sans flex flex-col overflow-hidden">
-      
+
       {/* Background Ambient Gradients */}
       <div className="absolute -top-24 -left-24 w-72 h-72 bg-blue-400/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute top-1/2 -right-24 w-80 h-80 bg-indigo-300/15 rounded-full blur-3xl pointer-events-none" />
 
-      {/* ================= 1. DYNAMIC ISLAND & STATUS BAR ================= */}
-      <header className="relative z-30 pt-3 px-6 pb-1 flex justify-between items-center text-slate-900 select-none bg-white/70 backdrop-blur-md border-b border-slate-200/50 shrink-0">
-        <span className="text-[14px] font-bold tracking-tight" suppressHydrationWarning>
-          {clockTime || "09:41"}
-        </span>
-
-        {/* Dynamic Island */}
-        <div className="w-[116px] h-[30px] bg-black rounded-full mx-auto flex items-center justify-between px-2.5 shadow-inner">
-          <div className="w-2.5 h-2.5 rounded-full bg-slate-900 border border-slate-800" />
-          <div className="flex items-center space-x-1.5">
-            <span className="w-2 h-2 rounded-full bg-blue-500/80 animate-pulse" />
-            <div className="w-3 h-3 rounded-full bg-slate-900" />
-          </div>
-        </div>
-
-        <div className="flex items-center space-x-1.5 text-slate-800 text-xs">
-          <span>📶</span>
-          <span>📶</span>
-          <div className="w-5 h-2.5 border-[1.5px] border-slate-800 rounded-[3px] p-[1px] flex items-center">
-            <div className="h-full w-3/4 bg-slate-800 rounded-[1.5px]" />
-          </div>
-        </div>
-      </header>
-
-      {/* ================= 2. APP HEADER ================= */}
+      {/* ================= APP HEADER ================= */}
       <div className="relative z-20 px-4 py-2.5 bg-white/80 backdrop-blur-md border-b border-slate-200/60 flex items-center justify-between shadow-xs">
         <div className="flex items-center space-x-2.5">
           {/* Avatar AI with Breathing Glow */}
@@ -475,6 +516,9 @@ function AIContent() {
           <button
             onClick={() => {
               clearAiMessages();
+              if (user?.token) {
+                clearChatHistoryApi(user.token);
+              }
               addToast("Đã bắt đầu phiên trò chuyện mới với AI", "info");
             }}
             title="Đoạn chat mới"
@@ -555,9 +599,17 @@ function AIContent() {
 
       {/* ================= 3. MAIN CHAT SCROLLER ================= */}
       <main className="flex-1 min-h-0 overflow-y-auto px-4 py-3 space-y-4 no-scrollbar relative z-10">
-        
+
         {/* WELCOME / EMPTY STATE */}
-        {aiMessages.length === 0 && (
+        {/* SYNCING / LOADING HISTORY FROM CLOUD */}
+        {isLoadingHistory && (
+          <div className="flex items-center justify-center gap-2 py-2 px-3.5 mx-auto w-fit bg-white/90 backdrop-blur-md border border-blue-200/80 rounded-full shadow-xs text-blue-600 text-[11px] font-semibold animate-pulse my-2">
+            <Loader2 size={13} className="animate-spin text-blue-600" />
+            <span>Đang đồng bộ lịch sử hội thoại...</span>
+          </div>
+        )}
+
+        {!isLoadingHistory && aiMessages.length === 0 && (
           <div className="flex flex-col items-center justify-center pt-2 pb-4 text-center">
             {/* AI FLUID GLOWING ORB */}
             <div className="relative my-2">
@@ -887,7 +939,7 @@ function AIContent() {
 
       {/* ================= 4. INPUT BAR SECTION ================= */}
       <div className="relative z-20 px-3 py-2 bg-white/95 backdrop-blur-md border-t border-slate-200/80 shadow-[0_-4px_16px_rgba(0,0,0,0.03)] shrink-0">
-        
+
         {/* Smart Prompt Chips Bar */}
         <div className="flex space-x-1.5 overflow-x-auto no-scrollbar pb-1.5">
           {[
@@ -926,8 +978,8 @@ function AIContent() {
                 isListeningSpeech
                   ? "text-rose-600 bg-rose-50 ring-2 ring-rose-300 animate-pulse"
                   : hasSpeech
-                  ? "text-slate-400 hover:text-blue-600"
-                  : "text-slate-300"
+                    ? "text-slate-400 hover:text-blue-600"
+                    : "text-slate-300"
               )}
             >
               <Mic size={16} className={isListeningSpeech ? "animate-bounce" : ""} />

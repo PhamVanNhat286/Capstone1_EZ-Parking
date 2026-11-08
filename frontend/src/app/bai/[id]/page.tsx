@@ -46,7 +46,7 @@ function normalizeSlot(s: any): Spot {
   const status: Status = s.status === "available" || s.status === "empty" ? "empty"
     : s.status === "occupied" || s.status === "holding" ? s.status : "disabled";
   return {
-    id: String(s.id), type, status,
+    id: String(s.id), dbId: s.dbId, type, status,
     rowIndex: s.rowIndex, colIndex: s.colIndex, nearExit: !!s.isElevator,
   };
 }
@@ -102,6 +102,7 @@ export default function ParkingMapPage() {
     ((lotId === "1" || lotId === "hai-chau-a") && favoriteLots.some((id) => id === "1" || id === "hai-chau-a")) ||
     ((lotId === "2" || lotId === "cau-rong") && favoriteLots.some((id) => id === "2" || id === "cau-rong"));
   const scrollRef = useRef<HTMLDivElement>(null);
+  const justReservedSpotRef = useRef<string | null>(null);
 
   const [lot, setLot] = useState({ name: fallbackLot.name, address: fallbackLot.address, price: fallbackLot.price });
   const [spots, setSpots] = useState<Spot[]>(() => demoSpots(lotId));
@@ -117,6 +118,7 @@ export default function ParkingMapPage() {
   const [filter, setFilter] = useState<"all" | Kind>("all");
   const [zoom, setZoom] = useState(1);
   const [submitting, setSubmitting] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const durationInfo = useMemo(() => {
     if (!startTime || !endTime) return { hours: 2, text: "2 giờ", isNextDay: false, minutes: 120 };
@@ -185,18 +187,27 @@ export default function ParkingMapPage() {
   }, [vehicles, vehicleInitialized]);
 
   const refresh = useCallback(async () => {
-    const [apiSpots, apiLot] = await Promise.all([getLotSlotsApi(lotId), getLotByIdApi(lotId)]);
-    if (apiSpots.length) {
-      setSpots(apiSpots.map(normalizeSlot));
-      setIsDemo(false);
-    } else {
-      setSpots(demoSpots(lotId));
-      setIsDemo(true);
-    }
-    if (apiLot) {
-      const rate = Number(Array.isArray(apiLot.pricing_rules) ? apiLot.pricing_rules[0]?.hourly_rate : 0);
-      setLot({ name: apiLot.name || fallbackLot.name, address: apiLot.address || fallbackLot.address,
-        price: rate > 0 ? rate : fallbackLot.price });
+    setIsRefreshing(true);
+    try {
+      const [apiSpots, apiLot] = await Promise.all([getLotSlotsApi(lotId), getLotByIdApi(lotId)]);
+      if (apiSpots.length) {
+        setSpots(apiSpots.map(normalizeSlot));
+        setIsDemo(false);
+      } else {
+        setSpots(demoSpots(lotId));
+        setIsDemo(true);
+      }
+      if (apiLot) {
+        const rate = Number(Array.isArray(apiLot.pricing_rules) ? apiLot.pricing_rules[0]?.hourly_rate : 0);
+        setLot({
+          name: apiLot.name || fallbackLot.name, address: apiLot.address || fallbackLot.address,
+          price: rate > 0 ? rate : fallbackLot.price
+        });
+      }
+    } catch (e) {
+      console.warn("Auto refresh error:", e);
+    } finally {
+      setIsRefreshing(false);
     }
   }, [lotId, fallbackLot.name, fallbackLot.address, fallbackLot.price]);
 
@@ -205,8 +216,15 @@ export default function ParkingMapPage() {
     setLot({ name: fallbackLot.name, address: fallbackLot.address, price: fallbackLot.price });
     setSpots(demoSpots(lotId));
     void refresh();
-    const timer = window.setInterval(() => void refresh(), 15000);
-    return () => window.clearInterval(timer);
+    const timer = window.setInterval(() => void refresh(), 5000);
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") void refresh();
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
   }, [lotId, refresh, fallbackLot.name, fallbackLot.address, fallbackLot.price]);
 
   const displayed = useMemo(() => spots.map((spot) => {
@@ -235,8 +253,25 @@ export default function ParkingMapPage() {
   }, [displayed]);
 
   useEffect(() => {
-    if (selected && (selected.status !== "empty" || !isSuitable(selected, car, needsCharging))) setSpotId(null);
-  }, [selected, car, needsCharging]);
+    if (!selected) return;
+
+    // Không báo lỗi nếu ô này vừa được đặt thành công hoặc thuộc lượt giữ chỗ của chính mình
+    if (
+      justReservedSpotRef.current === selected.id ||
+      submitting ||
+      (booking?.spotId === selected.id &&
+        ["holding", "paid", "entered"].includes(booking.status))
+    ) {
+      return;
+    }
+
+    if (selected.status !== "empty" || !isSuitable(selected, car, needsCharging)) {
+      if (selected.status !== "empty") {
+        toast(`Ô ${selected.id} vừa được người khác giữ hoặc đã có xe đỗ. Vui lòng chọn ô khác!`, "error");
+      }
+      setSpotId(null);
+    }
+  }, [selected, car, needsCharging, booking, submitting]);
 
   function pickVehicle(v: Vehicle) {
     setVehicleId(v.id); setSpotId(null);
@@ -247,8 +282,20 @@ export default function ParkingMapPage() {
     if (!car) { setDialog("choose"); return; }
     if (car.type === "EV" && needsCharging === null) { setDialog("charge"); return; }
     if (s.status !== "empty") {
-      toast(s.status === "occupied" ? "Ô này đã có xe đỗ" : s.status === "holding"
-        ? "Ô đang được người khác giữ" : "Ô đang bảo trì", "error");
+      const isMyHold =
+        booking?.lotId === lotId &&
+        booking?.spotId === s.id &&
+        ["holding", "paid", "entered"].includes(booking.status);
+      toast(
+        s.status === "occupied"
+          ? "Ô này đã có xe đỗ"
+          : s.status === "holding"
+          ? isMyHold
+            ? "Bạn đang giữ ô này"
+            : "Ô đang được người khác giữ"
+          : "Ô đang bảo trì",
+        isMyHold ? "info" : "error"
+      );
       return;
     }
     if (!isSuitable(s, car, needsCharging)) { toast("Ô này không phù hợp với xe của bạn", "error"); return; }
@@ -293,10 +340,14 @@ export default function ParkingMapPage() {
         }
       }
 
+      const targetSpotId = selected.id;
+      justReservedSpotRef.current = targetSpotId;
+      setSpotId(null);
+
       // Giữ chỗ với thời gian bắt đầu và kết thúc
       holdSpot(
         lotId,
-        selected.id,
+        targetSpotId,
         car.id,
         durationInfo.hours,
         startTime,
@@ -305,20 +356,9 @@ export default function ParkingMapPage() {
         serverHoldExpiresAt
       );
 
-      const newBooking = useStore.getState().activeBooking;
-      if (newBooking) {
-        useStore.setState({
-          activeBooking: {
-            ...newBooking,
-            backendId: serverReservationId,
-            estimatedHours: durationInfo.hours,
-            startTime,
-            endTime,
-          }
-        });
-      }
-      toast(`Giữ chỗ thành công ô ${selected.id}!`, "success");
-      router.push(`/dat-cho/${encodeURIComponent(selected.id)}`);
+      // Xóa sạch thông báo và chuyển thẳng sang màn thanh toán cọc
+      useStore.getState().clearToasts();
+      router.push(`/dat-cho/${encodeURIComponent(targetSpotId)}`);
     } catch (err) {
       console.error("Lỗi khi giữ ô đỗ:", err);
       toast("Lỗi kết nối khi giữ chỗ. Vui lòng thử lại!", "error");
@@ -340,9 +380,9 @@ export default function ParkingMapPage() {
     <style>{`@keyframes ez-drive { 0% {top:30px;opacity:0} 10% {opacity:1} 85% {opacity:1} 100% {top:calc(100% - 45px);opacity:0} }`}</style>
     <header className="shrink-0 bg-white px-4 pt-3 pb-2 shadow-sm z-20">
       <div className="flex justify-between gap-2 items-center">
-        <button onClick={() => router.push("/")} className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center"><ChevronLeft size={21}/></button>
+        <button onClick={() => router.push("/kham-pha")} className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center"><ChevronLeft size={21} /></button>
         <div className="min-w-0 flex-1 text-center"><h1 className="font-black text-base text-slate-900 truncate">{lot.name}</h1>
-          <p className="text-[11px] text-slate-500 truncate"><MapPin size={11} className="inline mr-1"/>{lot.address}</p></div>
+          <p className="text-[11px] text-slate-500 truncate"><MapPin size={11} className="inline mr-1" />{lot.address}</p></div>
         <button
           onClick={() => {
             toggleFavoriteLot(lotId);
@@ -363,7 +403,7 @@ export default function ParkingMapPage() {
         </button>
       </div>
       <button onClick={() => setDialog("choose")} className="w-full mt-2 rounded-xl bg-blue-50 border border-blue-100 p-2.5 flex justify-between items-center gap-2 text-left">
-        <div className="flex items-center gap-2 min-w-0"><CarFront size={20} className="text-blue-600 shrink-0"/>
+        <div className="flex items-center gap-2 min-w-0"><CarFront size={20} className="text-blue-600 shrink-0" />
           <div className="min-w-0"><p className="text-xs font-bold text-blue-950 truncate">{car ? `${car.name} · ${car.plate}` : "Chọn xe của bạn"}</p>
             <p className="text-[10px] text-blue-700 truncate">{car ? (car.type === "EV" ? (needsCharging === null ? "Chưa chọn nhu cầu sạc" : needsCharging ? "Xe điện · cần sạc" : "Xe điện · không sạc") : car.type) : "Chưa chọn xe"} · {car ? `${matching} ô phù hợp` : "Vui lòng chọn xe"}</p></div></div>
         <span className="shrink-0 bg-white text-blue-700 border border-blue-200 rounded-lg px-2 py-1 text-[10px] font-bold">{car ? "Đổi xe" : "Chọn xe"}</span>
@@ -376,10 +416,18 @@ export default function ParkingMapPage() {
         <span className="text-amber-700">🟡 Giữ ({holdingCount})</span><span className="text-slate-500">⚪ Bảo trì</span>
       </div>
       <div className="flex overflow-x-auto gap-1.5">
-        {([ ["all", "Tất cả"], ["sedan", "🚗 Sedan"], ["suv", "🚙 SUV"], ["ev", "⚡ EV"] ] as const).map(([v, label]) =>
-          <button key={v} onClick={() => {setFilter(v);setSpotId(null)}} className={clsx("shrink-0 rounded-full px-3 py-1.5 text-[11px] font-semibold",
+        {([["all", "Tất cả"], ["sedan", "🚗 Sedan"], ["suv", "🚙 SUV"], ["ev", "⚡ EV"]] as const).map(([v, label]) =>
+          <button key={v} onClick={() => { setFilter(v); setSpotId(null) }} className={clsx("shrink-0 rounded-full px-3 py-1.5 text-[11px] font-semibold",
             filter === v ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-700")}>{label}</button>)}
-        <button onClick={() => void refresh()} className="ml-auto bg-slate-100 rounded-full px-2"><RefreshCw size={14}/></button>
+        <button
+          onClick={() => void refresh()}
+          title="Tự động cập nhật mỗi 5 giây"
+          className="ml-auto bg-slate-100 hover:bg-slate-200 active:scale-95 transition-all rounded-full px-2.5 py-1 text-[10px] font-semibold flex items-center gap-1.5 text-emerald-700"
+        >
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+          <RefreshCw size={12} className={clsx("transition-transform", isRefreshing && "animate-spin text-blue-600")} />
+          <span className="text-[10px] text-slate-500 font-medium">5s</span>
+        </button>
       </div>
     </div>
 
@@ -391,22 +439,22 @@ export default function ParkingMapPage() {
       <div className="relative bg-slate-200 rounded-2xl border border-slate-300 p-2.5 overflow-hidden shadow-inner">
         <div className="absolute left-1/2 top-0 bottom-0 w-12 -translate-x-1/2 bg-slate-300 border-x-2 border-dashed border-white flex flex-col items-center justify-between py-4 pointer-events-none">
           <span className="text-[9px] bg-white rounded px-1 font-black text-blue-700">VÀO</span>
-          <span style={{animation:"ez-drive 12s linear infinite"}} className="absolute left-1/2 -translate-x-1/2 top-8 w-4 h-8 bg-blue-600 rounded shadow border border-white flex flex-col items-center p-0.5">
-            <span className="bg-sky-200 h-1 w-3 rounded"/></span>
+          <span style={{ animation: "ez-drive 12s linear infinite" }} className="absolute left-1/2 -translate-x-1/2 top-8 w-4 h-8 bg-blue-600 rounded shadow border border-white flex flex-col items-center p-0.5">
+            <span className="bg-sky-200 h-1 w-3 rounded" /></span>
           <span className="rounded-full bg-white border border-rose-500 w-6 h-6 flex items-center justify-center text-[10px] font-black">5</span>
-          <ArrowDown size={18} className="text-white"/><span className="text-[9px] bg-white rounded px-1 text-rose-600 font-black">RA</span>
+          <ArrowDown size={18} className="text-white" /><span className="text-[9px] bg-white rounded px-1 text-rose-600 font-black">RA</span>
         </div>
-        <div className="relative z-10 space-y-2.5 transition-transform" style={{transform:`scale(${zoom})`,transformOrigin:"top center"}}>
-          {rows.map(([a,b],i) => <div key={i} className="grid grid-cols-[minmax(0,1fr)_48px_minmax(0,1fr)] gap-1 items-center">
-            {renderSpot(a,"left")}<div/>{renderSpot(b,"right")}</div>)}
+        <div className="relative z-10 space-y-2.5 transition-transform" style={{ transform: `scale(${zoom})`, transformOrigin: "top center" }}>
+          {rows.map(([a, b], i) => <div key={i} className="grid grid-cols-[minmax(0,1fr)_48px_minmax(0,1fr)] gap-1 items-center">
+            {renderSpot(a, "left")}<div />{renderSpot(b, "right")}</div>)}
           {rows.length === 0 && <p className="bg-white rounded-xl text-center p-5 text-sm">Bãi này chưa có dữ liệu ô đỗ.</p>}
         </div>
       </div>
       <div className="sticky bottom-2 flex justify-between gap-2 items-center mt-3 z-20 pointer-events-none">
-        <button onClick={chooseBest} className="pointer-events-auto text-white bg-gradient-to-r from-blue-600 to-indigo-600 px-3 py-2.5 rounded-full shadow-lg text-xs font-black flex items-center gap-1"><Sparkles size={14} className="text-amber-300"/> Gợi ý ô tốt nhất</button>
+        <button onClick={chooseBest} className="pointer-events-auto text-white bg-gradient-to-r from-blue-600 to-indigo-600 px-3 py-2.5 rounded-full shadow-lg text-xs font-black flex items-center gap-1"><Sparkles size={14} className="text-amber-300" /> Gợi ý ô tốt nhất</button>
         <div className="pointer-events-auto bg-white border border-slate-200 rounded-full p-1 flex shadow-md items-center">
-          <button onClick={() => setZoom(v => Math.min(1.2, +(v+.1).toFixed(1)))} className="w-7 h-7 flex items-center justify-center"><Plus size={15}/></button>
-          <button onClick={() => setZoom(v => Math.max(.8, +(v-.1).toFixed(1)))} className="w-7 h-7 flex items-center justify-center"><Minus size={15}/></button>
+          <button onClick={() => setZoom(v => Math.min(1.2, +(v + .1).toFixed(1)))} className="w-7 h-7 flex items-center justify-center"><Plus size={15} /></button>
+          <button onClick={() => setZoom(v => Math.max(.8, +(v - .1).toFixed(1)))} className="w-7 h-7 flex items-center justify-center"><Minus size={15} /></button>
         </div>
       </div>
     </div>
@@ -416,13 +464,13 @@ export default function ParkingMapPage() {
         <div className="space-y-3">
           <div className="flex justify-between items-start"><div>
             <p className="flex gap-2 items-center"><b className="text-xl">{selected.id}</b><span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-lg font-bold">{nameOf(selected.type)}</span>
-              <span className="text-emerald-700 text-[10px] font-bold flex gap-1 items-center"><CheckCircle2 size={13}/> Phù hợp xe</span></p>
+              <span className="text-emerald-700 text-[10px] font-bold flex gap-1 items-center"><CheckCircle2 size={13} /> Phù hợp xe</span></p>
             <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1.5 flex-wrap">
               <span>{car?.plate}</span>
               <span>·</span>
               <span>Giá hiện tại: <strong className="text-slate-800">{money(currentRateInfo.rate)}/h</strong></span>
             </p>
-          </div><button onClick={() => setSpotId(null)}><X size={18} className="text-slate-400"/></button></div>
+          </div><button onClick={() => setSpotId(null)}><X size={18} className="text-slate-400" /></button></div>
           <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-3">
             <div className="flex justify-between items-center">
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
@@ -525,7 +573,7 @@ export default function ParkingMapPage() {
             </div>
           </div>
           <button onClick={() => void reserve()} disabled={submitting} className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-bold rounded-xl flex justify-center items-center gap-2 disabled:opacity-50">
-            <Clock3 size={16}/> {submitting ? "Đang kiểm tra ô..." : "Tiếp tục đặt chỗ & thanh toán cọc"}</button>
+            <Clock3 size={16} /> {submitting ? "Đang kiểm tra ô..." : "Tiếp tục đặt chỗ & thanh toán cọc"}</button>
         </div>
       </section>
     )}
@@ -535,22 +583,22 @@ export default function ParkingMapPage() {
         {dialog === "choose" ? <>
           <div className="flex items-start justify-between mb-4"><div><h2 className="text-lg font-black">Bạn đang đi xe nào?</h2>
             <p className="text-xs text-slate-500">Chọn xe trước để xem ô đỗ phù hợp.</p></div>
-            <button onClick={() => setDialog(null)}><X size={19}/></button></div>
+            <button onClick={() => setDialog(null)}><X size={19} /></button></div>
           {vehicles.length ? <div className="space-y-2">
             {vehicles.map(v => <button key={v.id} onClick={() => pickVehicle(v)} className="w-full text-left border border-slate-200 rounded-2xl p-3 flex gap-3 items-center bg-slate-50 hover:bg-blue-50/60 hover:border-blue-300 active:scale-[0.99] transition-all">
-              {v.type === "EV" ? <BatteryCharging size={23} className="text-blue-600"/> : <CarFront size={23} className="text-blue-600"/>}
+              {v.type === "EV" ? <BatteryCharging size={23} className="text-blue-600" /> : <CarFront size={23} className="text-blue-600" />}
               <span className="flex-1 min-w-0"><b className="text-sm block truncate">{v.name}</b><small className="text-slate-500">{v.plate} · {v.type === "EV" ? `EV ${v.evBodyType || "SUV"}` : v.type}</small></span>
-              <ChevronRight size={18} className="text-slate-400"/>
+              <ChevronRight size={18} className="text-slate-400" />
             </button>)}
           </div> : <p className="bg-slate-50 rounded-xl p-4 text-sm">Bạn chưa có xe. Hãy thêm xe vào hồ sơ.</p>}
           <Link href="/xe-cua-toi" className="block mt-4 rounded-xl bg-slate-100 text-center text-blue-700 font-bold py-3 text-sm">+ Quản lý / thêm xe</Link>
         </> : <>
-          <div className="text-center mb-4"><BatteryCharging size={36} className="mx-auto text-blue-600 mb-2"/>
+          <div className="text-center mb-4"><BatteryCharging size={36} className="mx-auto text-blue-600 mb-2" />
             <h2 className="text-lg font-black">Xe điện có cần sạc không?</h2><p className="text-xs text-slate-500">{car?.name} · {car?.plate}</p></div>
-          <button onClick={() => {setNeedsCharging(true);setSpotId(null);setDialog(null)}} className="w-full p-4 bg-emerald-50 border-2 border-emerald-300 rounded-2xl flex gap-3 items-center text-left mb-3">
-            <Zap size={23} className="text-emerald-600"/><span><b className="block text-sm">Có, tôi cần sạc</b><small className="text-emerald-700">Lọc ô sạc EV đang trống</small></span></button>
-          <button onClick={() => {setNeedsCharging(false);setSpotId(null);setDialog(null)}} className="w-full p-4 bg-slate-50 border-2 border-slate-200 rounded-2xl flex gap-3 items-center text-left">
-            <CarFront size={23} className="text-blue-600"/><span><b className="block text-sm">Không cần sạc</b><small className="text-slate-600">Lọc ô thường theo kích thước xe</small></span></button>
+          <button onClick={() => { setNeedsCharging(true); setSpotId(null); setDialog(null) }} className="w-full p-4 bg-emerald-50 border-2 border-emerald-300 rounded-2xl flex gap-3 items-center text-left mb-3">
+            <Zap size={23} className="text-emerald-600" /><span><b className="block text-sm">Có, tôi cần sạc</b><small className="text-emerald-700">Lọc ô sạc EV đang trống</small></span></button>
+          <button onClick={() => { setNeedsCharging(false); setSpotId(null); setDialog(null) }} className="w-full p-4 bg-slate-50 border-2 border-slate-200 rounded-2xl flex gap-3 items-center text-left">
+            <CarFront size={23} className="text-blue-600" /><span><b className="block text-sm">Không cần sạc</b><small className="text-slate-600">Lọc ô thường theo kích thước xe</small></span></button>
           <button onClick={() => setDialog("choose")} className="block mx-auto mt-4 text-xs text-blue-600 font-bold">Đổi xe khác</button>
         </>}
       </div>

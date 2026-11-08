@@ -10,7 +10,7 @@ dotenv.config();
 const app = express();
 
 app.use(cors({
-  origin: process.env.FRONTEND_URL || "http://localhost:3000",
+  origin: true, // Allow frontend from localhost, 127.0.0.1, or network IP
   credentials: true,
 }));
 
@@ -26,9 +26,10 @@ app.get("/", (req, res) => {
   });
 });
 
-// Main API routes
+// Main API routes (support both /api/* and root /*)
 app.use("/api", routes);
 app.use('/api/payment', vnpayRouter);
 app.use('/api/payment', bankRouter);
+app.use(routes);
 
 export default app;

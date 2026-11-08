@@ -20,7 +20,7 @@ import {
   X,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
-import { getLotByIdApi } from "@/lib/api";
+import { getLotByIdApi, getReservationByIdApi, kioskScanInApi, kioskScanOutApi, releaseSpotApi } from "@/lib/api";
 import { lots } from "@/lib/mock/lots";
 import { useStore } from "@/store";
 
@@ -32,6 +32,7 @@ const timer = (sec: number) =>
 export default function TicketPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const user = useStore((s) => s.user);
   const activeBooking = useStore((s) => s.activeBooking);
   const history = useStore((s) => s.history);
   const vehicles = useStore((s) => s.vehicles);
@@ -42,16 +43,83 @@ export default function TicketPage() {
   const addToast = useStore((s) => s.addToast);
   const isDemo = useStore((s) => s.isDemo);
 
-  const booking = activeBooking?.id === id ? activeBooking : history.find((item) => item.id === id);
-  const vehicle = vehicles.find((v) => v.id === booking?.vehicleId);
+  const [dbBooking, setDbBooking] = useState<any | null>(null);
+  const [isLoadingDb, setIsLoadingDb] = useState(false);
+  const [isScanning, setIsScanning] = useState(false);
+
+  // Fetch real reservation detail & QR from PostgreSQL Database
+  const fetchDbReservation = async () => {
+    if (!id) return;
+    setIsLoadingDb(true);
+    try {
+      const res = await getReservationByIdApi(id, user?.token);
+      if (res && res.success && res.data) {
+        setDbBooking(res.data);
+      }
+    } catch (err) {
+      console.warn("Không thể tải chi tiết vé từ CSDL:", err);
+    } finally {
+      setIsLoadingDb(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDbReservation();
+  }, [id, user?.token]);
+
+  // Merge DB booking or Fallback to Store
+  const booking = dbBooking
+    ? {
+        id: `EZ-${dbBooking.id}`,
+        backendId: dbBooking.id,
+        lotId: String(dbBooking.parking_lot_id),
+        spotId: dbBooking.slot_code,
+        vehicleId: String(dbBooking.vehicle_id || ""),
+        status: dbBooking.status,
+        holdExpiresAt: dbBooking.hold_expires_at ? new Date(dbBooking.hold_expires_at).getTime() : 0,
+        arrivalExpiresAt: dbBooking.arrival_expires_at ? new Date(dbBooking.arrival_expires_at).getTime() : 0,
+        startTime: dbBooking.start_time,
+        endTime: dbBooking.expected_end_time,
+        estimatedHours: 2,
+        createdAt: new Date(dbBooking.created_at).getTime(),
+        depositAmount: Number(dbBooking.deposit_amount) || DEPOSIT,
+        hourlyRate: Number(dbBooking.hourly_rate) || 20000,
+        totalAmount: Number(dbBooking.total_amount) || 40000,
+        qrPayload: dbBooking.qr_payload,
+        licensePlate: dbBooking.license_plate,
+        vehicleType: dbBooking.vehicle_type,
+        vehicleName: dbBooking.vehicle_name,
+        lotName: dbBooking.lot_name,
+        lotAddress: dbBooking.lot_address,
+        latitude: dbBooking.latitude,
+        longitude: dbBooking.longitude,
+        checkInAt: dbBooking.check_in_at,
+        checkOutAt: dbBooking.check_out_at,
+      }
+    : activeBooking?.id === id || String(activeBooking?.backendId) === id
+    ? activeBooking
+    : history.find((item) => item.id === id || String(item.backendId) === id);
+
+  const vehicle = dbBooking
+    ? {
+        plate: dbBooking.license_plate || "43A-123.45",
+        type: dbBooking.vehicle_type || "SUV",
+        name: dbBooking.vehicle_name || "Xe của bạn",
+      }
+    : vehicles.find((v) => v.id === booking?.vehicleId) || {
+        plate: "43A-123.45",
+        type: "SUV",
+        name: "Xe của bạn",
+      };
+
   const fallback = lots.find((l) => l.id === booking?.lotId) || lots[0];
 
   const [lot, setLot] = useState({
-    name: fallback.name,
-    address: fallback.address,
-    price: fallback.price,
-    latitude: fallback.latitude,
-    longitude: fallback.longitude,
+    name: dbBooking?.lot_name || fallback.name,
+    address: dbBooking?.lot_address || fallback.address,
+    price: dbBooking ? Number(dbBooking.hourly_rate) || fallback.price : fallback.price,
+    latitude: dbBooking ? Number(dbBooking.latitude) || fallback.latitude : fallback.latitude,
+    longitude: dbBooking ? Number(dbBooking.longitude) || fallback.longitude : fallback.longitude,
   });
   const [now, setNow] = useState(Date.now());
   const [ready, setReady] = useState(false);
@@ -60,6 +128,18 @@ export default function TicketPage() {
   const [showHelp, setShowHelp] = useState(false);
   const [showCancel, setShowCancel] = useState(false);
   const [expandLate, setExpandLate] = useState(false);
+
+  useEffect(() => {
+    if (dbBooking) {
+      setLot({
+        name: dbBooking.lot_name || fallback.name,
+        address: dbBooking.lot_address || fallback.address,
+        price: Number(dbBooking.hourly_rate) || fallback.price,
+        latitude: Number(dbBooking.latitude) || fallback.latitude,
+        longitude: Number(dbBooking.longitude) || fallback.longitude,
+      });
+    }
+  }, [dbBooking, fallback]);
 
   useEffect(() => {
     setReady(true);
@@ -129,8 +209,80 @@ export default function TicketPage() {
   const validQR = booking.status === "paid" || booking.status === "entered";
   const remaining =
     booking.status === "paid" ? Math.max(0, Math.ceil(((booking.arrivalExpiresAt || 0) - now) / 1000)) : 0;
-  const qrPayload = `EZPARKING-DEMO-TICKET|ID=${booking.id}|LOT=${booking.lotId}|SPOT=${booking.spotId}|VEHICLE=${vehicle?.plate || "UNKNOWN"}`;
+  const qrPayload =
+    dbBooking?.qr_payload ||
+    `EZPARKING-DEMO-TICKET|ID=${booking.id}|LOT=${booking.lotId}|SPOT=${booking.spotId}|VEHICLE=${vehicle?.plate || "UNKNOWN"}`;
   const total = lot.price * (booking.estimatedHours || 2);
+
+  const handleScanIn = async () => {
+    setIsScanning(true);
+    try {
+      const resId = dbBooking?.id || booking?.backendId || booking?.id;
+      const res = await kioskScanInApi(
+        {
+          ticket_code: String(booking?.id || `EZ-${resId}`),
+          reservation_id: typeof resId === "number" ? resId : parseInt(String(resId).replace(/^[eE][zZ]-/, ""), 10),
+          parking_lot_id: dbBooking?.parking_lot_id || booking?.lotId || 1,
+        },
+        user?.token
+      );
+
+      if (res.success) {
+        addToast("Barrier đã mở! Xe check-in vào bãi thành công.", "success");
+        markEntered();
+        await fetchDbReservation();
+      } else {
+        addToast(res.message || "Quét mã vào bãi thất bại", "error");
+      }
+    } catch {
+      addToast("Lỗi kết nối máy quét barrier", "error");
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
+  const handleScanOut = async () => {
+    setIsScanning(true);
+    try {
+      const resId = dbBooking?.id || booking?.backendId || booking?.id;
+      const res = await kioskScanOutApi(
+        {
+          ticket_code: String(booking?.id || `EZ-${resId}`),
+          reservation_id: typeof resId === "number" ? resId : parseInt(String(resId).replace(/^[eE][zZ]-/, ""), 10),
+          parking_lot_id: dbBooking?.parking_lot_id || booking?.lotId || 1,
+          slot_code: dbBooking?.slot_code || booking?.spotId,
+        },
+        user?.token
+      );
+
+      if (res.success) {
+        addToast("Barrier đã mở! Xe check-out ra bãi thành công. Ô đỗ đã được giải phóng.", "success");
+        markCompleted();
+        await fetchDbReservation();
+      } else {
+        addToast(res.message || "Quét mã ra bãi thất bại", "error");
+      }
+    } catch {
+      addToast("Lỗi kết nối máy quét barrier", "error");
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
+  const handleCancelBooking = async () => {
+    try {
+      const resId = dbBooking?.id || booking?.backendId || booking?.id;
+      if (resId) {
+        await releaseSpotApi(resId, user?.token);
+      }
+      cancelBooking();
+      addToast("Đã hủy đơn đặt chỗ và giải phóng ô đỗ trên CSDL.", "info");
+      router.replace("/lich-su");
+    } catch {
+      cancelBooking();
+      router.replace("/lich-su");
+    }
+  };
 
   const doCopy = async () => {
     try {
@@ -195,7 +347,7 @@ export default function TicketPage() {
       <header className="shrink-0 bg-white sticky top-0 z-20 px-4 py-3 flex justify-between items-center border-b border-slate-100 shadow-xs">
         <button
           aria-label="Quay lại"
-          onClick={() => router.push(booking.status === "paid" ? "/" : "/lich-su")}
+          onClick={() => router.push(booking.status === "paid" ? "/kham-pha" : "/lich-su")}
           className="w-9 h-9 rounded-full bg-slate-100 grid place-items-center active:scale-95 transition-transform"
         >
           <ArrowLeft size={19} />
@@ -387,19 +539,53 @@ export default function TicketPage() {
           </p>
         )}
 
-        {/* Demo simulators (Dành riêng cho môi trường đồ án mô phỏng) */}
-        {isDemo && booking.status === "paid" && (
-          <div className="bg-slate-900 text-white rounded-2xl p-4">
-            <h3 className="text-xs font-extrabold mb-2">Mô phỏng cổng ra/vào</h3>
-            <button onClick={markEntered} className="w-full bg-emerald-600 hover:bg-emerald-700 py-2.5 rounded-xl text-xs font-bold active:scale-95 transition-transform">
-              Giả lập nhân viên quét QR vào bãi
+        {/* Kiosk Barrier Scanner Simulator (Nối trực tiếp CSDL PostgreSQL) */}
+        {booking.status === "paid" && (
+          <div className="bg-slate-900 text-white rounded-2xl p-4 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-extrabold flex items-center gap-1.5 text-white">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                Cổng Barrier Vào (Check-in Kiosk)
+              </h3>
+              <span className="text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-800/80 px-2 py-0.5 rounded-full font-mono">
+                CSDL Live
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-300 leading-relaxed">
+              Mô phỏng máy quét tại barrier cổng vào: Kiểm tra mã vé trên Backend, mở barie, lưu phiên đỗ vào CSDL.
+            </p>
+            <button
+              onClick={handleScanIn}
+              disabled={isScanning}
+              className="w-full bg-emerald-600 hover:bg-emerald-700 py-3 rounded-xl text-xs font-bold active:scale-95 transition-transform flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/30 disabled:opacity-50"
+            >
+              <QrCode size={16} />
+              <span>{isScanning ? "Đang gửi tín hiệu máy quét..." : "Giả lập quét QR qua Barie vào bãi"}</span>
             </button>
           </div>
         )}
-        {isDemo && booking.status === "entered" && (
-          <div className="bg-slate-900 text-white rounded-2xl p-4">
-            <button onClick={markCompleted} className="w-full bg-blue-600 hover:bg-blue-700 py-2.5 rounded-xl text-xs font-bold active:scale-95 transition-transform">
-              Giả lập xe đã rời bãi
+
+        {booking.status === "entered" && (
+          <div className="bg-slate-900 text-white rounded-2xl p-4 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-extrabold flex items-center gap-1.5 text-white">
+                <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
+                Cổng Barrier Ra (Check-out Kiosk)
+              </h3>
+              <span className="text-[10px] bg-blue-950 text-blue-300 border border-blue-800/80 px-2 py-0.5 rounded-full font-mono">
+                CSDL Live
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-300 leading-relaxed">
+              Mô phỏng quét mã tại barie ra: Tính tổng phí, kết thúc phiên đỗ, nhả ô trống về sẵn sàng trên CSDL.
+            </p>
+            <button
+              onClick={handleScanOut}
+              disabled={isScanning}
+              className="w-full bg-blue-600 hover:bg-blue-700 py-3 rounded-xl text-xs font-bold active:scale-95 transition-transform flex items-center justify-center gap-2 shadow-lg shadow-blue-900/30 disabled:opacity-50"
+            >
+              <QrCode size={16} />
+              <span>{isScanning ? "Đang xử lý kết thúc lượt đỗ..." : "Giả lập quét QR qua Barie ra bãi"}</span>
             </button>
           </div>
         )}
@@ -491,11 +677,8 @@ export default function TicketPage() {
               Ở lại
             </button>
             <button
-              className="flex-1 rounded-xl bg-rose-600 text-white py-3 font-bold"
-              onClick={() => {
-                cancelBooking();
-                router.replace("/lich-su");
-              }}
+              className="flex-1 rounded-xl bg-rose-600 text-white py-3 font-bold active:scale-95 transition-transform"
+              onClick={handleCancelBooking}
             >
               Hủy đặt
             </button>
