@@ -454,7 +454,7 @@ function AIContent() {
   const handleConfirmBooking = () => {
     if (!bookingModal) return;
     holdSpot(bookingModal.lotId, bookingModal.slotCode, activeVehicle.id);
-    addToast(`Đã giữ ô ${bookingModal.slotCode} trong 10 phút!`, "success");
+    useStore.getState().clearToasts();
     const targetSpot = bookingModal.slotCode;
     setBookingModal(null);
     router.push(`/dat-cho/${targetSpot}`);

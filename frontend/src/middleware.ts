@@ -28,13 +28,18 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Tự động chuyển hướng trang gốc / sang /kham-pha
+  if (pathname === "/") {
+    return NextResponse.redirect(new URL("/kham-pha", request.url));
+  }
+
   // Chỉ kiểm tra /admin nếu có cookie role
   // (cookie được set bởi login page sau khi auth thành công)
   if (isAdminRoute(pathname)) {
     const role = request.cookies.get("ezspace_role")?.value;
     // Nếu có cookie và không phải admin → chặn
     if (role && role !== "admin" && role !== "owner") {
-      return NextResponse.redirect(new URL("/", request.url));
+      return NextResponse.redirect(new URL("/kham-pha", request.url));
     }
     // Không có cookie → để AuthGuard client-side xử lý
   }

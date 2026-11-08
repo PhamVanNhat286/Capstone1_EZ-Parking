@@ -347,7 +347,7 @@ export default function TicketPage() {
       <header className="shrink-0 bg-white sticky top-0 z-20 px-4 py-3 flex justify-between items-center border-b border-slate-100 shadow-xs">
         <button
           aria-label="Quay lại"
-          onClick={() => router.push(booking.status === "paid" ? "/" : "/lich-su")}
+          onClick={() => router.push(booking.status === "paid" ? "/kham-pha" : "/lich-su")}
           className="w-9 h-9 rounded-full bg-slate-100 grid place-items-center active:scale-95 transition-transform"
         >
           <ArrowLeft size={19} />

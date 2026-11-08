@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { clsx } from "clsx";
-import { Bot } from "lucide-react";
+import { Ticket } from "lucide-react";
 
 export default function BottomNav() {
   const pathname = usePathname();
@@ -10,7 +10,7 @@ export default function BottomNav() {
   // Ẩn BottomNav trên các trang flow (có header back riêng)
   if (
     pathname.startsWith("/dang-nhap") ||
-    pathname.startsWith("/ve") ||
+    pathname.startsWith("/ve/") ||
     pathname.startsWith("/thanh-toan") ||
     pathname.startsWith("/chi-duong") ||
     pathname.startsWith("/bai") ||
@@ -21,9 +21,9 @@ export default function BottomNav() {
     return null;
   }
 
-  const isExplore = pathname === "/";
+  const isExplore = pathname === "/kham-pha" || pathname === "/";
   const isTickets = pathname.startsWith("/lich-su");
-  const isAi = pathname.startsWith("/ai");
+  const isVeDangDo = pathname.startsWith("/ve-dang-do");
   const isProfile =
     pathname.startsWith("/ho-so") ||
     pathname.startsWith("/xe-cua-toi") ||
@@ -34,7 +34,7 @@ export default function BottomNav() {
       <div className="grid grid-cols-4 items-center">
         {/* Tab 1: Khám phá */}
         <Link
-          href="/"
+          href="/kham-pha"
           className={clsx(
             "flex flex-col items-center justify-center gap-1 transition active:scale-95",
             isExplore ? "text-[#2563EB]" : "text-[#64748B] hover:text-slate-700"
@@ -83,23 +83,23 @@ export default function BottomNav() {
             </svg>
           </div>
           <span className={clsx("text-[11px] tracking-tight", isTickets ? "font-extrabold text-[#2563EB]" : "font-medium text-[#64748B]")}>
-            Vé & Lịch sử
+            Lịch sử đỗ xe
           </span>
         </Link>
 
-        {/* Tab 3: AI */}
+        {/* Tab 3: Vé đang đỗ */}
         <Link
-          href="/ai"
+          href="/ve-dang-do"
           className={clsx(
             "flex flex-col items-center justify-center gap-1 transition active:scale-95",
-            isAi ? "text-[#2563EB]" : "text-[#64748B] hover:text-slate-700"
+            isVeDangDo ? "text-[#2563EB]" : "text-[#64748B] hover:text-slate-700"
           )}
         >
           <div className="w-6 h-6 flex items-center justify-center">
-            <Bot className="w-5 h-5" strokeWidth={isAi ? 2.4 : 1.9} />
+            <Ticket className="w-5 h-5" strokeWidth={isVeDangDo ? 2.4 : 1.9} />
           </div>
-          <span className={clsx("text-[11px] tracking-tight", isAi ? "font-extrabold text-[#2563EB]" : "font-medium text-[#64748B]")}>
-            AI
+          <span className={clsx("text-[11px] tracking-tight", isVeDangDo ? "font-extrabold text-[#2563EB]" : "font-medium text-[#64748B]")}>
+            Vé đang đỗ
           </span>
         </Link>
 

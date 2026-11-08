@@ -297,20 +297,29 @@ export default function AuthPage() {
               type: v.vehicle_type === "EV" ? "EV" : v.vehicle_type === "SUV" ? "SUV" : "Sedan",
             }))
           : [];
-        login({
-          id: res.data.user.id,
-          name: res.data.user.full_name,
-          email: res.data.user.email,
-          phone: res.data.user.phone,
-          role: userRole,
-          token: res.data.token,
-          vehicles: userVehicles,
-          avatar: res.data.user.avatar_url || "",
-        });
         setStatus("success");
         setSuccessMsg("Đăng nhập thành công! Đang chuyển hướng...");
-        const redirectTo = userRole === "admin" || userRole === "owner" ? "/admin" : "/";
+        let redirectTo = "/kham-pha";
+        if (typeof window !== "undefined") {
+          const from = new URLSearchParams(window.location.search).get("from");
+          if (from && from.startsWith("/") && !["/", "/kham-pha", "/ho-so", "/dang-nhap"].includes(from)) {
+            redirectTo = from;
+          }
+        }
+        if (userRole === "admin" || userRole === "owner") {
+          redirectTo = "/admin";
+        }
         setTimeout(() => {
+          login({
+            id: res.data.user.id,
+            name: res.data.user.full_name,
+            email: res.data.user.email,
+            phone: res.data.user.phone,
+            role: userRole,
+            token: res.data.token,
+            vehicles: userVehicles,
+            avatar: res.data.user.avatar_url || "",
+          });
           setStatus("idle");
           router.push(redirectTo);
         }, 1200);
@@ -497,7 +506,7 @@ export default function AuthPage() {
 
       setTimeout(() => {
         setStatus("idle");
-        router.push("/");
+        router.push("/kham-pha");
       }, 1200);
     } catch {
       setStatus("idle");
@@ -522,7 +531,7 @@ export default function AuthPage() {
       setSuccessMsg(`Đăng nhập qua ${provider} thành công!`);
       setTimeout(() => {
         setStatus("idle");
-        router.push("/");
+        router.push("/kham-pha");
       }, 1000);
     }, 1000);
   };

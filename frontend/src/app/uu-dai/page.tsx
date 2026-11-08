@@ -421,7 +421,7 @@ export default function PromotionsPage() {
                 Sao chép mã
               </button>
               <Link
-                href="/"
+                href="/kham-pha"
                 onClick={() => setSelectedVoucher(null)}
                 className="py-2.5 px-3 rounded-xl bg-primary text-white font-bold text-xs hover:bg-primary-dark active:scale-95 transition cursor-pointer text-center"
               >

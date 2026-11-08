@@ -113,7 +113,7 @@ export default function CheckoutPage() {
 
   if (!ready) return <div className="min-h-full flex items-center justify-center text-slate-500">Đang tải đặt chỗ...</div>;
   if (paid && booking) return <div className="min-h-full bg-slate-50 p-6 text-center"><p className="font-bold text-slate-900">Khoản cọc đã được xác nhận.</p><button onClick={() => router.replace(`/ve/${booking.id}`)} className="mt-5 w-full rounded-xl bg-blue-600 py-3 font-bold text-white">Xem vé của bạn</button></div>;
-  if (!valid || !booking) return <div className="min-h-full bg-slate-50 p-6 flex flex-col justify-center text-center"><h2 className="text-xl font-extrabold">Không có ô đang giữ</h2><p className="text-slate-500 text-sm mt-2">Vui lòng chọn ô đỗ trước khi thanh toán cọc.</p><button onClick={() => router.replace("/")} className="mt-5 bg-blue-600 text-white rounded-2xl py-3 font-bold">Tìm bãi đỗ</button></div>;
+  if (!valid || !booking) return <div className="min-h-full bg-slate-50 p-6 flex flex-col justify-center text-center"><h2 className="text-xl font-extrabold">Không có ô đang giữ</h2><p className="text-slate-500 text-sm mt-2">Vui lòng chọn ô đỗ trước khi thanh toán cọc.</p><button onClick={() => router.replace("/kham-pha")} className="mt-5 bg-blue-600 text-white rounded-2xl py-3 font-bold">Tìm bãi đỗ</button></div>;
 
   return <div className="min-h-full flex flex-col bg-[#f1f5f9] text-slate-900">
     <header className="bg-white sticky top-0 z-20 border-b border-slate-100 px-4 py-3 flex items-center justify-between shadow-sm">

@@ -109,7 +109,7 @@ function PaymentContent() {
   if (method === "thanh-cong") return <SuccessScreen booking={booking} vehicle={vehicle} lot={lot} router={router}/>;
   if (method === "that-bai") return <FailedScreen booking={displayBooking} vehicle={vehicle} lot={lot} now={now} provider={getProvider(query.get("provider") || lastMethod)} reason={query.get("reason")} router={router} releaseSpot={releaseSpot} lateIPNRefund={lateIPNRefund}/>;
   if (["vnpay", "momo", "card"].includes(method)) {
-    if (!booking || booking.status !== "holding") return <div className="p-6 bg-slate-50 min-h-full text-center"><h2 className="font-extrabold text-lg">Không có lượt giữ chỗ hợp lệ</h2><button className="mt-5 bg-blue-600 text-white py-3 px-6 rounded-xl font-bold" onClick={() => router.replace("/")}>Về trang chủ</button></div>;
+    if (!booking || booking.status !== "holding") return <div className="p-6 bg-slate-50 min-h-full text-center"><h2 className="font-extrabold text-lg">Không có lượt giữ chỗ hợp lệ</h2><button className="mt-5 bg-blue-600 text-white py-3 px-6 rounded-xl font-bold" onClick={() => router.replace("/kham-pha")}>Về trang chủ</button></div>;
     return <GatewayScreen booking={booking} vehicle={vehicle} lot={lot} provider={activeProvider} remaining={remaining} router={router} releaseSpot={releaseSpot} addToast={addToast}/>;
   }
   return <div className="p-6">Không tìm thấy màn hình thanh toán.</div>;
@@ -179,11 +179,11 @@ function InfoRow({ label, value, copy }: { label: string; value: string; copy?: 
 function SuccessScreen({ booking, vehicle, lot, router }: { booking: Booking | null; vehicle?: { name: string; plate: string; type: string }; lot: { name: string; price: number }; router: ReturnType<typeof useRouter> }) {
   const [now, setNow] = useState(Date.now());
   useEffect(() => { const id = window.setInterval(() => setNow(Date.now()), 1000); return () => window.clearInterval(id); }, []);
-  if (!booking || !["paid", "entered"].includes(booking.status)) return <div className="min-h-full bg-slate-50 p-6 text-center"><p className="text-lg font-bold">Chưa có giao dịch được xác nhận</p><button onClick={() => router.replace("/")} className="mt-5 bg-blue-600 text-white px-6 py-3 rounded-xl font-bold">Trang chủ</button></div>;
+  if (!booking || !["paid", "entered"].includes(booking.status)) return <div className="min-h-full bg-slate-50 p-6 text-center"><p className="text-lg font-bold">Chưa có giao dịch được xác nhận</p><button onClick={() => router.replace("/kham-pha")} className="mt-5 bg-blue-600 text-white px-6 py-3 rounded-xl font-bold">Trang chủ</button></div>;
   const minutes = Math.max(0, Math.ceil(((booking.arrivalExpiresAt || now) - now) / 1000));
   return <div className="min-h-full bg-[#f1f5f9] pb-8">
     <div className="relative bg-gradient-to-b from-emerald-100 via-emerald-50 to-transparent px-5 pt-8 pb-5 text-center">
-      <button onClick={() => router.replace("/")} aria-label="Quay lại" className="absolute top-4 left-4 z-10 w-9 h-9 rounded-full bg-white shadow-sm border border-slate-200/80 grid place-items-center text-slate-700 hover:bg-slate-50 active:scale-95 transition-all">
+      <button onClick={() => router.replace("/kham-pha")} aria-label="Quay lại" className="absolute top-4 left-4 z-10 w-9 h-9 rounded-full bg-white shadow-sm border border-slate-200/80 grid place-items-center text-slate-700 hover:bg-slate-50 active:scale-95 transition-all">
         <ArrowLeft size={19}/>
       </button>
       <div className="mx-auto w-24 h-24 rounded-full bg-white shadow-md grid place-items-center mb-4">
@@ -197,7 +197,7 @@ function SuccessScreen({ booking, vehicle, lot, router }: { booking: Booking | n
     <div className="px-4 space-y-4"><div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 flex items-center justify-between"><div><p className="text-blue-800 text-xs font-extrabold">Đã cọc • Hạn đến bãi</p><p className="text-sm text-slate-700 mt-1">{new Date(booking.arrivalExpiresAt || now).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}</p></div><span className="font-black text-xl tabular-nums text-blue-700">{timeText(minutes)}</span></div>
     <div className="bg-white rounded-3xl overflow-hidden border border-slate-100 shadow-sm"><div className="p-4 flex items-center justify-between border-b border-dashed border-slate-200"><span className="text-xs text-slate-500">Mã giữ chỗ</span><div className="flex items-center"><b className="font-mono text-sm">{booking.id}</b><CopyButton value={booking.id}/></div></div><div className="p-4 space-y-3"><InfoRow label="Bãi đỗ" value={lot.name}/><InfoRow label="Vị trí ô đỗ" value={booking.spotId}/><InfoRow label="Xe đăng ký" value={`${vehicle?.plate || "-"} • ${vehicle?.name || "Xe"}`}/><InfoRow label="Thời gian đỗ" value={booking.startTime && booking.endTime ? `${booking.startTime} - ${booking.endTime} (${booking.estimatedHours || 2} giờ)` : `${booking.estimatedHours || 2} giờ`}/><InfoRow label="Phương thức" value={providerName(booking.paymentMethod || "vnpay")}/></div><div className="bg-slate-50 border-t border-dashed border-slate-200 p-4 space-y-2"><InfoRow label="Tổng phí dự kiến" value={money((booking.estimatedHours || 2) * lot.price)}/><InfoRow label="Cọc đã thanh toán" value={money(DEPOSIT)}/><InfoRow label="Dự kiến trả khi ra bãi" value={money(Math.max(0, (booking.estimatedHours || 2) * lot.price - DEPOSIT))}/></div></div>
     <button onClick={() => router.push(`/ve/${booking.id}`)} className="w-full rounded-2xl bg-blue-600 text-white py-4 font-extrabold flex items-center justify-center gap-2 shadow-md shadow-blue-500/20 active:scale-[0.99] transition-transform"><Ticket size={19}/> Xem vé QR & dẫn đường <ArrowRight size={17}/></button>
-    <button onClick={() => router.replace("/")} className="w-full py-2 text-xs font-bold text-slate-500 hover:text-slate-700">Về trang khám phá</button></div>
+    <button onClick={() => router.replace("/kham-pha")} className="w-full py-2 text-xs font-bold text-slate-500 hover:text-slate-700">Về trang khám phá</button></div>
   </div>;
 }
 
@@ -216,7 +216,7 @@ function FailedScreen({ booking, vehicle, lot, now, provider, reason, router, re
   };
   return <div className="min-h-full bg-[#f1f5f9] pb-8">
     <div className="relative text-center px-5 pt-8 pb-5 bg-gradient-to-b from-rose-100 via-rose-50 to-transparent">
-      <button onClick={() => router.replace("/")} aria-label="Quay lại" className="absolute top-4 left-4 z-10 w-9 h-9 rounded-full bg-white shadow-sm border border-slate-200/80 grid place-items-center text-slate-700 hover:bg-slate-50 active:scale-95 transition-all">
+      <button onClick={() => router.replace("/kham-pha")} aria-label="Quay lại" className="absolute top-4 left-4 z-10 w-9 h-9 rounded-full bg-white shadow-sm border border-slate-200/80 grid place-items-center text-slate-700 hover:bg-slate-50 active:scale-95 transition-all">
         <ArrowLeft size={19}/>
       </button>
       <div className="mx-auto w-24 h-24 bg-white rounded-full shadow-sm grid place-items-center mb-4"><XCircle size={55} strokeWidth={1.5} className="text-rose-500"/></div><h2 className="text-2xl font-black">{reason === "late" ? "Giao dịch đến sau hạn giữ chỗ" : expired ? "Đã hết thời gian giữ chỗ" : "Thanh toán không thành công"}</h2><p className="text-sm text-slate-600 mt-2 leading-6">{reason === "late" ? "Trong kịch bản mô phỏng, kết quả thanh toán đến quá muộn nên vé không được kích hoạt. Không có giao dịch tiền thật hay hoàn tiền thật." : expired ? "Ô đỗ không còn được bảo đảm. Vui lòng chọn lại trước khi thanh toán." : "Giao dịch thử nghiệm bị từ chối. Bạn vẫn có thể thử lại trước khi hết thời gian giữ chỗ."}</p></div>
