@@ -2,6 +2,8 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import routes from "./routes";
+import vnpayRouter from './payment/vnpay';
+import bankRouter from './payment/bank';
 
 dotenv.config();
 
@@ -26,6 +28,8 @@ app.get("/", (req, res) => {
 
 // Main API routes (support both /api/* and root /*)
 app.use("/api", routes);
+app.use('/api/payment', vnpayRouter);
+app.use('/api/payment', bankRouter);
 app.use(routes);
 
 export default app;
