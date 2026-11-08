@@ -8,7 +8,7 @@ export const pool = new Pool({
   port: Number(process.env.DB_PORT) || 5432,
   user: process.env.DB_USER || "postgres",
   password: process.env.DB_PASSWORD || "postgres",
-  database: process.env.DB_NAME || "ez_space",
+  database: process.env.DB_NAME || "postgres",
   max: 20,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,
@@ -97,7 +97,7 @@ export const initDbTables = async () => {
       );
       CREATE INDEX IF NOT EXISTS idx_chat_messages_user_created ON chat_messages (user_id, created_at ASC);
     `);
-    console.log("[Database] Core tables (email_otps, parking_sessions, qr_tickets, audit_logs) initialized successfully.");
+    console.log("[Database] Core tables verified successfully.");
   } catch (error) {
     console.error("[Database] Error initializing tables:", error);
   }

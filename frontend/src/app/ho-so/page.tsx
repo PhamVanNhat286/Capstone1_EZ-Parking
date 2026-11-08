@@ -836,7 +836,7 @@ export default function ProfilePage() {
                 </h2>
               </div>
               <Link
-                href="/"
+                href="/kham-pha"
                 className="inline-flex items-center space-x-1 px-2.5 py-1 bg-blue-50 text-primary border border-blue-200 rounded-xl text-xs font-bold hover:bg-blue-100 active:scale-95 transition-all"
               >
                 <Plus className="w-3.5 h-3.5" />
@@ -854,7 +854,7 @@ export default function ProfilePage() {
                   Bạn chưa lưu bãi đỗ nào. Khám phá các bãi đỗ gần bạn và bấm biểu tượng trái tim để lưu lại nhé!
                 </p>
                 <Link
-                  href="/"
+                  href="/kham-pha"
                   className="mt-3 inline-flex items-center space-x-1.5 px-3.5 py-1.5 bg-blue-50 text-primary border border-blue-200 rounded-xl text-xs font-bold hover:bg-blue-100 active:scale-95 transition-all shadow-sm"
                 >
                   <Plus className="w-3.5 h-3.5" />

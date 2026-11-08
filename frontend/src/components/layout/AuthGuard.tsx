@@ -5,6 +5,7 @@ import { useStore } from "@/store";
 
 const PUBLIC_PATHS = ["/dang-nhap"];
 const ADMIN_PATHS = ["/admin"];
+const IGNORED_FROM_PATHS = ["/", "/kham-pha", "/ho-so", "/dang-nhap"];
 
 function isPublicPath(path: string) {
   return PUBLIC_PATHS.some((p) => path === p || path.startsWith(p + "/"));
@@ -44,15 +45,17 @@ function AuthGuardInner({ children }: { children: React.ReactNode }) {
     const isAdmin = user?.role === "admin" || user?.role === "owner";
 
     if (!user && !isPublicPath(pathname)) {
-      const from = pathname !== "/" ? `?from=${encodeURIComponent(pathname)}` : "";
+
+    const shouldSaveFrom = !IGNORED_FROM_PATHS.includes(pathname);
+    const from = shouldSaveFrom ? `?from=${encodeURIComponent(pathname)}` : "";
       router.replace(`/dang-nhap${from}`);
     } else if (user && isPublicPath(pathname)) {
       const fromParam = searchParams?.get("from");
       const destination =
-        fromParam && fromParam.startsWith("/") ? fromParam : isAdmin ? "/admin" : "/";
+        fromParam && fromParam.startsWith("/") && !IGNORED_FROM_PATHS.includes(fromParam) ? fromParam : isAdmin ? "/admin" : "/kham-pha";
       router.replace(destination);
     } else if (user && !isAdmin && isAdminPath(pathname)) {
-      router.replace("/");
+      router.replace("/kham-pha");
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hydrated, user, pathname]);

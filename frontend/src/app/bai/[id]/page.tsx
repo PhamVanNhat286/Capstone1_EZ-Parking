@@ -46,7 +46,7 @@ function normalizeSlot(s: any): Spot {
   const status: Status = s.status === "available" || s.status === "empty" ? "empty"
     : s.status === "occupied" || s.status === "holding" ? s.status : "disabled";
   return {
-    id: String(s.id), type, status,
+    id: String(s.id), dbId: s.dbId, type, status,
     rowIndex: s.rowIndex, colIndex: s.colIndex, nearExit: !!s.isElevator,
   };
 }
@@ -102,6 +102,7 @@ export default function ParkingMapPage() {
     ((lotId === "1" || lotId === "hai-chau-a") && favoriteLots.some((id) => id === "1" || id === "hai-chau-a")) ||
     ((lotId === "2" || lotId === "cau-rong") && favoriteLots.some((id) => id === "2" || id === "cau-rong"));
   const scrollRef = useRef<HTMLDivElement>(null);
+  const justReservedSpotRef = useRef<string | null>(null);
 
   const [lot, setLot] = useState({ name: fallbackLot.name, address: fallbackLot.address, price: fallbackLot.price });
   const [spots, setSpots] = useState<Spot[]>(() => demoSpots(lotId));
@@ -252,13 +253,25 @@ export default function ParkingMapPage() {
   }, [displayed]);
 
   useEffect(() => {
-    if (selected && (selected.status !== "empty" || !isSuitable(selected, car, needsCharging))) {
+    if (!selected) return;
+
+    // Không báo lỗi nếu ô này vừa được đặt thành công hoặc thuộc lượt giữ chỗ của chính mình
+    if (
+      justReservedSpotRef.current === selected.id ||
+      submitting ||
+      (booking?.spotId === selected.id &&
+        ["holding", "paid", "entered"].includes(booking.status))
+    ) {
+      return;
+    }
+
+    if (selected.status !== "empty" || !isSuitable(selected, car, needsCharging)) {
       if (selected.status !== "empty") {
         toast(`Ô ${selected.id} vừa được người khác giữ hoặc đã có xe đỗ. Vui lòng chọn ô khác!`, "error");
       }
       setSpotId(null);
     }
-  }, [selected, car, needsCharging]);
+  }, [selected, car, needsCharging, booking, submitting]);
 
   function pickVehicle(v: Vehicle) {
     setVehicleId(v.id); setSpotId(null);
@@ -269,8 +282,20 @@ export default function ParkingMapPage() {
     if (!car) { setDialog("choose"); return; }
     if (car.type === "EV" && needsCharging === null) { setDialog("charge"); return; }
     if (s.status !== "empty") {
-      toast(s.status === "occupied" ? "Ô này đã có xe đỗ" : s.status === "holding"
-        ? "Ô đang được người khác giữ" : "Ô đang bảo trì", "error");
+      const isMyHold =
+        booking?.lotId === lotId &&
+        booking?.spotId === s.id &&
+        ["holding", "paid", "entered"].includes(booking.status);
+      toast(
+        s.status === "occupied"
+          ? "Ô này đã có xe đỗ"
+          : s.status === "holding"
+          ? isMyHold
+            ? "Bạn đang giữ ô này"
+            : "Ô đang được người khác giữ"
+          : "Ô đang bảo trì",
+        isMyHold ? "info" : "error"
+      );
       return;
     }
     if (!isSuitable(s, car, needsCharging)) { toast("Ô này không phù hợp với xe của bạn", "error"); return; }
@@ -315,10 +340,14 @@ export default function ParkingMapPage() {
         }
       }
 
+      const targetSpotId = selected.id;
+      justReservedSpotRef.current = targetSpotId;
+      setSpotId(null);
+
       // Giữ chỗ với thời gian bắt đầu và kết thúc
       holdSpot(
         lotId,
-        selected.id,
+        targetSpotId,
         car.id,
         durationInfo.hours,
         startTime,
@@ -327,20 +356,9 @@ export default function ParkingMapPage() {
         serverHoldExpiresAt
       );
 
-      const newBooking = useStore.getState().activeBooking;
-      if (newBooking) {
-        useStore.setState({
-          activeBooking: {
-            ...newBooking,
-            backendId: serverReservationId,
-            estimatedHours: durationInfo.hours,
-            startTime,
-            endTime,
-          }
-        });
-      }
-      toast(`Giữ chỗ thành công ô ${selected.id}!`, "success");
-      router.push(`/dat-cho/${encodeURIComponent(selected.id)}`);
+      // Xóa sạch thông báo và chuyển thẳng sang màn thanh toán cọc
+      useStore.getState().clearToasts();
+      router.push(`/dat-cho/${encodeURIComponent(targetSpotId)}`);
     } catch (err) {
       console.error("Lỗi khi giữ ô đỗ:", err);
       toast("Lỗi kết nối khi giữ chỗ. Vui lòng thử lại!", "error");
@@ -362,7 +380,7 @@ export default function ParkingMapPage() {
     <style>{`@keyframes ez-drive { 0% {top:30px;opacity:0} 10% {opacity:1} 85% {opacity:1} 100% {top:calc(100% - 45px);opacity:0} }`}</style>
     <header className="shrink-0 bg-white px-4 pt-3 pb-2 shadow-sm z-20">
       <div className="flex justify-between gap-2 items-center">
-        <button onClick={() => router.push("/")} className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center"><ChevronLeft size={21} /></button>
+        <button onClick={() => router.push("/kham-pha")} className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center"><ChevronLeft size={21} /></button>
         <div className="min-w-0 flex-1 text-center"><h1 className="font-black text-base text-slate-900 truncate">{lot.name}</h1>
           <p className="text-[11px] text-slate-500 truncate"><MapPin size={11} className="inline mr-1" />{lot.address}</p></div>
         <button

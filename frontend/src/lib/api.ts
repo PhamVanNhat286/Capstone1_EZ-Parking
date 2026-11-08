@@ -1,6 +1,7 @@
 import { Lot } from "./mock/lots";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+const rawApiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+const API_BASE_URL = rawApiUrl.endsWith("/api") ? rawApiUrl : `${rawApiUrl.replace(/\/+$/, "")}/api`;
 
 const LOT_IMAGES: Record<string, { image: string; gradient: string; address: string; district: string; labels: string[] }> = {
   "1": {
