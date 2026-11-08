@@ -1,0 +1,105 @@
+/* =============================================================
+   EZ-SPACE ADMIN - css/pages/lots.css
+   Giao diện riêng cho trang Quản lý & Phê duyệt bãi đỗ (Sơ đồ 2D)
+   ============================================================= */
+
+.slot-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 5), minmax(92px, 1fr));
+  gap: 10px;
+  margin: 12px 0 14px;
+}
+
+.slot {
+  background: #F1F5F9;
+  color: #334155;
+  padding: 12px 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  text-align: center;
+  border: 1px solid #CBD5E1;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.slot small {
+  font-size: 10px;
+  font-weight: 600;
+  opacity: 0.85;
+}
+
+.slot.available {
+  background: #DCFCE7;
+  border-color: #86EFAC;
+  color: #166534;
+}
+
+.slot.holding {
+  background: #FEF9C3;
+  border-color: #FACC15;
+  color: #854D0E;
+}
+
+.slot.occupied {
+  background: #FEE2E2;
+  border-color: #FCA5A5;
+  color: #991B1B;
+}
+
+.slot.unavailable {
+  background: #E2E8F0;
+  border-color: #CBD5E1;
+  color: #64748B;
+}
+
+.lot-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 20px;
+  padding: 14px 18px;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  margin-bottom: 16px;
+}
+
+.lot-meta-grid p {
+  margin: 4px 0;
+  font-size: 13px;
+}
+
+.slot-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  font-size: 12px;
+  color: #475569;
+  margin-bottom: 16px;
+}
+
+.slot-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.slot-legend i {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  display: inline-block;
+}
+
+@media (max-width: 680px) {
+  .lot-meta-grid {
+    grid-template-columns: 1fr;
+  }
+  .slot-grid {
+    grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  }
+}
+

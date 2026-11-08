@@ -1,7 +1,0 @@
-/* Chỉ giao diện form cài đặt. */
-.settings-reference-form {display:flex;flex-direction:column;gap:23px;}
-.settings-reference-form .live-section {flex:none;}
-.settings-reference-form .live-section>.live-settings-grid {margin-top:20px;}
-.settings-reference-form .live-section>.live-info {padding-top:14px;padding-bottom:10px;}
-.settings-reference-form .live-section>.maintenance-toggle {margin-top:20px;}
-.settings-reference-form .live-section>.live-toolbar {border-top:1px solid #e2e8f0;padding:18px 24px;}

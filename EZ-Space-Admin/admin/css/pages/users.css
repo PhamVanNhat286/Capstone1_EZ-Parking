@@ -1,0 +1,27 @@
+/* =============================================================
+   EZ-SPACE ADMIN - css/pages/users.css
+   Giao diện riêng cho trang Quản lý người dùng hệ thống
+   ============================================================= */
+
+.user-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 20px;
+  padding: 14px 18px;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  margin-bottom: 16px;
+}
+
+.user-detail-grid p {
+  margin: 4px 0;
+  font-size: 13px;
+}
+
+@media (max-width: 680px) {
+  .user-detail-grid {
+    grid-template-columns: 1fr;
+  }
+}
+

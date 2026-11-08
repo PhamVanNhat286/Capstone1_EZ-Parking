@@ -1,0 +1,31 @@
+/* =============================================================
+   EZ-SPACE ADMIN - css/pages/logs.css
+   Giao diện riêng cho trang Nhật ký hệ thống & Đối soát
+   ============================================================= */
+
+.json-pre {
+  font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: #0F172A;
+  color: #E2E8F0;
+  border-radius: 10px;
+  padding: 16px;
+  line-height: 1.6;
+  margin: 8px 0 0;
+}
+
+.log-diff-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-top: 14px;
+}
+
+@media (max-width: 680px) {
+  .log-diff-grid {
+    grid-template-columns: 1fr;
+  }
+}
+

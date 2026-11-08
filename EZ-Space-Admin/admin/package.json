@@ -1,0 +1,18 @@
+{
+  "name": "ez-space-admin",
+  "version": "3.0.0",
+  "private": true,
+  "description": "Hệ thống quản trị nền tảng EZ-Space Smart Parking (đồng bộ schema.sql & seed.sql)",
+  "scripts": {
+    "dev": "node server/index.cjs",
+    "start": "node server/index.cjs",
+    "check-db": "node scripts/check-db.cjs",
+    "test": "node tests/verify.cjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "pg": "^8.23.1"
+  }
+}

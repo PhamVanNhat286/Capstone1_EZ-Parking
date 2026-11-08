@@ -1,0 +1,7 @@
+/* =============================================================
+   EZ-SPACE ADMIN - css/style.css
+   File tổng hợp CSS nền tảng, bố cục và thành phần dùng chung
+   ============================================================= */
+@import './base.css';
+@import './layout.css';
+@import './components.css';
