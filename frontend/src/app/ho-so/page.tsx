@@ -1,11 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
-  Signal,
-  Wifi,
   Camera,
   BadgeCheck,
   Pencil,
@@ -32,11 +30,18 @@ import {
   X,
   AlertTriangle,
   Image as ImageIcon,
+  ShieldCheck,
+  FileText,
+  SwitchCamera,
+  RotateCcw,
+  RefreshCw,
+  Check,
 } from "lucide-react";
 import { clsx } from "clsx";
 import { useStore, Vehicle } from "@/store";
-import { lots } from "@/lib/mock/lots";
-import { updateProfileApi, changePasswordApi, getMeApi } from "@/lib/api";
+import { lots, Lot } from "@/lib/mock/lots";
+import { updateProfileApi, changePasswordApi, getMeApi, getLotsApi, addVehicleApi, updateVehicleApi, deleteVehicleApi } from "@/lib/api";
+import { Sedan4SeatsIcon, Suv7SeatsIcon, EvCarIcon } from "@/components/ui/VehicleIcons";
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -44,8 +49,11 @@ export default function ProfilePage() {
   // Store
   const user = useStore((s) => s.user);
   const updateUser = useStore((s) => s.updateUser);
+  const setUserAvatar = useStore((s) => s.setUserAvatar);
+  const removeUserAvatar = useStore((s) => s.removeUserAvatar);
   const logout = useStore((s) => s.logout);
   const vehicles = useStore((s) => s.vehicles);
+  const setVehicles = useStore((s) => s.setVehicles);
   const addVehicle = useStore((s) => s.addVehicle);
   const updateVehicle = useStore((s) => s.updateVehicle);
   const deleteVehicle = useStore((s) => s.deleteVehicle);
@@ -53,28 +61,17 @@ export default function ProfilePage() {
   const settings = useStore((s) => s.settings);
   const setSettings = useStore((s) => s.setSettings);
   const history = useStore((s) => s.history);
+  const favoriteLots = useStore((s) => s.favoriteLots || []);
+  const toggleFavoriteLot = useStore((s) => s.toggleFavoriteLot);
 
   // Fallback demo user if not logged in
   const currentUser = user || {
     name: "Phạm Minh",
     email: "minh@example.com",
     phone: "0935313826",
+    avatar: "",
     isLoggedIn: true,
   };
-
-  // Status bar real-time clock
-  const [timeStr, setTimeStr] = useState("09:41");
-  useEffect(() => {
-    const updateTime = () => {
-      const d = new Date();
-      const h = String(d.getHours()).padStart(2, "0");
-      const m = String(d.getMinutes()).padStart(2, "0");
-      setTimeStr(`${h}:${m}`);
-    };
-    updateTime();
-    const timer = setInterval(updateTime, 10000);
-    return () => clearInterval(timer);
-  }, []);
 
   // Toast state
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -92,6 +89,18 @@ export default function ProfilePage() {
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
   const [isAvatarSheetOpen, setIsAvatarSheetOpen] = useState(false);
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
+  const [isPolicyModalOpen, setIsPolicyModalOpen] = useState(false);
+
+  // Camera & Avatar state
+  const [isCameraModalOpen, setIsCameraModalOpen] = useState(false);
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
+  const [isCameraLoading, setIsCameraLoading] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [cameraFacing, setCameraFacing] = useState<"user" | "environment">("user");
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const cameraInputRef = useRef<HTMLInputElement | null>(null);
 
   // Profile Form state
   const [nameInput, setNameInput] = useState(currentUser.name);
@@ -111,7 +120,18 @@ export default function ProfilePage() {
               name: res.data.user.full_name,
               email: res.data.user.email,
               phone: res.data.user.phone,
+              avatar: res.data.user.avatar_url || "",
             });
+            if (Array.isArray(res.data.vehicles)) {
+              setVehicles(
+                res.data.vehicles.map((v: any) => ({
+                  id: String(v.id),
+                  name: v.vehicle_name || v.license_plate,
+                  plate: v.license_plate,
+                  type: v.vehicle_type === "EV" ? "EV" : v.vehicle_type === "SUV" ? "SUV" : "Sedan",
+                }))
+              );
+            }
           }
         })
         .catch(() => {});
@@ -131,11 +151,13 @@ export default function ProfilePage() {
   const [newVName, setNewVName] = useState("");
   const [newVPlate, setNewVPlate] = useState("");
   const [newVDefault, setNewVDefault] = useState(false);
+  const [newEvBodyType, setNewEvBodyType] = useState<"Sedan" | "SUV">("SUV");
 
   // Edit Vehicle Form state
   const [editVName, setEditVName] = useState("");
   const [editVPlate, setEditVPlate] = useState("");
   const [editVType, setEditVType] = useState<"Sedan" | "SUV" | "EV">("SUV");
+  const [editEvBodyType, setEditEvBodyType] = useState<"Sedan" | "SUV">("SUV");
 
   // Change Password state
   const [oldPassword, setOldPassword] = useState("");
@@ -146,33 +168,34 @@ export default function ProfilePage() {
   // GPS state
   const [gpsEnabled, setGpsEnabled] = useState(true);
 
-  // Favorite lots (starts empty, persisted in localStorage)
-  const [favoriteLotIds, setFavoriteLotIds] = useState<string[]>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const saved = localStorage.getItem("ez_favorite_lots");
-        return saved ? JSON.parse(saved) : [];
-      } catch {
-        return [];
-      }
-    }
-    return [];
-  });
-
+  // Favorite lots synced with global store and all lots list
+  const [allLots, setAllLots] = useState<Lot[]>(lots);
   useEffect(() => {
-    try {
-      localStorage.setItem("ez_favorite_lots", JSON.stringify(favoriteLotIds));
-    } catch {}
-  }, [favoriteLotIds]);
+    getLotsApi().then((apiLots) => {
+      if (apiLots && apiLots.length > 0) {
+        const merged: Lot[] = [...lots];
+        apiLots.forEach((al) => {
+          if (!merged.some((m) => m.id === al.id || m.name.toLowerCase() === al.name.toLowerCase())) {
+            merged.push(al);
+          }
+        });
+        setAllLots(merged);
+      }
+    });
+  }, []);
+
+  const isFav = (lotId: string) =>
+    favoriteLots.includes(lotId) ||
+    ((lotId === "3" || lotId === "san-bay-t1") && favoriteLots.some((id) => id === "3" || id === "san-bay-t1")) ||
+    ((lotId === "1" || lotId === "hai-chau-a") && favoriteLots.some((id) => id === "1" || id === "hai-chau-a")) ||
+    ((lotId === "2" || lotId === "cau-rong") && favoriteLots.some((id) => id === "2" || id === "cau-rong"));
+
+  const displayFavLots = allLots.filter((lot: Lot) => isFav(lot.id));
 
   const toggleFavorite = (lotId: string, lotName: string) => {
-    if (favoriteLotIds.includes(lotId)) {
-      setFavoriteLotIds((prev) => prev.filter((id) => id !== lotId));
-      showToast(`Đã bỏ ${lotName} khỏi danh sách yêu thích`);
-    } else {
-      setFavoriteLotIds((prev) => [...prev, lotId]);
-      showToast(`Đã thêm ${lotName} vào vị trí yêu thích`);
-    }
+    const currentlyFav = isFav(lotId);
+    toggleFavoriteLot(lotId);
+    showToast(currentlyFav ? `Đã bỏ ${lotName} khỏi danh sách yêu thích` : `Đã thêm ${lotName} vào vị trí yêu thích`);
   };
 
   // Real calculation of parking hours from completed bookings
@@ -193,6 +216,188 @@ export default function ProfilePage() {
         .join("")
         .toUpperCase()
     : "PM";
+
+  // Helper xử lý ảnh thành avatar vuông 400x400 sắc nét và nén nhẹ
+  const processImageToAvatar = (fileOrBlob: Blob): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          const size = 400;
+          canvas.width = size;
+          canvas.height = size;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) {
+            resolve(img.src);
+            return;
+          }
+          const minDim = Math.min(img.width, img.height);
+          const sx = (img.width - minDim) / 2;
+          const sy = (img.height - minDim) / 2;
+          ctx.drawImage(img, sx, sy, minDim, minDim, 0, 0, size, size);
+          resolve(canvas.toDataURL("image/jpeg", 0.85));
+        };
+        img.onerror = reject;
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(fileOrBlob);
+    });
+  };
+
+  const handleSaveAvatar = async (dataUrl: string) => {
+    setUserAvatar(dataUrl);
+    const token = user?.token || (typeof window !== "undefined" ? localStorage.getItem("ezspace_token") : null);
+    if (token) {
+      try {
+        await updateProfileApi(token, { avatar_url: dataUrl });
+      } catch (err) {
+        console.warn("Lưu avatar vào server thất bại:", err);
+      }
+    }
+    showToast("Cập nhật ảnh đại diện thành công!");
+  };
+
+  const handleRemoveAvatar = async () => {
+    removeUserAvatar();
+    setIsAvatarSheetOpen(false);
+    const token = user?.token || (typeof window !== "undefined" ? localStorage.getItem("ezspace_token") : null);
+    if (token) {
+      try {
+        await updateProfileApi(token, { avatar_url: "" });
+      } catch (err) {
+        console.warn("Lỗi gỡ avatar trên server:", err);
+      }
+    }
+    showToast("Đã gỡ ảnh đại diện");
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      showToast("Đang tải và tối ưu ảnh...");
+      const compressed = await processImageToAvatar(file);
+      await handleSaveAvatar(compressed);
+      setIsAvatarSheetOpen(false);
+      stopCamera();
+    } catch (err) {
+      showToast("Không thể tải ảnh này, vui lòng thử lại");
+    } finally {
+      if (e.target) e.target.value = "";
+    }
+  };
+
+  // Logic Camera Chụp Trực Tiếp
+  const startCamera = async (facing: "user" | "environment" = "user") => {
+    setIsCameraLoading(true);
+    setCameraError(null);
+    setCapturedPhoto(null);
+    try {
+      if (cameraStream) {
+        cameraStream.getTracks().forEach((track) => track.stop());
+      }
+      if (!navigator?.mediaDevices?.getUserMedia) {
+        throw new Error("Trình duyệt không hỗ trợ chụp ảnh trực tiếp");
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: facing,
+          width: { ideal: 640 },
+          height: { ideal: 640 },
+        },
+        audio: false,
+      });
+      setCameraStream(stream);
+      setIsCameraLoading(false);
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play().catch(() => {});
+      }
+    } catch (err: any) {
+      console.warn("Camera error:", err);
+      setIsCameraLoading(false);
+      setCameraError(
+        err.name === "NotAllowedError" || err.name === "PermissionDeniedError"
+          ? "Bạn chưa cấp quyền camera. Vui lòng cho phép truy cập camera hoặc chọn ảnh từ máy."
+          : "Không kết nối được camera. Bạn có thể sử dụng camera điện thoại/thiết bị."
+      );
+    }
+  };
+
+  const stopCamera = () => {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach((track) => track.stop());
+      setCameraStream(null);
+    }
+    setIsCameraModalOpen(false);
+    setCapturedPhoto(null);
+    setCameraError(null);
+  };
+
+  const takeSnapshot = () => {
+    if (!videoRef.current) return;
+    const video = videoRef.current;
+    const canvas = document.createElement("canvas");
+    const size = 480;
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const vWidth = video.videoWidth || 640;
+    const vHeight = video.videoHeight || 640;
+    const minDim = Math.min(vWidth, vHeight);
+    const sx = (vWidth - minDim) / 2;
+    const sy = (vHeight - minDim) / 2;
+
+    if (cameraFacing === "user") {
+      ctx.translate(size, 0);
+      ctx.scale(-1, 1);
+    }
+    ctx.drawImage(video, sx, sy, minDim, minDim, 0, 0, size, size);
+    const photoData = canvas.toDataURL("image/jpeg", 0.88);
+    setCapturedPhoto(photoData);
+
+    if (cameraStream) {
+      cameraStream.getTracks().forEach((track) => track.stop());
+      setCameraStream(null);
+    }
+  };
+
+  const confirmPhoto = async () => {
+    if (!capturedPhoto) return;
+    await handleSaveAvatar(capturedPhoto);
+    stopCamera();
+  };
+
+  const retakePhoto = () => {
+    setCapturedPhoto(null);
+    startCamera(cameraFacing);
+  };
+
+  const toggleCameraFacing = () => {
+    const nextFacing = cameraFacing === "user" ? "environment" : "user";
+    setCameraFacing(nextFacing);
+    startCamera(nextFacing);
+  };
+
+  useEffect(() => {
+    if (isCameraModalOpen && cameraStream && videoRef.current) {
+      videoRef.current.srcObject = cameraStream;
+      videoRef.current.play().catch(() => {});
+    }
+  }, [isCameraModalOpen, cameraStream]);
+
+  useEffect(() => {
+    return () => {
+      if (cameraStream) {
+        cameraStream.getTracks().forEach((track) => track.stop());
+      }
+    };
+  }, [cameraStream]);
 
   // Form Handlers
   const handleSaveProfile = async (e: React.FormEvent) => {
@@ -246,43 +451,90 @@ export default function ProfilePage() {
     showToast("Cập nhật hồ sơ thành công!");
   };
 
-  const handleSaveNewVehicle = (e: React.FormEvent) => {
+  const handleSaveNewVehicle = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newVName.trim() || !newVPlate.trim()) return;
 
+    const plateUpper = newVPlate.trim().toUpperCase();
+    const token = user?.token || (typeof window !== "undefined" ? localStorage.getItem("ezspace_token") : null);
+
+    let createdId = "v-" + Date.now();
+    if (token) {
+      try {
+        const res = await addVehicleApi(token, {
+          license_plate: plateUpper,
+          vehicle_name: newVName.trim(),
+          vehicle_type: newVType,
+        });
+        if (res.success && res.data) {
+          createdId = String(res.data.id);
+        } else if (!res.success) {
+          showToast(res.message || "Không thể thêm xe vào hệ thống");
+          return;
+        }
+      } catch (err) {
+        console.warn("Lỗi lưu xe backend:", err);
+      }
+    }
+
     const newVehicle: Vehicle = {
-      id: "v-" + Date.now(),
+      id: createdId,
       name: newVName.trim(),
-      plate: newVPlate.trim().toUpperCase(),
+      plate: plateUpper,
       type: newVType,
-      isPrimary: newVDefault || vehicles.length === 0,
-      evBodyType: newVType === "EV" ? "SUV" : undefined,
+      evBodyType: newVType === "EV" ? newEvBodyType : undefined,
     };
 
     addVehicle(newVehicle);
-    if (newVDefault) {
-      setDefaultVehicle(newVehicle.id);
-    }
-
     setNewVName("");
     setNewVPlate("");
     setNewVDefault(false);
+    setNewEvBodyType("SUV");
     setIsAddVehicleOpen(false);
     showToast(`Đã thêm xe ${newVehicle.plate} thành công!`);
   };
 
-  const handleSaveEditVehicle = (e: React.FormEvent) => {
+  const handleSaveEditVehicle = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isEditVehicleOpen || !editVName.trim() || !editVPlate.trim()) return;
+
+    const token = user?.token || (typeof window !== "undefined" ? localStorage.getItem("ezspace_token") : null);
+    if (token) {
+      try {
+        await updateVehicleApi(token, isEditVehicleOpen.id, {
+          vehicle_name: editVName.trim(),
+          license_plate: editVPlate.trim().toUpperCase(),
+          vehicle_type: editVType,
+        });
+      } catch (err) {
+        console.warn("Lỗi sửa xe backend:", err);
+      }
+    }
 
     updateVehicle(isEditVehicleOpen.id, {
       name: editVName.trim(),
       plate: editVPlate.trim().toUpperCase(),
       type: editVType,
+      evBodyType: editVType === "EV" ? editEvBodyType : undefined,
     });
 
     setIsEditVehicleOpen(null);
     showToast("Đã cập nhật thông tin xe!");
+  };
+
+  const handleDeleteVehicle = async (v: Vehicle) => {
+    if (confirm(`Bạn có chắc muốn xóa xe ${v.plate}?`)) {
+      const token = user?.token || (typeof window !== "undefined" ? localStorage.getItem("ezspace_token") : null);
+      if (token) {
+        try {
+          await deleteVehicleApi(token, v.id);
+        } catch (err) {
+          console.warn("Lỗi xóa xe backend:", err);
+        }
+      }
+      deleteVehicle(v.id);
+      showToast(`Đã xóa xe ${v.plate} thành công`);
+    }
   };
 
   const handlePasswordInput = (val: string) => {
@@ -349,43 +601,14 @@ export default function ProfilePage() {
 
   return (
     <div className="relative min-h-full bg-slate-50 flex flex-col font-sans text-slate-800 antialiased selection:bg-blue-100 selection:text-blue-700">
-      {/* Dynamic Island & Status Bar Cố Định */}
-      <div className="sticky top-0 left-0 right-0 h-11 z-40 bg-slate-50/80 backdrop-blur-md flex items-center justify-between px-6 pt-1 pointer-events-none select-none">
-        <span className="text-[13px] font-bold text-slate-900 tracking-tight" suppressHydrationWarning>
-          {timeStr}
-        </span>
-
-        {/* Dynamic Island Capsule */}
-        <div className="w-24 h-6 bg-slate-950 rounded-full flex items-center justify-end px-2 space-x-1.5 shadow-sm">
-          <div className="w-2.5 h-2.5 rounded-full bg-slate-900 border border-slate-800"></div>
-          <div className="w-2.5 h-2.5 rounded-full bg-blue-950 border border-blue-900"></div>
-        </div>
-
-        {/* Icon Pin, Sóng, Wifi */}
-        <div className="flex items-center space-x-1.5 text-slate-900">
-          <Signal className="w-3.5 h-3.5" />
-          <Wifi className="w-3.5 h-3.5" />
-          <div className="w-5 h-2.5 border border-slate-800 rounded-sm p-0.5 flex items-center">
-            <div className="h-full w-3/4 bg-slate-900 rounded-[1px]"></div>
-          </div>
-        </div>
-      </div>
 
       {/* Vùng Nội Dung Cuộn Chính */}
       <div className="flex-1 overflow-y-auto no-scrollbar pb-24">
         {/* 4.1 Header Hồ Sơ (Hero Card) */}
-        <div className="relative bg-gradient-to-b from-[#EFF6FF] via-[#DBEAFE]/70 to-[#EFF6FF]/30 pt-3 pb-6 px-5 rounded-b-[32px] border-b border-blue-100/60 overflow-hidden">
+        <div className="relative bg-gradient-to-b from-[#EFF6FF] via-[#DBEAFE]/70 to-[#EFF6FF]/30 pt-6 pb-6 px-5 rounded-b-[32px] border-b border-blue-100/60 overflow-hidden">
           {/* Background Blobs nhẹ nhàng */}
           <div className="absolute -top-10 -right-10 w-44 h-44 bg-blue-200/50 rounded-full blur-2xl pointer-events-none animate-float-blob" />
           <div className="absolute top-20 -left-12 w-36 h-36 bg-sky-200/40 rounded-full blur-xl pointer-events-none" />
-
-          {/* Top bar trong header: Tiêu đề */}
-          <div className="relative z-10 flex items-center justify-between mb-4">
-            <div className="flex items-center space-x-2">
-              <span className="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
-              <span className="text-xs font-bold uppercase tracking-wider text-primary">Hồ sơ khách hàng</span>
-            </div>
-          </div>
 
           {/* Avatar & Thông tin cá nhân */}
           <div className="relative z-10 flex flex-col items-center text-center">
@@ -394,14 +617,22 @@ export default function ProfilePage() {
               <div className="absolute inset-0 rounded-full bg-blue-400/30 blur-md animate-pulse-ring"></div>
               <div
                 id="avatarContainer"
-                className="relative w-20 h-20 rounded-full bg-gradient-to-tr from-blue-700 via-primary to-blue-400 text-white font-extrabold text-2xl flex items-center justify-center shadow-lg border-4 border-white"
+                className="relative w-20 h-20 rounded-full bg-gradient-to-tr from-blue-700 via-primary to-blue-400 text-white font-extrabold text-2xl flex items-center justify-center shadow-lg border-4 border-white overflow-hidden"
               >
-                {initials}
+                {currentUser.avatar ? (
+                  <img
+                    src={currentUser.avatar}
+                    alt={currentUser.name}
+                    className="w-full h-full object-cover rounded-full"
+                  />
+                ) : (
+                  <span>{initials}</span>
+                )}
               </div>
               {/* Nút camera nhỏ đổi ảnh */}
               <button
                 onClick={() => setIsAvatarSheetOpen(true)}
-                className="absolute bottom-0 right-0 w-7 h-7 bg-white text-primary rounded-full shadow-md border border-slate-100 flex items-center justify-center hover:bg-slate-50 active:scale-90 transition-transform"
+                className="absolute bottom-0 right-0 w-7 h-7 bg-white text-primary rounded-full shadow-md border border-slate-100 flex items-center justify-center hover:bg-slate-50 active:scale-90 transition-transform cursor-pointer"
                 aria-label="Đổi ảnh đại diện"
               >
                 <Camera className="w-3.5 h-3.5" />
@@ -472,148 +703,127 @@ export default function ProfilePage() {
                   <Car className="w-4 h-4 text-primary" />
                   <span>Xe của tôi</span>
                 </h2>
-                <p className="text-[11px] text-slate-500">Chọn xe đặt chỗ nhanh & gợi ý ô đỗ tối ưu</p>
               </div>
               <button
                 onClick={() => setIsAddVehicleOpen(true)}
-                className="inline-flex items-center space-x-1 px-3 py-1.5 bg-primary text-white rounded-xl text-xs font-bold shadow-sm hover:bg-primary-dark active:scale-95 transition-all"
+                className="inline-flex items-center space-x-1 px-3 py-1.5 bg-primary text-white rounded-xl text-xs font-bold shadow-sm hover:bg-primary-dark active:scale-95 transition-all cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Thêm xe</span>
               </button>
             </div>
 
-            {/* Carousel cuộn ngang các thẻ xe (Snap) */}
-            <div className="flex space-x-3 overflow-x-auto no-scrollbar snap-x snap-mandatory py-1 px-0.5">
-              {vehicles.map((v) => {
-                const isSuv = v.type === "SUV";
-                const isEv = v.type === "EV";
-                const isPrimary = v.isPrimary;
-
-                return (
-                  <div
-                    key={v.id}
-                    className={clsx(
-                      "snap-center shrink-0 w-[275px] bg-white rounded-2xl p-3.5 shadow-soft relative flex flex-col justify-between transition-all",
-                      isPrimary ? "border-2 border-primary/30" : "border border-slate-200"
-                    )}
-                  >
-                    <div>
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-center space-x-2.5">
-                          <div
+            {/* Danh sách xe xếp dọc (Vertical Stack) hoặc Empty State */}
+            {vehicles.length === 0 ? (
+              <div className="bg-white rounded-2xl p-6 text-center border border-dashed border-slate-300">
+                <Car className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+                <p className="text-sm font-semibold text-slate-700">Chưa có phương tiện nào</p>
+                <p className="text-xs text-slate-400 mt-1 mb-4">Thêm xe để hệ thống nhận diện biển số và gợi ý ô đỗ tối ưu</p>
+                <button
+                  onClick={() => setIsAddVehicleOpen(true)}
+                  className="inline-flex items-center space-x-1.5 px-4 py-2 bg-primary text-white rounded-xl text-xs font-bold shadow-sm hover:bg-primary-dark transition-all cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Thêm xe ngay</span>
+                </button>
+              </div>
+            ) : (
+              <div className="flex flex-col space-y-3 py-1">
+                {/* Chỉ hiện xe đầu tiên */}
+                {(() => {
+                  const v = vehicles[0];
+                  const isSuv = v.type === "SUV";
+                  const isEv = v.type === "EV";
+                  return (
+                    <div
+                      key={v.id}
+                      className="w-full bg-white rounded-2xl p-3.5 shadow-soft relative flex flex-col justify-between border border-slate-200 hover:border-slate-300 transition-all"
+                    >
+                      <div>
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-center space-x-2.5">
+                            <div
+                              className={clsx(
+                                "w-10 h-10 rounded-xl flex items-center justify-center border",
+                                isEv
+                                  ? "bg-emerald-50 text-emerald-600 border-emerald-100"
+                                  : isSuv
+                                  ? "bg-orange-50 text-orange-600 border-orange-100"
+                                  : "bg-blue-50 text-primary border-blue-100"
+                              )}
+                            >
+                              {isEv ? (
+                                <EvCarIcon className="w-5 h-5" />
+                              ) : isSuv ? (
+                                <Suv7SeatsIcon className="w-5 h-5" />
+                              ) : (
+                                <Sedan4SeatsIcon className="w-5 h-5" />
+                              )}
+                            </div>
+                            <div>
+                              <h3 className="text-sm font-bold text-slate-900">{v.name}</h3>
+                            </div>
+                          </div>
+                          <span
                             className={clsx(
-                              "w-10 h-10 rounded-xl flex items-center justify-center border",
+                              "px-2 py-0.5 rounded-md text-[10px] font-bold uppercase",
                               isEv
-                                ? "bg-emerald-50 text-emerald-600 border-emerald-100"
+                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
                                 : isSuv
-                                ? "bg-orange-50 text-orange-600 border-orange-100"
-                                : "bg-blue-50 text-primary border-blue-100"
+                                ? "bg-orange-50 text-orange-700 border border-orange-200"
+                                : "bg-blue-50 text-blue-700 border border-blue-200"
                             )}
                           >
-                            {isEv ? (
-                              <Zap className="w-5 h-5" />
-                            ) : isSuv ? (
-                              <Truck className="w-5 h-5" />
-                            ) : (
-                              <Car className="w-5 h-5" />
-                            )}
-                          </div>
-                          <div>
-                            <h3 className="text-sm font-bold text-slate-900">{v.name}</h3>
-                            <span className="text-[10px] text-slate-400 font-medium">
-                              {isEv ? "Điện thuần • Sạc 60kW" : isSuv ? "7 chỗ máy dầu" : "5 chỗ số tự động"}
-                            </span>
-                          </div>
-                        </div>
-
-                        {isPrimary ? (
-                          <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-bold flex items-center space-x-1">
-                            <Star className="w-3 h-3 fill-amber-400 text-amber-500" />
-                            <span>Mặc định</span>
+                            {isEv ? (v.evBodyType ? `EV • ${v.evBodyType}` : "EV") : v.type}
                           </span>
-                        ) : (
+                        </div>
+                        <div className="mt-3 bg-slate-50 border border-slate-800/80 rounded-lg p-2 shadow-inner flex items-center justify-between px-3">
+                          <span className="text-[10px] font-bold text-slate-400">VN</span>
+                          <span className="text-sm font-bold tracking-wider text-slate-900 flex-1 text-center pr-4">
+                            {v.plate}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-end text-xs">
+                        <div className="flex items-center space-x-2">
                           <button
                             onClick={() => {
-                              setDefaultVehicle(v.id);
-                              showToast(`Đã chọn ${v.name} làm xe mặc định`);
+                              setIsEditVehicleOpen(v);
+                              setEditVName(v.name);
+                              setEditVPlate(v.plate);
+                              setEditVType(v.type);
+                              setEditEvBodyType(v.evBodyType || "SUV");
                             }}
-                            className="text-[10px] font-bold text-primary hover:underline px-1.5 py-0.5 bg-blue-50 rounded"
+                            className="text-slate-500 hover:text-primary p-1 active:scale-90 cursor-pointer"
+                            aria-label="Sửa xe"
                           >
-                            Đặt mặc định
+                            <Pencil className="w-3.5 h-3.5" />
                           </button>
-                        )}
-                      </div>
-
-                      {/* Biển số xe kiểu Việt Nam */}
-                      <div className="mt-3 bg-slate-50 border border-slate-800/80 rounded-lg p-2 text-center shadow-inner flex items-center justify-between px-3">
-                        <span className="text-[10px] font-bold text-slate-400">VN</span>
-                        <span className="text-sm font-black tracking-widest text-slate-900 font-mono">
-                          {v.plate}
-                        </span>
-                        <span
-                          className={clsx(
-                            "px-1.5 py-0.5 rounded text-[9px] font-bold uppercase",
-                            isEv
-                              ? "bg-emerald-100 text-emerald-700"
-                              : isSuv
-                              ? "bg-orange-100 text-orange-700"
-                              : "bg-blue-100 text-primary"
-                          )}
-                        >
-                          {isEv ? "EV SẠC" : v.type}
-                        </span>
+                          <button
+                            onClick={() => handleDeleteVehicle(v)}
+                            className="text-slate-400 hover:text-red-500 p-1 active:scale-90 cursor-pointer"
+                            aria-label="Xóa xe"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
                     </div>
-
-                    {/* Thao tác xe */}
-                    <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs">
-                      <span className="text-[11px] text-emerald-600 font-medium flex items-center space-x-1">
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                        <span>
-                          {isEv ? "Khớp trụ sạc EV" : isSuv ? "Khớp ô lớn B2" : "Khớp ô tiêu chuẩn"}
-                        </span>
-                      </span>
-                      <div className="flex items-center space-x-2">
-                        <button
-                          onClick={() => {
-                            setIsEditVehicleOpen(v);
-                            setEditVName(v.name);
-                            setEditVPlate(v.plate);
-                            setEditVType(v.type);
-                          }}
-                          className="text-slate-500 hover:text-primary p-1 active:scale-90"
-                          aria-label="Sửa xe"
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={() => {
-                            if (confirm(`Bạn có chắc muốn xóa xe ${v.plate}?`)) {
-                              deleteVehicle(v.id);
-                              showToast(`Đã xóa xe ${v.plate} thành công`);
-                            }
-                          }}
-                          className="text-slate-400 hover:text-red-500 p-1 active:scale-90"
-                          aria-label="Xóa xe"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Indicator Dots & Ghi chú xe */}
-            <div className="flex items-center justify-between mt-2 px-1">
-              <div className="flex space-x-1.5">
-                <span className="w-4 h-1.5 rounded-full bg-primary"></span>
-                <span className="w-1.5 h-1.5 rounded-full bg-slate-300"></span>
+                  );
+                })()}
+                {/* Nút xem thêm nếu có nhiều hơn 1 xe - Chuyển sang trang danh sách xe riêng */}
+                {vehicles.length > 1 && (
+                  <Link
+                    href="/xe-cua-toi"
+                    className="w-full flex items-center justify-center space-x-2 py-2.5 rounded-2xl border border-dashed border-slate-300 bg-white text-slate-500 text-xs font-bold hover:bg-slate-50 active:scale-95 transition-all cursor-pointer"
+                  >
+                    <Sedan4SeatsIcon className="w-3.5 h-3.5" />
+                    <span>Xem tất cả ({vehicles.length} xe)</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </Link>
+                )}
               </div>
-              <span className="text-[10px] text-slate-500 italic">💡 Gợi ý ô đỗ theo loại xe SUV / EV</span>
-            </div>
+            )}
           </section>
 
           {/* VỊ TRÍ ĐỖ YÊU THÍCH */}
@@ -624,10 +834,9 @@ export default function ProfilePage() {
                   <Heart className="w-4 h-4 text-rose-500 fill-rose-500" />
                   <span>Vị trí đỗ yêu thích</span>
                 </h2>
-                <p className="text-[11px] text-slate-500">Bãi đỗ thường xuyên & lối vào nhanh</p>
               </div>
               <Link
-                href="/"
+                href="/kham-pha"
                 className="inline-flex items-center space-x-1 px-2.5 py-1 bg-blue-50 text-primary border border-blue-200 rounded-xl text-xs font-bold hover:bg-blue-100 active:scale-95 transition-all"
               >
                 <Plus className="w-3.5 h-3.5" />
@@ -635,7 +844,7 @@ export default function ProfilePage() {
               </Link>
             </div>
 
-            {favoriteLotIds.length === 0 ? (
+            {displayFavLots.length === 0 ? (
               <div className="bg-white rounded-2xl p-5 text-center border border-dashed border-slate-200 shadow-sm">
                 <div className="w-10 h-10 rounded-full bg-rose-50 text-rose-400 flex items-center justify-center mx-auto mb-2">
                   <Heart className="w-5 h-5" />
@@ -645,7 +854,7 @@ export default function ProfilePage() {
                   Bạn chưa lưu bãi đỗ nào. Khám phá các bãi đỗ gần bạn và bấm biểu tượng trái tim để lưu lại nhé!
                 </p>
                 <Link
-                  href="/"
+                  href="/kham-pha"
                   className="mt-3 inline-flex items-center space-x-1.5 px-3.5 py-1.5 bg-blue-50 text-primary border border-blue-200 rounded-xl text-xs font-bold hover:bg-blue-100 active:scale-95 transition-all shadow-sm"
                 >
                   <Plus className="w-3.5 h-3.5" />
@@ -654,10 +863,8 @@ export default function ProfilePage() {
               </div>
             ) : (
               <div className="space-y-2.5">
-                {lots
-                  .filter((lot) => favoriteLotIds.includes(lot.id))
-                  .map((lot, idx) => {
-                    const isFav = favoriteLotIds.includes(lot.id);
+                {displayFavLots.map((lot: Lot, idx: number) => {
+                    const isLotFav = isFav(lot.id);
                     const quenSpot = idx === 0 ? "A-07" : "C-12";
                     const floorLabel = idx === 0 ? "Tầng B2" : "Mặt đất";
 
@@ -695,7 +902,7 @@ export default function ProfilePage() {
                           <Heart
                             className={clsx(
                               "w-4 h-4 transition-colors",
-                              isFav ? "text-rose-500 fill-rose-500" : "text-slate-300"
+                              isLotFav ? "text-rose-500 fill-rose-500" : "text-slate-300"
                             )}
                           />
                         </button>
@@ -714,31 +921,26 @@ export default function ProfilePage() {
             </h2>
 
             <div className="divide-y divide-slate-100 text-sm">
-              {/* Phương thức thanh toán */}
-              <div className="py-2.5 flex items-center justify-between">
+              {/* Phương thức thanh toán - Link sang trang riêng */}
+              <Link
+                href="/phuong-thuc-thanh-toan"
+                className="w-full py-2.5 flex items-center justify-between text-left hover:bg-slate-50 active:bg-slate-100 rounded-lg px-1 transition-colors cursor-pointer"
+              >
                 <div className="flex items-center space-x-3">
                   <div className="w-8 h-8 rounded-xl bg-blue-50 text-primary flex items-center justify-center">
                     <CreditCard className="w-4 h-4" />
                   </div>
                   <div>
-                    <div className="font-bold text-slate-800 text-xs">Phương thức cọc</div>
-                    <div className="text-[11px] text-slate-400">Sandbox VNPay, MoMo QR</div>
+                    <div className="font-bold text-slate-800 text-xs">Phương thức thanh toán</div>
                   </div>
                 </div>
-                <div className="flex items-center space-x-1.5">
-                  <span className="px-2 py-0.5 bg-blue-50 text-blue-700 font-bold text-[10px] rounded-md border border-blue-100">
-                    VNPay
-                  </span>
-                  <span className="px-2 py-0.5 bg-pink-50 text-pink-700 font-bold text-[10px] rounded-md border border-pink-100">
-                    MoMo
-                  </span>
-                </div>
-              </div>
+                <ChevronRight className="w-4 h-4 text-slate-400" />
+              </Link>
 
               {/* Ưu đãi & voucher */}
-              <button
-                onClick={() => showToast("Bạn có 2 phiếu giảm giá 20% đặt cọc!")}
-                className="w-full py-2.5 flex items-center justify-between text-left hover:bg-slate-50 active:bg-slate-100 rounded-lg px-1 transition-colors"
+              <Link
+                href="/uu-dai"
+                className="w-full py-2.5 flex items-center justify-between text-left hover:bg-slate-50 active:bg-slate-100 rounded-lg px-1 transition-colors cursor-pointer"
               >
                 <div className="flex items-center space-x-3">
                   <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
@@ -746,16 +948,10 @@ export default function ProfilePage() {
                   </div>
                   <div>
                     <div className="font-bold text-slate-800 text-xs">Ưu đãi & Khuyến mãi</div>
-                    <div className="text-[11px] text-slate-400">Giảm giá đỗ xe cuối tuần</div>
                   </div>
                 </div>
-                <div className="flex items-center space-x-1.5">
-                  <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-bold text-[10px]">
-                    2 mã mới
-                  </span>
-                  <ChevronRight className="w-4 h-4 text-slate-400" />
-                </div>
-              </button>
+                <ChevronRight className="w-4 h-4 text-slate-400" />
+              </Link>
             </div>
           </section>
 
@@ -821,7 +1017,7 @@ export default function ProfilePage() {
               {/* Đổi mật khẩu */}
               <button
                 onClick={() => setIsChangePasswordOpen(true)}
-                className="w-full py-2.5 flex items-center justify-between text-left hover:bg-slate-50 active:bg-slate-100 rounded-lg px-1 transition-colors"
+                className="w-full py-2.5 flex items-center justify-between text-left hover:bg-slate-50 active:bg-slate-100 rounded-lg px-1 transition-colors cursor-pointer"
               >
                 <div className="flex items-center space-x-3">
                   <div className="w-8 h-8 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center">
@@ -844,6 +1040,19 @@ export default function ProfilePage() {
               <span>Hỗ trợ & Thông tin</span>
             </h2>
             <div className="divide-y divide-slate-100 text-xs">
+              {/* Button Chính sách & Quy định - Nằm TRÊN tổng đài hỗ trợ */}
+              <button
+                type="button"
+                onClick={() => setIsPolicyModalOpen(true)}
+                className="w-full py-2.5 flex items-center justify-between hover:bg-slate-50 rounded-lg px-1 transition-colors text-left cursor-pointer"
+              >
+                <div className="flex items-center space-x-3">
+                  <ShieldCheck className="w-4 h-4 text-primary" />
+                  <span className="font-bold text-slate-700">Chính sách & Quy định</span>
+                </div>
+                <ChevronRight className="w-4 h-4 text-slate-400" />
+              </button>
+
               <a href="tel:19006868" className="py-2.5 flex items-center justify-between hover:bg-slate-50 rounded-lg px-1">
                 <div className="flex items-center space-x-3">
                   <PhoneCall className="w-4 h-4 text-slate-500" />
@@ -957,6 +1166,8 @@ export default function ProfilePage() {
         </div>
       )}
 
+
+
       {/* SHEET: THÊM XE MỚI */}
       {isAddVehicleOpen && (
         <div className="fixed inset-0 z-50 bg-slate-950/40 backdrop-blur-sm flex flex-col justify-end">
@@ -990,8 +1201,8 @@ export default function ProfilePage() {
                         : "border-slate-200 text-slate-600 hover:bg-slate-50"
                     )}
                   >
-                    <Car className="w-4 h-4" />
-                    <span className="text-[11px]">Sedan / Cỡ nhỏ</span>
+                    <Sedan4SeatsIcon className="w-4 h-4" />
+                    <span className="text-[11px]">Xe 4 chỗ (Sedan)</span>
                   </button>
                   <button
                     type="button"
@@ -999,12 +1210,12 @@ export default function ProfilePage() {
                     className={clsx(
                       "p-2.5 rounded-xl border text-center flex flex-col items-center space-y-1 transition-all",
                       newVType === "SUV"
-                        ? "border-primary bg-blue-50 text-orange-600 font-bold shadow-sm"
+                        ? "border-orange-500 bg-orange-50 text-orange-600 font-bold shadow-sm"
                         : "border-slate-200 text-slate-600 hover:bg-slate-50"
                     )}
                   >
-                    <Truck className="w-4 h-4" />
-                    <span className="text-[11px]">SUV / Bán tải</span>
+                    <Suv7SeatsIcon className="w-4 h-4" />
+                    <span className="text-[11px]">Xe 7 chỗ (SUV)</span>
                   </button>
                   <button
                     type="button"
@@ -1012,15 +1223,51 @@ export default function ProfilePage() {
                     className={clsx(
                       "p-2.5 rounded-xl border text-center flex flex-col items-center space-y-1 transition-all",
                       newVType === "EV"
-                        ? "border-primary bg-blue-50 text-emerald-600 font-bold shadow-sm"
+                        ? "border-emerald-500 bg-emerald-50 text-emerald-600 font-bold shadow-sm"
                         : "border-slate-200 text-slate-600 hover:bg-slate-50"
                     )}
                   >
-                    <Zap className="w-4 h-4" />
+                    <EvCarIcon className="w-4 h-4" />
                     <span className="text-[11px]">Xe điện (EV)</span>
                   </button>
                 </div>
               </div>
+
+              {newVType === "EV" && (
+                <div className="bg-emerald-50/80 rounded-xl p-3 border border-emerald-200/80 space-y-1.5 animate-in fade-in duration-200">
+                  <label className="block font-bold text-emerald-900 text-xs">
+                    Kiểu dáng xe điện (để chọn ô đỗ phù hợp):
+                  </label>
+                  <div className="grid grid-cols-2 gap-2 mt-1">
+                    <button
+                      type="button"
+                      onClick={() => setNewEvBodyType("Sedan")}
+                      className={clsx(
+                        "py-2 px-2.5 rounded-lg border text-center flex items-center justify-center space-x-1.5 transition-all cursor-pointer",
+                        newEvBodyType === "Sedan"
+                          ? "bg-emerald-600 text-white border-emerald-600 font-bold shadow-xs"
+                          : "bg-white text-emerald-800 border-emerald-200 hover:bg-emerald-100/50 font-semibold"
+                      )}
+                    >
+                      <Sedan4SeatsIcon className="w-3.5 h-3.5" />
+                      <span className="text-xs">Xe 4 chỗ (VF 3, VF 6...)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNewEvBodyType("SUV")}
+                      className={clsx(
+                        "py-2 px-2.5 rounded-lg border text-center flex items-center justify-center space-x-1.5 transition-all cursor-pointer",
+                        newEvBodyType === "SUV"
+                          ? "bg-emerald-600 text-white border-emerald-600 font-bold shadow-xs"
+                          : "bg-white text-emerald-800 border-emerald-200 hover:bg-emerald-100/50 font-semibold"
+                      )}
+                    >
+                      <Suv7SeatsIcon className="w-3.5 h-3.5" />
+                      <span className="text-xs">Xe 7 chỗ (VF 8, VF 9...)</span>
+                    </button>
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label className="block font-bold text-slate-700 mb-1">Tên xe / Hãng xe</label>
@@ -1042,22 +1289,11 @@ export default function ProfilePage() {
                   value={newVPlate}
                   onChange={(e) => setNewVPlate(e.target.value.toUpperCase())}
                   required
-                  className="w-full h-11 px-3.5 rounded-xl border border-slate-200 focus:border-primary outline-none font-mono font-bold uppercase"
+                  className="w-full h-11 px-3.5 rounded-xl border border-slate-200 focus:border-primary outline-none font-bold uppercase tracking-wider"
                 />
               </div>
 
-              <div className="flex items-center justify-between pt-1">
-                <span className="font-bold text-slate-700">Đặt làm xe mặc định</span>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={newVDefault}
-                    onChange={(e) => setNewVDefault(e.target.checked)}
-                    className="sr-only peer"
-                  />
-                  <div className="w-10 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-5 peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></div>
-                </label>
-              </div>
+              {/* Gỡ bỏ tùy chọn Đặt làm xe mặc định */}
 
               <button
                 type="submit"
@@ -1102,8 +1338,8 @@ export default function ProfilePage() {
                         : "border-slate-200 text-slate-600 hover:bg-slate-50"
                     )}
                   >
-                    <Car className="w-4 h-4" />
-                    <span className="text-[11px]">Sedan / Cỡ nhỏ</span>
+                    <Sedan4SeatsIcon className="w-4 h-4" />
+                    <span className="text-[11px]">Xe 4 chỗ (Sedan)</span>
                   </button>
                   <button
                     type="button"
@@ -1111,12 +1347,12 @@ export default function ProfilePage() {
                     className={clsx(
                       "p-2.5 rounded-xl border text-center flex flex-col items-center space-y-1 transition-all",
                       editVType === "SUV"
-                        ? "border-primary bg-blue-50 text-orange-600 font-bold shadow-sm"
+                        ? "border-orange-500 bg-orange-50 text-orange-600 font-bold shadow-sm"
                         : "border-slate-200 text-slate-600 hover:bg-slate-50"
                     )}
                   >
-                    <Truck className="w-4 h-4" />
-                    <span className="text-[11px]">SUV / Bán tải</span>
+                    <Suv7SeatsIcon className="w-4 h-4" />
+                    <span className="text-[11px]">Xe 7 chỗ (SUV)</span>
                   </button>
                   <button
                     type="button"
@@ -1124,15 +1360,51 @@ export default function ProfilePage() {
                     className={clsx(
                       "p-2.5 rounded-xl border text-center flex flex-col items-center space-y-1 transition-all",
                       editVType === "EV"
-                        ? "border-primary bg-blue-50 text-emerald-600 font-bold shadow-sm"
+                        ? "border-emerald-500 bg-emerald-50 text-emerald-600 font-bold shadow-sm"
                         : "border-slate-200 text-slate-600 hover:bg-slate-50"
                     )}
                   >
-                    <Zap className="w-4 h-4" />
+                    <EvCarIcon className="w-4 h-4" />
                     <span className="text-[11px]">Xe điện (EV)</span>
                   </button>
                 </div>
               </div>
+
+              {editVType === "EV" && (
+                <div className="bg-emerald-50/80 rounded-xl p-3 border border-emerald-200/80 space-y-1.5 animate-in fade-in duration-200">
+                  <label className="block font-bold text-emerald-900 text-xs">
+                    Kiểu dáng xe điện (để chọn ô đỗ phù hợp):
+                  </label>
+                  <div className="grid grid-cols-2 gap-2 mt-1">
+                    <button
+                      type="button"
+                      onClick={() => setEditEvBodyType("Sedan")}
+                      className={clsx(
+                        "py-2 px-2.5 rounded-lg border text-center flex items-center justify-center space-x-1.5 transition-all cursor-pointer",
+                        editEvBodyType === "Sedan"
+                          ? "bg-emerald-600 text-white border-emerald-600 font-bold shadow-xs"
+                          : "bg-white text-emerald-800 border-emerald-200 hover:bg-emerald-100/50 font-semibold"
+                      )}
+                    >
+                      <Sedan4SeatsIcon className="w-3.5 h-3.5" />
+                      <span className="text-xs">Xe 4 chỗ (VF 3, VF 6...)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditEvBodyType("SUV")}
+                      className={clsx(
+                        "py-2 px-2.5 rounded-lg border text-center flex items-center justify-center space-x-1.5 transition-all cursor-pointer",
+                        editEvBodyType === "SUV"
+                          ? "bg-emerald-600 text-white border-emerald-600 font-bold shadow-xs"
+                          : "bg-white text-emerald-800 border-emerald-200 hover:bg-emerald-100/50 font-semibold"
+                      )}
+                    >
+                      <Suv7SeatsIcon className="w-3.5 h-3.5" />
+                      <span className="text-xs">Xe 7 chỗ (VF 8, VF 9...)</span>
+                    </button>
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label className="block font-bold text-slate-700 mb-1">Tên xe / Hãng xe</label>
@@ -1152,7 +1424,7 @@ export default function ProfilePage() {
                   value={editVPlate}
                   onChange={(e) => setEditVPlate(e.target.value.toUpperCase())}
                   required
-                  className="w-full h-11 px-3.5 rounded-xl border border-slate-200 focus:border-primary outline-none font-mono font-bold uppercase"
+                  className="w-full h-11 px-3.5 rounded-xl border border-slate-200 focus:border-primary outline-none font-bold uppercase tracking-wider"
                 />
               </div>
 
@@ -1256,36 +1528,217 @@ export default function ProfilePage() {
 
       {/* SHEET: CHỌN ẢNH ĐẠI DIỆN */}
       {isAvatarSheetOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/40 backdrop-blur-sm flex flex-col justify-end">
-          <div className="bg-white rounded-t-[32px] p-5 shadow-2xl sheet-transition space-y-2.5 text-xs font-semibold max-w-[430px] w-full mx-auto animate-in slide-in-from-bottom duration-300">
+        <div 
+          onClick={() => setIsAvatarSheetOpen(false)}
+          className="fixed inset-0 z-50 bg-slate-950/40 backdrop-blur-sm flex flex-col justify-end"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-t-[32px] p-5 shadow-2xl sheet-transition space-y-2.5 text-xs font-semibold max-w-[430px] w-full mx-auto animate-in slide-in-from-bottom duration-300"
+          >
             <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-3" />
-            <h4 className="text-center font-bold text-slate-900 mb-3">Ảnh đại diện</h4>
+            <h4 className="text-center font-bold text-slate-900 mb-3 text-sm">Ảnh đại diện</h4>
+            
             <button
               onClick={() => {
                 setIsAvatarSheetOpen(false);
-                showToast("Đã mở camera để chụp ảnh mới");
+                setIsCameraModalOpen(true);
+                startCamera("user");
               }}
-              className="w-full py-3 px-4 bg-slate-50 hover:bg-blue-50 text-slate-700 hover:text-primary rounded-xl flex items-center space-x-2.5 transition-colors"
+              className="w-full py-3.5 px-4 bg-slate-50 hover:bg-blue-50 text-slate-700 hover:text-primary rounded-xl flex items-center space-x-3 transition-colors cursor-pointer active:scale-[0.99]"
             >
-              <Camera className="w-4 h-4 text-primary" />
-              <span>Chụp ảnh mới</span>
+              <div className="w-8 h-8 rounded-lg bg-blue-50 text-primary flex items-center justify-center">
+                <Camera className="w-4 h-4 text-primary" />
+              </div>
+              <span className="font-semibold text-slate-800 text-[13px]">Chụp ảnh mới</span>
             </button>
+            
             <button
               onClick={() => {
-                setIsAvatarSheetOpen(false);
-                showToast("Đã chọn ảnh từ thư viện");
+                fileInputRef.current?.click();
               }}
-              className="w-full py-3 px-4 bg-slate-50 hover:bg-blue-50 text-slate-700 hover:text-primary rounded-xl flex items-center space-x-2.5 transition-colors"
+              className="w-full py-3.5 px-4 bg-slate-50 hover:bg-blue-50 text-slate-700 hover:text-primary rounded-xl flex items-center space-x-3 transition-colors cursor-pointer active:scale-[0.99]"
             >
-              <ImageIcon className="w-4 h-4 text-primary" />
-              <span>Chọn ảnh từ thư viện</span>
+              <div className="w-8 h-8 rounded-lg bg-blue-50 text-primary flex items-center justify-center">
+                <ImageIcon className="w-4 h-4 text-primary" />
+              </div>
+              <span className="font-semibold text-slate-800 text-[13px]">Chọn ảnh từ thư viện</span>
             </button>
+
+            {currentUser.avatar && (
+              <button
+                onClick={handleRemoveAvatar}
+                className="w-full py-3 px-4 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl flex items-center space-x-3 transition-colors cursor-pointer active:scale-[0.99]"
+              >
+                <div className="w-8 h-8 rounded-lg bg-red-100 text-red-600 flex items-center justify-center">
+                  <Trash2 className="w-4 h-4" />
+                </div>
+                <span className="font-semibold text-[13px]">Gỡ ảnh đại diện</span>
+              </button>
+            )}
+
             <button
               onClick={() => setIsAvatarSheetOpen(false)}
-              className="w-full py-3 text-slate-400 font-bold hover:text-slate-600 transition-colors"
+              className="w-full py-3 text-slate-400 font-bold hover:text-slate-600 transition-colors text-xs text-center cursor-pointer"
             >
               Hủy bỏ
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* INPUT FILE ẨN CHO TẢI ẢNH VÀ CHỤP ẢNH */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleFileChange}
+      />
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="user"
+        className="hidden"
+        onChange={handleFileChange}
+      />
+
+      {/* MODAL: CHỤP ẢNH TRỰC TIẾP TỪ CAMERA */}
+      {isCameraModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-2xl max-w-[420px] w-full text-white flex flex-col items-center animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="w-full flex items-center justify-between mb-4">
+              <div className="flex items-center space-x-2">
+                <Camera className="w-5 h-5 text-primary" />
+                <h3 className="font-bold text-sm text-white">Chụp ảnh đại diện</h3>
+              </div>
+              <button
+                onClick={stopCamera}
+                className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Khung ngắm tròn (Circular Viewfinder) */}
+            <div className="relative w-64 h-64 sm:w-72 sm:h-72 rounded-full overflow-hidden border-4 border-primary/80 shadow-glow bg-black flex items-center justify-center my-2">
+              {capturedPhoto ? (
+                <img
+                  src={capturedPhoto}
+                  alt="Captured Avatar"
+                  className="w-full h-full object-cover"
+                />
+              ) : cameraError ? (
+                <div className="px-5 text-center flex flex-col items-center">
+                  <AlertTriangle className="w-10 h-10 text-amber-400 mb-2" />
+                  <p className="text-xs text-slate-300 font-medium leading-relaxed mb-3">
+                    {cameraError}
+                  </p>
+                  <button
+                    onClick={() => cameraInputRef.current?.click()}
+                    className="px-3.5 py-2 bg-primary text-white rounded-xl text-xs font-bold hover:bg-primary-dark transition-all cursor-pointer shadow-sm"
+                  >
+                    Mở Camera trên thiết bị
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <video
+                    ref={videoRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    className={`w-full h-full object-cover ${cameraFacing === "user" ? "-scale-x-100" : ""}`}
+                  />
+                  {isCameraLoading && (
+                    <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center space-y-2">
+                      <RefreshCw className="w-7 h-7 text-primary animate-spin" />
+                      <span className="text-xs text-slate-300 font-medium">Đang khởi động camera...</span>
+                    </div>
+                  )}
+                  {/* Guideline target circle */}
+                  <div className="absolute inset-3 rounded-full border border-dashed border-white/40 pointer-events-none" />
+                </>
+              )}
+            </div>
+
+            <p className="text-[11px] text-slate-400 text-center mt-2 mb-4">
+              {capturedPhoto
+                ? "Kiểm tra ảnh chụp chân dung của bạn trước khi lưu"
+                : "Căn chỉnh khuôn mặt vào giữa khung tròn để có ảnh đại diện đẹp nhất"}
+            </p>
+
+            {/* Controls */}
+            {capturedPhoto ? (
+              <div className="w-full grid grid-cols-2 gap-3 mt-1">
+                <button
+                  onClick={retakePhoto}
+                  className="py-3 px-4 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl flex items-center justify-center space-x-2 transition-all cursor-pointer"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  <span>Chụp lại</span>
+                </button>
+                <button
+                  onClick={confirmPhoto}
+                  className="py-3 px-4 bg-primary hover:bg-primary-dark text-white font-bold rounded-xl flex items-center justify-center space-x-2 shadow-glow transition-all cursor-pointer active:scale-95"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>Dùng ảnh này</span>
+                </button>
+              </div>
+            ) : cameraError ? (
+              <div className="w-full flex space-x-2.5">
+                <button
+                  onClick={() => {
+                    fileInputRef.current?.click();
+                  }}
+                  className="flex-1 py-3 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl text-xs flex items-center justify-center space-x-2 cursor-pointer"
+                >
+                  <ImageIcon className="w-4 h-4" />
+                  <span>Chọn từ thư viện</span>
+                </button>
+                <button
+                  onClick={stopCamera}
+                  className="py-3 px-4 bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold rounded-xl text-xs cursor-pointer"
+                >
+                  Đóng
+                </button>
+              </div>
+            ) : (
+              <div className="w-full flex items-center justify-around px-2 mt-2">
+                {/* Switch camera facing mode */}
+                <button
+                  onClick={toggleCameraFacing}
+                  className="w-11 h-11 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center transition-colors cursor-pointer"
+                  title="Đổi camera trước/sau"
+                >
+                  <SwitchCamera className="w-5 h-5" />
+                </button>
+
+                {/* Shutter button */}
+                <button
+                  onClick={takeSnapshot}
+                  disabled={isCameraLoading}
+                  className="w-16 h-16 rounded-full border-4 border-white/80 p-1 flex items-center justify-center shadow-glow hover:scale-105 active:scale-90 transition-all cursor-pointer disabled:opacity-50"
+                  title="Chụp ảnh"
+                >
+                  <div className="w-full h-full rounded-full bg-primary flex items-center justify-center">
+                    <Camera className="w-6 h-6 text-white" />
+                  </div>
+                </button>
+
+                {/* Fallback to native device camera */}
+                <button
+                  onClick={() => cameraInputRef.current?.click()}
+                  className="w-11 h-11 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center transition-colors cursor-pointer"
+                  title="Chụp bằng camera máy"
+                >
+                  <ImageIcon className="w-5 h-5" />
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1315,6 +1768,100 @@ export default function ProfilePage() {
                 Đăng xuất
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* BOTTOM SHEET / MODAL: CHÍNH SÁCH & QUY ĐỊNH */}
+      {isPolicyModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/40 backdrop-blur-sm flex flex-col justify-end">
+          <div className="bg-white rounded-t-[32px] p-5 shadow-2xl sheet-transition max-h-[85%] overflow-y-auto max-w-[430px] w-full mx-auto animate-in slide-in-from-bottom duration-300">
+            <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-4" />
+            
+            {/* Header */}
+            <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-100">
+              <div className="flex items-center space-x-2">
+                <div className="w-8 h-8 rounded-xl bg-blue-50 text-primary flex items-center justify-center">
+                  <ShieldCheck className="w-4 h-4 text-primary" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">Chính sách & Quy định</h3>
+                  <p className="text-[10px] text-slate-400">Nền tảng đỗ xe thông minh EZ-Space</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsPolicyModalOpen(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Policy Items */}
+            <div className="space-y-3 text-xs">
+              {/* Policy 1: Đặt cọc & Giữ chỗ */}
+              <div className="bg-blue-50/60 rounded-2xl p-3.5 border border-blue-100/80">
+                <div className="flex items-center space-x-2 text-primary font-bold mb-1">
+                  <span className="w-5 h-5 rounded-full bg-primary text-white text-[10px] flex items-center justify-center">1</span>
+                  <span className="text-xs">Đặt cọc & Giữ chỗ độc quyền</span>
+                </div>
+                <p className="text-[11px] text-slate-600 leading-relaxed pl-7">
+                  Người dùng đặt cọc <strong>50.000₫/lượt</strong> để giữ chỗ. Vị trí đỗ bạn chọn sẽ được khóa độc quyền trong <strong>10 phút</strong>, đảm bảo không có phương tiện khác đỗ vào.
+                </p>
+              </div>
+
+              {/* Policy 2: Thời hạn đến bãi */}
+              <div className="bg-amber-50/60 rounded-2xl p-3.5 border border-amber-100/80">
+                <div className="flex items-center space-x-2 text-amber-700 font-bold mb-1">
+                  <span className="w-5 h-5 rounded-full bg-amber-600 text-white text-[10px] flex items-center justify-center">2</span>
+                  <span className="text-xs">Thời hạn 20 phút di chuyển đến bãi</span>
+                </div>
+                <p className="text-[11px] text-slate-600 leading-relaxed pl-7">
+                  Bạn có <strong>20 phút</strong> kể từ khi đặt cọc thành công để đến bãi xe và quét mã QR check-in tại cổng barie. Quá 20 phút không check-in, hệ thống sẽ tự động giải phóng vị trí.
+                </p>
+              </div>
+
+              {/* Policy 3: Hoàn cọc 100% */}
+              <div className="bg-emerald-50/60 rounded-2xl p-3.5 border border-emerald-100/80">
+                <div className="flex items-center space-x-2 text-emerald-700 font-bold mb-1">
+                  <span className="w-5 h-5 rounded-full bg-emerald-600 text-white text-[10px] flex items-center justify-center">3</span>
+                  <span className="text-xs">Hoàn cọc 100% trong 5 phút đầu</span>
+                </div>
+                <p className="text-[11px] text-slate-600 leading-relaxed pl-7">
+                  Nếu bạn thay đổi lịch trình và chủ động bấm hủy giữ chỗ trong vòng <strong>5 phút đầu tiên</strong>, toàn bộ <strong>100% tiền cọc (50.000₫)</strong> sẽ được hoàn tự động về ví/ngân hàng.
+                </p>
+              </div>
+
+              {/* Policy 4: Quy chuẩn an toàn bãi đỗ */}
+              <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-200/80">
+                <div className="flex items-center space-x-2 text-slate-800 font-bold mb-1">
+                  <span className="w-5 h-5 rounded-full bg-slate-700 text-white text-[10px] flex items-center justify-center">4</span>
+                  <span className="text-xs">Quy tắc đỗ xe & Sạc điện EV</span>
+                </div>
+                <p className="text-[11px] text-slate-600 leading-relaxed pl-7">
+                  Vui lòng đỗ đúng vạch kẻ và đúng chủng loại xe (SUV, Sedan, xe điện EV). Đối với xe điện sạc nhanh, vui lòng di chuyển xe ra khỏi trụ sạc sau khi đã sạc đủ pin để nhường chỗ cho tài xế khác.
+                </p>
+              </div>
+
+              {/* Policy 5: Bảo mật thông tin */}
+              <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-200/80">
+                <div className="flex items-center space-x-2 text-slate-800 font-bold mb-1">
+                  <span className="w-5 h-5 rounded-full bg-slate-700 text-white text-[10px] flex items-center justify-center">5</span>
+                  <span className="text-xs">Bảo mật thông tin & Hỗ trợ</span>
+                </div>
+                <p className="text-[11px] text-slate-600 leading-relaxed pl-7">
+                  Biển số xe, số điện thoại và lịch sử đỗ xe được bảo mật tuyệt đối theo chuẩn SSL. Mọi sự cố phát sinh tại bãi đỗ đều được tổng đài <strong>1900 6868</strong> hỗ trợ giải quyết 24/7.
+                </p>
+              </div>
+            </div>
+
+            {/* Nút đóng */}
+            <button
+              onClick={() => setIsPolicyModalOpen(false)}
+              className="mt-5 w-full py-3 bg-primary text-white font-bold rounded-2xl shadow-md hover:bg-primary-dark transition text-xs cursor-pointer"
+            >
+              Tôi đã hiểu & đồng ý
+            </button>
           </div>
         </div>
       )}

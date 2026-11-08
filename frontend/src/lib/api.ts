@@ -1,6 +1,7 @@
 import { Lot } from "./mock/lots";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+const rawApiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+const API_BASE_URL = rawApiUrl.endsWith("/api") ? rawApiUrl : `${rawApiUrl.replace(/\/+$/, "")}/api`;
 
 const LOT_IMAGES: Record<string, { image: string; gradient: string; address: string; district: string; labels: string[] }> = {
   "1": {
@@ -110,7 +111,16 @@ export async function loginApi(email: string, password: string) {
   return res.json();
 }
 
-export async function registerApi(data: { full_name: string; email: string; phone?: string; password: string }) {
+export async function registerApi(data: {
+  full_name: string;
+  email: string;
+  phone?: string;
+  password: string;
+  license_plate?: string;
+  vehicle_type?: string;
+  vehicle_name?: string;
+  vehicles?: Array<{ license_plate: string; vehicle_name?: string; vehicle_type?: string }>;
+}) {
   const res = await fetch(`${API_BASE_URL}/auth/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -146,6 +156,16 @@ export async function checkExistsApi(data: { email?: string; phone?: string }) {
   return res.json();
 }
 
+export async function resetPasswordApi(data: { email: string; new_password: string; otp_code?: string }) {
+  const res = await fetch(`${API_BASE_URL}/auth/reset-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  return res.json();
+}
+
+
 
 export async function getMeApi(token: string) {
   const res = await fetch(`${API_BASE_URL}/auth/me`, {
@@ -156,7 +176,7 @@ export async function getMeApi(token: string) {
 
 export async function updateProfileApi(
   token: string,
-  data: { full_name?: string; email?: string; phone?: string }
+  data: { full_name?: string; email?: string; phone?: string; avatar_url?: string; avatar?: string }
 ) {
   const res = await fetch(`${API_BASE_URL}/auth/profile`, {
     method: "PUT",
@@ -184,3 +204,255 @@ export async function changePasswordApi(
   return res.json();
 }
 
+// ================= VEHICLE APIS =================
+export async function getVehiclesApi(token: string) {
+  const res = await fetch(`${API_BASE_URL}/vehicles`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return res.json();
+}
+
+export async function addVehicleApi(
+  token: string,
+  data: { license_plate: string; vehicle_name?: string; vehicle_type?: string }
+) {
+  const res = await fetch(`${API_BASE_URL}/vehicles`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(data),
+  });
+  return res.json();
+}
+
+export async function updateVehicleApi(
+  token: string,
+  id: string,
+  data: { license_plate?: string; vehicle_name?: string; vehicle_type?: string }
+) {
+  const res = await fetch(`${API_BASE_URL}/vehicles/${id}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(data),
+  });
+  return res.json();
+}
+
+export async function deleteVehicleApi(token: string, id: string) {
+  const res = await fetch(`${API_BASE_URL}/vehicles/${id}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return res.json();
+}
+
+// ================= RESERVATION APIS (ANTI-DOUBLE BOOKING) =================
+export async function holdSpotApi(data: {
+  parking_lot_id: string | number;
+  slot_id: string | number;
+  vehicle_id?: string | number;
+  estimated_hours?: number;
+  start_time?: string;
+  expected_end_time?: string;
+  token?: string;
+}) {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (data.token) {
+    headers["Authorization"] = `Bearer ${data.token}`;
+  }
+
+  const res = await fetch(`${API_BASE_URL}/reservations/hold`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      parking_lot_id: data.parking_lot_id,
+      slot_id: data.slot_id,
+      vehicle_id: data.vehicle_id,
+      estimated_hours: data.estimated_hours,
+      start_time: data.start_time,
+      expected_end_time: data.expected_end_time,
+    }),
+  });
+
+  const json = await res.json().catch(() => ({}));
+  return { status: res.status, ok: res.ok, ...json };
+}
+
+export async function releaseSpotApi(reservationId: string | number, token?: string) {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
+  const res = await fetch(`${API_BASE_URL}/reservations/${reservationId}/release`, {
+    method: "POST",
+    headers,
+  });
+  return res.json().catch(() => ({ success: false }));
+}
+
+export async function payDepositApi(reservationId: string | number, provider = "vnpay", token?: string) {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
+  const res = await fetch(`${API_BASE_URL}/reservations/${reservationId}/pay-deposit`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ provider }),
+  });
+  return res.json().catch(() => ({ success: false }));
+}
+
+export async function getActiveReservationApi(token?: string) {
+  const headers: Record<string, string> = {};
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
+  const res = await fetch(`${API_BASE_URL}/reservations/active`, { headers });
+  return res.json().catch(() => ({ success: false, data: null }));
+}
+
+
+
+// ================= RESERVATIONS HISTORY & DETAIL =================
+export async function getReservationsApi(token?: string, status = "all") {
+  const headers: Record<string, string> = {};
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
+  const res = await fetch(`${API_BASE_URL}/reservations?status=${status}`, { headers, cache: "no-store" });
+  return res.json().catch(() => ({ success: false, data: [] }));
+}
+
+export async function getReservationByIdApi(id: string | number, token?: string) {
+  const headers: Record<string, string> = {};
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
+  const res = await fetch(`${API_BASE_URL}/reservations/${id}`, { headers, cache: "no-store" });
+  return res.json().catch(() => ({ success: false, data: null }));
+}
+
+// ================= KIOSK GATE APIS =================
+export async function kioskScanInApi(
+  data: { ticket_code?: string; reservation_id?: string | number; parking_lot_id?: string | number },
+  token?: string
+) {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
+  const res = await fetch(`${API_BASE_URL}/kiosk/scan-in`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(data),
+  });
+  return res.json().catch(() => ({ success: false, message: "Lỗi kết nối máy chủ" }));
+}
+
+export async function kioskScanOutApi(
+  data: { ticket_code?: string; reservation_id?: string | number; slot_code?: string; parking_lot_id?: string | number },
+  token?: string
+) {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
+  const res = await fetch(`${API_BASE_URL}/kiosk/scan-out`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(data),
+  });
+  return res.json().catch(() => ({ success: false, message: "Lỗi kết nối máy chủ" }));
+}
+
+export async function getKioskSessionsApi(parkingLotId: string | number = 1, status = "all", token?: string) {
+  const headers: Record<string, string> = {};
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
+  const res = await fetch(`${API_BASE_URL}/kiosk/sessions?parking_lot_id=${parkingLotId}&status=${status}`, {
+    headers,
+    cache: "no-store",
+  });
+  return res.json().catch(() => ({ success: false, data: [] }));
+}
+
+export async function getKioskStatsApi(parkingLotId: string | number = 1, token?: string) {
+  const headers: Record<string, string> = {};
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
+  const res = await fetch(`${API_BASE_URL}/kiosk/stats?parking_lot_id=${parkingLotId}`, {
+    headers,
+    cache: "no-store",
+  });
+  return res.json().catch(() => ({ success: false, data: null }));
+}
+
+// ================= CHAT AI HISTORY (ĐỒNG BỘ ĐA THIẾT BỊ) =================
+
+export async function getChatHistoryApi(token: string) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/chat/history`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      cache: "no-store",
+    });
+    return await res.json();
+  } catch (err) {
+    console.error("Lỗi getChatHistoryApi:", err);
+    return { success: false, data: [] };
+  }
+}
+
+export async function saveChatMessageApi(
+  token: string,
+  data: { role: "user" | "ai"; message: string; cards?: any[]; chips?: string[] }
+) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/chat/message`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(data),
+    });
+    return await res.json();
+  } catch (err) {
+    console.error("Lỗi saveChatMessageApi:", err);
+    return { success: false };
+  }
+}
+
+export async function syncChatHistoryApi(token: string, messages: any[]) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/chat/sync`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ messages }),
+    });
+    return await res.json();
+  } catch (err) {
+    console.error("Lỗi syncChatHistoryApi:", err);
+    return { success: false };
+  }
+}
+
+export async function clearChatHistoryApi(token: string) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/chat/history`, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    return await res.json();
+  } catch (err) {
+    console.error("Lỗi clearChatHistoryApi:", err);
+    return { success: false };
+  }
+}

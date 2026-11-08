@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <defs>
+    <linearGradient id="ezGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2563EB"/>
+      <stop offset="100%" stop-color="#1D4ED8"/>
+    </linearGradient>
+  </defs>
+  <rect width="32" height="32" rx="7" fill="url(#ezGrad)"/>
+  <path d="M11 23V9h6a4.5 4.5 0 0 1 0 9h-3.5v5H11zm2.5-7.5h3.5a2 2 0 1 0 0-4h-3.5v4z" fill="#ffffff"/>
+</svg>

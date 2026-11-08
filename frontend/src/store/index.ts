@@ -14,10 +14,13 @@ export type BookingStatus = "holding" | "paid" | "entered" | "completed" | "forf
 
 export type Booking = {
   id: string;
+  backendId?: number;
   lotId: string;
   spotId: string;
   vehicleId: string;
   estimatedHours?: number;
+  startTime?: string;
+  endTime?: string;
   status: BookingStatus;
   holdExpiresAt: number; // timestamp
   arrivalExpiresAt?: number; // timestamp
@@ -26,6 +29,17 @@ export type Booking = {
   paymentMethod?: "vnpay" | "momo" | "card";
   createdAt: number;
 };
+
+export type SavedPaymentAccount = {
+  id: string;
+  type: "vnpay" | "momo" | "banking";
+  accountName: string;
+  accountNumber: string;
+  bankName?: string;
+  isDefault?: boolean;
+  createdAt: number;
+};
+
 
 export type AIMessage = {
   id: string;
@@ -36,9 +50,19 @@ export type AIMessage = {
   timestamp: number;
 };
 
+export const getUserChatKey = (user?: { email?: string; phone?: string } | null): string => {
+  if (!user) return "guest";
+  const email = user.email?.trim().toLowerCase();
+  if (email) return `user_${email}`;
+  const phone = user.phone?.trim();
+  if (phone) return `user_${phone}`;
+  return "guest";
+};
+
 type StoreState = {
-  user: { name: string; phone: string; email?: string; token?: string; role?: string; isLoggedIn: boolean } | null;
+  user: { id?: string | number; name: string; phone: string; email?: string; token?: string; role?: string; avatar?: string; isLoggedIn: boolean } | null;
   vehicles: Vehicle[];
+  setVehicles: (vehicles: Vehicle[]) => void;
   activeBooking: Booking | null;
   history: Booking[];
   toasts: { id: string; message: string; type?: "info" | "error" | "success" }[];
@@ -53,15 +77,30 @@ type StoreState = {
   reorderVehicles: (vehicles: Vehicle[]) => void;
   
   aiMessages: AIMessage[];
+  chatHistories?: Record<string, AIMessage[]>;
   addAiMessage: (msg: AIMessage) => void;
   clearAiMessages: () => void;
 
+  favoriteLots: string[];
+  toggleFavoriteLot: (lotId: string) => void;
+
+  userAvatars?: Record<string, string>;
+  setUserAvatar: (avatar: string) => void;
+  removeUserAvatar: () => void;
+
+  userPaymentAccounts?: Record<string, SavedPaymentAccount[]>;
+  savedPaymentAccounts: SavedPaymentAccount[];
+  addSavedPaymentAccount: (account: SavedPaymentAccount) => void;
+  updateSavedPaymentAccount: (id: string, updates: Partial<SavedPaymentAccount>) => void;
+  deleteSavedPaymentAccount: (id: string) => void;
+  setDefaultPaymentAccount: (id: string) => void;
+
   // Actions
-  login: (userData?: { name?: string; phone?: string; email?: string; token?: string; role?: string }) => void;
-  updateUser: (data: Partial<{ name: string; phone: string; email: string }>) => void;
+  login: (userData?: { id?: string | number; name?: string; phone?: string; email?: string; token?: string; role?: string; avatar?: string; vehicles?: Vehicle[] }) => void;
+  updateUser: (data: Partial<{ name: string; phone: string; email: string; avatar: string }>) => void;
   logout: () => void;
-  holdSpot: (lotId: string, spotId: string, vehicleId: string, estimatedHours?: number) => void;
-  setBookingHours: (hours: number) => void;
+  holdSpot: (lotId: string, spotId: string, vehicleId: string, estimatedHours?: number, startTime?: string, endTime?: string, backendId?: number, serverHoldExpiresAt?: number) => void;
+  setBookingHours: (hours: number, startTime?: string, endTime?: string) => void;
   isDemo: boolean;
   setDemo: (val: boolean) => void;
   lastPaymentMethod: "vnpay" | "momo" | "card" | null;
@@ -76,6 +115,7 @@ type StoreState = {
   fastForward: () => void;
   addToast: (message: string, type?: "info" | "error" | "success") => void;
   removeToast: (id: string) => void;
+  clearToasts: () => void;
   tick: () => void; // call every second to check expirations
 };
 
@@ -83,11 +123,7 @@ export const useStore = create<StoreState>()(
   persist(
     (set, get) => ({
       user: null,
-      vehicles: [
-        { id: "v1", name: "Toyota Fortuner", plate: "43A-123.45", type: "SUV", isPrimary: true },
-        { id: "v2", name: "Honda Civic", plate: "43A-678.90", type: "Sedan" },
-        { id: "v3", name: "VinFast VF8", plate: "43E-999.88", type: "EV", evBodyType: "SUV" },
-      ],
+      vehicles: [],
       activeBooking: null,
       history: [],
       toasts: [],
@@ -95,10 +131,115 @@ export const useStore = create<StoreState>()(
       lastPaymentMethod: null,
       settings: { theme: "light", notifications: true },
       linkedWallet: false,
+      userPaymentAccounts: {},
+      savedPaymentAccounts: [],
+
+      addSavedPaymentAccount: (account) =>
+        set((state) => {
+          const key = getUserChatKey(state.user);
+          const allMap = state.userPaymentAccounts || {};
+          const currentList = allMap[key] || state.savedPaymentAccounts || [];
+          const isFirst = currentList.length === 0;
+          const newAccount = { ...account, isDefault: account.isDefault ?? isFirst };
+          const list = newAccount.isDefault
+            ? currentList.map((a) => ({ ...a, isDefault: false }))
+            : currentList;
+          const updated = [newAccount, ...list];
+
+          if (typeof window !== "undefined") {
+            try {
+              localStorage.setItem(`ez_payments_${key}`, JSON.stringify(updated));
+            } catch {}
+          }
+
+          return {
+            savedPaymentAccounts: updated,
+            userPaymentAccounts: {
+              ...allMap,
+              [key]: updated,
+            },
+            lastPaymentMethod: newAccount.type === "banking" ? "card" : (newAccount.type as any),
+          };
+        }),
+
+      updateSavedPaymentAccount: (id, updates) =>
+        set((state) => {
+          const key = getUserChatKey(state.user);
+          const allMap = state.userPaymentAccounts || {};
+          const currentList = allMap[key] || state.savedPaymentAccounts || [];
+          const updated = currentList.map((a) => (a.id === id ? { ...a, ...updates } : a));
+
+          if (typeof window !== "undefined") {
+            try {
+              localStorage.setItem(`ez_payments_${key}`, JSON.stringify(updated));
+            } catch {}
+          }
+
+          return {
+            savedPaymentAccounts: updated,
+            userPaymentAccounts: {
+              ...allMap,
+              [key]: updated,
+            },
+          };
+        }),
+
+      deleteSavedPaymentAccount: (id) =>
+        set((state) => {
+          const key = getUserChatKey(state.user);
+          const allMap = state.userPaymentAccounts || {};
+          const currentList = allMap[key] || state.savedPaymentAccounts || [];
+          const remaining = currentList.filter((a) => a.id !== id);
+          if (remaining.length > 0 && !remaining.some((a) => a.isDefault)) {
+            remaining[0].isDefault = true;
+          }
+
+          if (typeof window !== "undefined") {
+            try {
+              localStorage.setItem(`ez_payments_${key}`, JSON.stringify(remaining));
+            } catch {}
+          }
+
+          return {
+            savedPaymentAccounts: remaining,
+            userPaymentAccounts: {
+              ...allMap,
+              [key]: remaining,
+            },
+          };
+        }),
+
+      setDefaultPaymentAccount: (id) =>
+        set((state) => {
+          const key = getUserChatKey(state.user);
+          const allMap = state.userPaymentAccounts || {};
+          const currentList = allMap[key] || state.savedPaymentAccounts || [];
+          const found = currentList.find((a) => a.id === id);
+          const updated = currentList.map((a) => ({
+            ...a,
+            isDefault: a.id === id,
+          }));
+
+          if (typeof window !== "undefined") {
+            try {
+              localStorage.setItem(`ez_payments_${key}`, JSON.stringify(updated));
+            } catch {}
+          }
+
+          return {
+            savedPaymentAccounts: updated,
+            userPaymentAccounts: {
+              ...allMap,
+              [key]: updated,
+            },
+            lastPaymentMethod: found?.type === "banking" ? "card" : ((found?.type as any) || null),
+          };
+        }),
 
       setSettings: (updates) => set((state) => ({ settings: { ...state.settings, ...updates } })),
       toggleWallet: () => set((state) => ({ linkedWallet: !state.linkedWallet })),
       
+      setVehicles: (vehicles) => set({ vehicles }),
       addVehicle: (v) => set((state) => ({ vehicles: [...state.vehicles, v] })),
       updateVehicle: (id, v) => set((state) => ({ vehicles: state.vehicles.map(x => x.id === id ? { ...x, ...v } : x) })),
       deleteVehicle: (id) => set((state) => ({ vehicles: state.vehicles.filter(x => x.id !== id) })),
@@ -108,49 +249,212 @@ export const useStore = create<StoreState>()(
       reorderVehicles: (vehicles) => set({ vehicles }),
 
       aiMessages: [],
-      addAiMessage: (msg) => set((state) => ({ aiMessages: [...state.aiMessages, msg] })),
-      clearAiMessages: () => set({ aiMessages: [] }),
+      chatHistories: {},
+      addAiMessage: (msg) =>
+        set((state) => {
+          const key = getUserChatKey(state.user);
+          const currentHistories = state.chatHistories || {};
+          const currentList = currentHistories[key] || state.aiMessages || [];
+          const updated = [...currentList, msg];
+          return {
+            aiMessages: updated,
+            chatHistories: {
+              ...currentHistories,
+              [key]: updated,
+            },
+          };
+        }),
+      clearAiMessages: () =>
+        set((state) => {
+          const key = getUserChatKey(state.user);
+          const currentHistories = state.chatHistories || {};
+          return {
+            aiMessages: [],
+            chatHistories: {
+              ...currentHistories,
+              [key]: [],
+            },
+          };
+        }),
+
+      favoriteLots: [],
+      toggleFavoriteLot: (lotId: string) =>
+        set((state) => {
+          const current = state.favoriteLots || [];
+          const exists =
+            current.includes(lotId) ||
+            ((lotId === "3" || lotId === "san-bay-t1") && current.some((id) => id === "3" || id === "san-bay-t1")) ||
+            ((lotId === "1" || lotId === "hai-chau-a") && current.some((id) => id === "1" || id === "hai-chau-a")) ||
+            ((lotId === "2" || lotId === "cau-rong") && current.some((id) => id === "2" || id === "cau-rong"));
+
+          let next: string[];
+          if (exists) {
+            next = current.filter((id) => {
+              if (id === lotId) return false;
+              if ((lotId === "3" || lotId === "san-bay-t1") && (id === "3" || id === "san-bay-t1")) return false;
+              if ((lotId === "1" || lotId === "hai-chau-a") && (id === "1" || id === "hai-chau-a")) return false;
+              if ((lotId === "2" || lotId === "cau-rong") && (id === "2" || id === "cau-rong")) return false;
+              return true;
+            });
+          } else {
+            next = [...current, lotId];
+          }
+
+          if (typeof window !== "undefined") {
+            try {
+              localStorage.setItem("ez_favorite_lots", JSON.stringify(next));
+            } catch {}
+          }
+          return { favoriteLots: next };
+        }),
 
       setDemo: (val) => set({ isDemo: val }),
-      login: (userData) =>
-        set({
-          user: {
-            name: userData?.name || "Nguyen Van A",
-            phone: userData?.phone || "0905123456",
-            email: userData?.email || "customer@ezspace.vn",
-            token: userData?.token,
-            role: userData?.role || "customer",
-            isLoggedIn: true,
-          },
+      userAvatars: {},
+      setUserAvatar: (avatar) =>
+        set((state) => {
+          const key = getUserChatKey(state.user);
+          const currentAvatars = state.userAvatars || {};
+          const updatedAvatars = { ...currentAvatars, [key]: avatar };
+          if (typeof window !== "undefined") {
+            try {
+              localStorage.setItem(`ez_avatar_${key}`, avatar);
+            } catch {}
+          }
+          return {
+            user: state.user ? { ...state.user, avatar } : null,
+            userAvatars: updatedAvatars,
+          };
         }),
+      removeUserAvatar: () =>
+        set((state) => {
+          const key = getUserChatKey(state.user);
+          const currentAvatars = { ...(state.userAvatars || {}) };
+          delete currentAvatars[key];
+          if (typeof window !== "undefined") {
+            try {
+              localStorage.removeItem(`ez_avatar_${key}`);
+            } catch {}
+          }
+          return {
+            user: state.user ? { ...state.user, avatar: "" } : null,
+            userAvatars: currentAvatars,
+          };
+        }),
+      login: (userData) => {
+        const tempUser = {
+          id: userData?.id,
+          name: userData?.name || "Người dùng",
+          phone: userData?.phone || "",
+          email: userData?.email || "",
+          token: userData?.token,
+          role: userData?.role || "customer",
+          isLoggedIn: true,
+        };
+        const key = getUserChatKey(tempUser);
+        let cachedAvatar = "";
+        let cachedPayments: SavedPaymentAccount[] = [];
+        if (typeof window !== "undefined") {
+          try {
+            cachedAvatar = localStorage.getItem(`ez_avatar_${key}`) || "";
+            const rawPay = localStorage.getItem(`ez_payments_${key}`);
+            if (rawPay) cachedPayments = JSON.parse(rawPay);
+          } catch {}
+        }
+        const resolvedAvatar = userData?.avatar || cachedAvatar || "";
+        const newUser = {
+          ...tempUser,
+          avatar: resolvedAvatar,
+        };
+        set((state) => {
+          const histories = state.chatHistories || {};
+          const avatars = state.userAvatars || {};
+          const paymentMap = state.userPaymentAccounts || {};
+          const updatedAvatars = resolvedAvatar ? { ...avatars, [key]: resolvedAvatar } : avatars;
+          const userAccounts = cachedPayments.length > 0 ? cachedPayments : (paymentMap[key] || []);
+
+          return {
+            user: newUser,
+            userAvatars: updatedAvatars,
+            vehicles: userData?.vehicles || [],
+            // Chỉ tải đúng lịch sử chat của tài khoản này
+            aiMessages: histories[key] || [],
+            // Chỉ tải đúng phương thức thanh toán riêng của tài khoản này
+            savedPaymentAccounts: userAccounts,
+            userPaymentAccounts: {
+              ...paymentMap,
+              [key]: userAccounts,
+            },
+          };
+        });
+      },
       updateUser: (data) =>
-        set((state) => ({
-          user: state.user ? { ...state.user, ...data } : null,
-        })),
+        set((state) => {
+          if (!state.user) return { user: null };
+          const updatedUser = { ...state.user, ...data };
+          const key = getUserChatKey(updatedUser);
+          const avatars = state.userAvatars || {};
+          const updatedAvatars = data.avatar !== undefined ? { ...avatars, [key]: data.avatar } : avatars;
+          if (data.avatar !== undefined && typeof window !== "undefined") {
+            try {
+              if (data.avatar) {
+                localStorage.setItem(`ez_avatar_${key}`, data.avatar);
+              } else {
+                localStorage.removeItem(`ez_avatar_${key}`);
+              }
+            } catch {}
+          }
+          return {
+            user: updatedUser,
+            userAvatars: updatedAvatars,
+          };
+        }),
       logout: () => {
         if (typeof window !== "undefined") {
           localStorage.removeItem("ezspace_token");
+          // Xóa cookie cho Edge Middleware
+          document.cookie = "ezspace_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Strict";
+          document.cookie = "ezspace_role=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Strict";
         }
-        set({ user: null });
+        set((state) => {
+          const histories = state.chatHistories || {};
+          return {
+            user: null,
+            vehicles: [],
+            activeBooking: null,
+            history: [],
+            // Đăng xuất: dọn sạch dữ liệu thanh toán để bảo mật cho từng tài khoản
+            savedPaymentAccounts: [],
+            aiMessages: histories["guest"] || [],
+          };
+        });
       },
       
-      holdSpot: (lotId, spotId, vehicleId, estimatedHours = 2) => {
+      holdSpot: (lotId, spotId, vehicleId, estimatedHours = 2, startTime, endTime, backendId, serverHoldExpiresAt) => {
         const newBooking: Booking = {
-          id: "EZ-" + Math.floor(Math.random() * 10000),
+          id: backendId ? `EZ-${backendId}` : "EZ-" + Math.floor(Math.random() * 10000),
+          backendId,
           lotId,
           spotId,
           vehicleId,
           estimatedHours,
+          startTime,
+          endTime,
           status: "holding",
-          holdExpiresAt: Date.now() + 10 * 60 * 1000, // 10 minutes from now
+          holdExpiresAt: serverHoldExpiresAt || (Date.now() + 10 * 60 * 1000), // 10 minutes from now
           createdAt: Date.now(),
         };
         set({ activeBooking: newBooking });
       },
 
-      setBookingHours: (hours) => set((state) => ({
+
+      setBookingHours: (hours, startTime, endTime) => set((state) => ({
         activeBooking: state.activeBooking
-          ? { ...state.activeBooking, estimatedHours: Math.max(1, Math.min(24, hours)) }
+          ? {
+              ...state.activeBooking,
+              estimatedHours: Math.max(1, Math.min(24, hours)),
+              ...(startTime ? { startTime } : {}),
+              ...(endTime ? { endTime } : {}),
+            }
           : null,
       })),
 
@@ -246,6 +550,10 @@ export const useStore = create<StoreState>()(
         set((state) => ({ toasts: state.toasts.filter((t) => t.id !== id) }));
       },
 
+      clearToasts: () => {
+        set({ toasts: [] });
+      },
+
       tick: () => {
         const { activeBooking, history, addToast } = get();
         if (!activeBooking) return;
@@ -270,6 +578,51 @@ export const useStore = create<StoreState>()(
     }),
     {
       name: "ez-space-storage",
+      version: 3,
+      onRehydrateStorage: () => (state) => {
+        if (state) {
+          const key = getUserChatKey(state.user);
+          const histories = state.chatHistories || {};
+          state.aiMessages = histories[key] || [];
+
+          // Tải đúng danh sách tài khoản thanh toán của user này khi tải lại trang
+          const paymentMap = state.userPaymentAccounts || {};
+          state.savedPaymentAccounts = paymentMap[key] || [];
+        }
+      },
+      partialize: (state) =>
+        Object.fromEntries(
+          Object.entries(state).filter(([k]) => k !== "toasts")
+        ) as any,
+      migrate: (persistedState: any) => {
+        if (persistedState) {
+          if (Array.isArray(persistedState.vehicles)) {
+            // Remove old hardcoded mock vehicles
+            persistedState.vehicles = persistedState.vehicles.filter((v: any) => {
+              const isMockId = v.id === "v1" || v.id === "v2" || v.id === "v3";
+              const isMockPlate = v.plate === "43A-123.45" && v.name === "Toyota Fortuner";
+              return !isMockId && !isMockPlate;
+            });
+          }
+          if (!persistedState.chatHistories) {
+            persistedState.chatHistories = {};
+          }
+          if (!persistedState.userPaymentAccounts) {
+            persistedState.userPaymentAccounts = {};
+            if (Array.isArray(persistedState.savedPaymentAccounts) && persistedState.savedPaymentAccounts.length > 0) {
+              const key = getUserChatKey(persistedState.user);
+              persistedState.userPaymentAccounts[key] = persistedState.savedPaymentAccounts;
+            }
+          }
+          if (Array.isArray(persistedState.aiMessages) && persistedState.aiMessages.length > 0) {
+            const key = getUserChatKey(persistedState.user);
+            if (!persistedState.chatHistories[key] || persistedState.chatHistories[key].length === 0) {
+              persistedState.chatHistories[key] = persistedState.aiMessages;
+            }
+          }
+        }
+        return persistedState;
+      },
     }
   )
 );
