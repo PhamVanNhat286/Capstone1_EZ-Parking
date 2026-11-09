@@ -1,0 +1,1212 @@
+{
+  "source": "database/schema.sql + database/seed.sql",
+  "schema_sha256": "ba569f920cfe66d34d82f168efe1431f06bec50d319612d181fdbf997628ac3d",
+  "seed_sha256": "e913dc193a3470f311bdfb348b730684df34f634b3e34568f45b6886a4e276cd",
+  "enums": {
+    "user_role": [
+      "customer",
+      "manager",
+      "admin"
+    ],
+    "user_status": [
+      "active",
+      "inactive",
+      "banned"
+    ],
+    "vehicle_type": [
+      "Sedan",
+      "SUV",
+      "EV"
+    ],
+    "parking_lot_status": [
+      "pending",
+      "active",
+      "inactive",
+      "rejected"
+    ],
+    "slot_status": [
+      "available",
+      "holding",
+      "occupied",
+      "unavailable"
+    ],
+    "slot_type": [
+      "standard",
+      "ev_charging",
+      "large",
+      "disabled"
+    ],
+    "reservation_status": [
+      "holding",
+      "paid",
+      "entered",
+      "completed",
+      "cancelled",
+      "forfeited",
+      "refunded"
+    ],
+    "payment_provider": [
+      "vnpay",
+      "momo",
+      "card"
+    ],
+    "payment_type": [
+      "deposit",
+      "final",
+      "refund"
+    ],
+    "payment_status": [
+      "pending",
+      "success",
+      "failed",
+      "refunded"
+    ],
+    "qr_ticket_status": [
+      "active",
+      "used",
+      "expired",
+      "cancelled"
+    ],
+    "parking_session_status": [
+      "active",
+      "completed",
+      "abandoned"
+    ],
+    "manager_action_type": [
+      "lot_created",
+      "lot_updated",
+      "slot_updated",
+      "pricing_updated",
+      "reservation_cancelled",
+      "report_viewed"
+    ]
+  },
+  "tables": {
+    "users": [
+      "id",
+      "full_name",
+      "email",
+      "phone",
+      "password_hash",
+      "role",
+      "status",
+      "avatar_url",
+      "created_at",
+      "updated_at"
+    ],
+    "vehicles": [
+      "id",
+      "user_id",
+      "license_plate",
+      "vehicle_name",
+      "vehicle_type",
+      "is_default",
+      "created_at",
+      "updated_at"
+    ],
+    "parking_lots": [
+      "id",
+      "name",
+      "address",
+      "latitude",
+      "longitude",
+      "description",
+      "open_time",
+      "close_time",
+      "capacity",
+      "status",
+      "approved_by",
+      "approved_at",
+      "created_at",
+      "updated_at"
+    ],
+    "parking_lot_vehicle_types": [
+      "id",
+      "parking_lot_id",
+      "vehicle_type"
+    ],
+    "parking_lot_managers": [
+      "id",
+      "parking_lot_id",
+      "manager_id",
+      "assigned_at"
+    ],
+    "slots": [
+      "id",
+      "parking_lot_id",
+      "code",
+      "row_index",
+      "col_index",
+      "slot_type",
+      "status",
+      "is_active",
+      "created_at",
+      "updated_at"
+    ],
+    "pricing_rules": [
+      "id",
+      "parking_lot_id",
+      "name",
+      "start_time",
+      "end_time",
+      "hourly_rate",
+      "surcharge",
+      "effective_from",
+      "effective_to",
+      "created_at",
+      "updated_at"
+    ],
+    "reservations": [
+      "id",
+      "user_id",
+      "parking_lot_id",
+      "slot_id",
+      "vehicle_id",
+      "start_time",
+      "expected_end_time",
+      "status",
+      "hold_expires_at",
+      "arrival_expires_at",
+      "hourly_rate",
+      "deposit_amount",
+      "total_amount",
+      "cancelled_at",
+      "cancel_reason",
+      "created_at",
+      "updated_at"
+    ],
+    "payments": [
+      "id",
+      "reservation_id",
+      "provider",
+      "transaction_ref",
+      "payment_type",
+      "amount",
+      "status",
+      "response_code",
+      "raw_ipn_payload",
+      "ipn_received_at",
+      "paid_at",
+      "created_at",
+      "updated_at"
+    ],
+    "qr_tickets": [
+      "id",
+      "reservation_id",
+      "token_hash",
+      "status",
+      "issued_at",
+      "used_at",
+      "expires_at",
+      "created_at"
+    ],
+    "parking_sessions": [
+      "id",
+      "reservation_id",
+      "check_in_at",
+      "check_out_at",
+      "checked_in_by",
+      "checked_out_by",
+      "final_amount",
+      "status",
+      "created_at",
+      "updated_at"
+    ],
+    "audit_logs": [
+      "id",
+      "user_id",
+      "parking_lot_id",
+      "action",
+      "entity_type",
+      "entity_id",
+      "old_value",
+      "new_value",
+      "note",
+      "created_at"
+    ],
+    "manager_history": [
+      "id",
+      "manager_id",
+      "parking_lot_id",
+      "action_type",
+      "old_value",
+      "new_value",
+      "note",
+      "created_at"
+    ],
+    "email_otps": [
+      "id",
+      "email",
+      "otp_code",
+      "purpose",
+      "attempts",
+      "is_used",
+      "expires_at",
+      "created_at"
+    ],
+    "chat_messages": [
+      "id",
+      "user_id",
+      "role",
+      "message",
+      "cards",
+      "chips",
+      "created_at"
+    ]
+  },
+  "rows": {
+    "users": [
+      {
+        "id": 1,
+        "full_name": "Admin He Thong",
+        "email": "admin@ezspace.vn",
+        "phone": "0905000111",
+        "role": "admin",
+        "status": "active"
+      },
+      {
+        "id": 2,
+        "full_name": "Tran Van Quan Ly",
+        "email": "manager@ezspace.vn",
+        "phone": "0905987654",
+        "role": "manager",
+        "status": "active"
+      },
+      {
+        "id": 3,
+        "full_name": "Nguyen Van A",
+        "email": "customer@ezspace.vn",
+        "phone": "0905123456",
+        "role": "customer",
+        "status": "active"
+      },
+      {
+        "id": 4,
+        "full_name": "Le Thi B",
+        "email": "lethib@gmail.com",
+        "phone": "0905222333",
+        "role": "customer",
+        "status": "active"
+      }
+    ],
+    "vehicles": [
+      {
+        "id": 1,
+        "user_id": 3,
+        "license_plate": "43A-123.45",
+        "vehicle_name": "Toyota Fortuner",
+        "vehicle_type": "SUV",
+        "is_default": true
+      },
+      {
+        "id": 2,
+        "user_id": 3,
+        "license_plate": "43A-678.90",
+        "vehicle_name": "Honda Civic",
+        "vehicle_type": "Sedan",
+        "is_default": false
+      },
+      {
+        "id": 3,
+        "user_id": 3,
+        "license_plate": "43E-999.88",
+        "vehicle_name": "VinFast VF8",
+        "vehicle_type": "EV",
+        "is_default": false
+      },
+      {
+        "id": 4,
+        "user_id": 4,
+        "license_plate": "43A-555.66",
+        "vehicle_name": "Mazda CX-5",
+        "vehicle_type": "SUV",
+        "is_default": true
+      }
+    ],
+    "parking_lots": [
+      {
+        "id": 1,
+        "name": "Bai Hai Chau A",
+        "address": "15 Le Duan, Hai Chau, Da Nang",
+        "latitude": 16.0718,
+        "longitude": 108.2222,
+        "description": "Bai do xe trung tam gan cau Song Han, co mai che va tram sac EV.",
+        "open_time": "00:00:00",
+        "close_time": "23:59:59",
+        "capacity": 80,
+        "status": "active",
+        "approved_by": 1,
+        "approved_at": {
+          "$now": 0
+        }
+      },
+      {
+        "id": 2,
+        "name": "Bai Cau Rong",
+        "address": "Son Tra, Da Nang (Gan chan Cau Rong)",
+        "latitude": 16.061,
+        "longitude": 108.227,
+        "description": "Bai do xe thuan tien ngam Cau Rong phun lua cuoi tuan.",
+        "open_time": "06:00:00",
+        "close_time": "23:00:00",
+        "capacity": 120,
+        "status": "active",
+        "approved_by": 1,
+        "approved_at": {
+          "$now": 0
+        }
+      },
+      {
+        "id": 3,
+        "name": "San bay Da Nang T1",
+        "address": "San bay Quoc te Da Nang, Hai Chau",
+        "latitude": 16.0538,
+        "longitude": 108.1995,
+        "description": "Bai do dai han gan ga quoc noi T1, an ninh 24/7.",
+        "open_time": "00:00:00",
+        "close_time": "23:59:59",
+        "capacity": 340,
+        "status": "active",
+        "approved_by": 1,
+        "approved_at": {
+          "$now": 0
+        }
+      }
+    ],
+    "parking_lot_vehicle_types": [
+      {
+        "parking_lot_id": 1,
+        "vehicle_type": "Sedan",
+        "id": 1
+      },
+      {
+        "parking_lot_id": 1,
+        "vehicle_type": "SUV",
+        "id": 2
+      },
+      {
+        "parking_lot_id": 1,
+        "vehicle_type": "EV",
+        "id": 3
+      },
+      {
+        "parking_lot_id": 2,
+        "vehicle_type": "Sedan",
+        "id": 4
+      },
+      {
+        "parking_lot_id": 2,
+        "vehicle_type": "SUV",
+        "id": 5
+      },
+      {
+        "parking_lot_id": 3,
+        "vehicle_type": "Sedan",
+        "id": 6
+      },
+      {
+        "parking_lot_id": 3,
+        "vehicle_type": "SUV",
+        "id": 7
+      },
+      {
+        "parking_lot_id": 3,
+        "vehicle_type": "EV",
+        "id": 8
+      }
+    ],
+    "parking_lot_managers": [
+      {
+        "parking_lot_id": 1,
+        "manager_id": 2,
+        "id": 1
+      },
+      {
+        "parking_lot_id": 2,
+        "manager_id": 2,
+        "id": 2
+      }
+    ],
+    "slots": [
+      {
+        "parking_lot_id": 1,
+        "code": "A-01",
+        "row_index": 0,
+        "col_index": 0,
+        "slot_type": "standard",
+        "status": "available",
+        "is_active": true,
+        "id": 1
+      },
+      {
+        "parking_lot_id": 1,
+        "code": "A-02",
+        "row_index": 0,
+        "col_index": 1,
+        "slot_type": "standard",
+        "status": "available",
+        "is_active": true,
+        "id": 2
+      },
+      {
+        "parking_lot_id": 1,
+        "code": "A-03",
+        "row_index": 0,
+        "col_index": 2,
+        "slot_type": "standard",
+        "status": "holding",
+        "is_active": true,
+        "id": 3
+      },
+      {
+        "parking_lot_id": 1,
+        "code": "A-04",
+        "row_index": 0,
+        "col_index": 3,
+        "slot_type": "large",
+        "status": "occupied",
+        "is_active": true,
+        "id": 4
+      },
+      {
+        "parking_lot_id": 1,
+        "code": "A-05",
+        "row_index": 0,
+        "col_index": 4,
+        "slot_type": "ev_charging",
+        "status": "available",
+        "is_active": true,
+        "id": 5
+      },
+      {
+        "parking_lot_id": 1,
+        "code": "A-06",
+        "row_index": 1,
+        "col_index": 0,
+        "slot_type": "standard",
+        "status": "available",
+        "is_active": true,
+        "id": 6
+      },
+      {
+        "parking_lot_id": 1,
+        "code": "A-07",
+        "row_index": 1,
+        "col_index": 1,
+        "slot_type": "large",
+        "status": "available",
+        "is_active": true,
+        "id": 7
+      },
+      {
+        "parking_lot_id": 1,
+        "code": "A-08",
+        "row_index": 1,
+        "col_index": 2,
+        "slot_type": "standard",
+        "status": "occupied",
+        "is_active": true,
+        "id": 8
+      },
+      {
+        "parking_lot_id": 1,
+        "code": "A-09",
+        "row_index": 1,
+        "col_index": 3,
+        "slot_type": "standard",
+        "status": "available",
+        "is_active": true,
+        "id": 9
+      },
+      {
+        "parking_lot_id": 1,
+        "code": "A-10",
+        "row_index": 1,
+        "col_index": 4,
+        "slot_type": "ev_charging",
+        "status": "occupied",
+        "is_active": true,
+        "id": 10
+      },
+      {
+        "parking_lot_id": 1,
+        "code": "B-01",
+        "row_index": 2,
+        "col_index": 0,
+        "slot_type": "standard",
+        "status": "available",
+        "is_active": true,
+        "id": 11
+      },
+      {
+        "parking_lot_id": 1,
+        "code": "B-02",
+        "row_index": 2,
+        "col_index": 1,
+        "slot_type": "standard",
+        "status": "available",
+        "is_active": true,
+        "id": 12
+      },
+      {
+        "parking_lot_id": 1,
+        "code": "B-03",
+        "row_index": 2,
+        "col_index": 2,
+        "slot_type": "large",
+        "status": "available",
+        "is_active": true,
+        "id": 13
+      },
+      {
+        "parking_lot_id": 1,
+        "code": "B-04",
+        "row_index": 2,
+        "col_index": 3,
+        "slot_type": "standard",
+        "status": "holding",
+        "is_active": true,
+        "id": 14
+      },
+      {
+        "parking_lot_id": 1,
+        "code": "B-05",
+        "row_index": 2,
+        "col_index": 4,
+        "slot_type": "ev_charging",
+        "status": "available",
+        "is_active": true,
+        "id": 15
+      },
+      {
+        "parking_lot_id": 1,
+        "code": "B-06",
+        "row_index": 3,
+        "col_index": 0,
+        "slot_type": "disabled",
+        "status": "available",
+        "is_active": true,
+        "id": 16
+      },
+      {
+        "parking_lot_id": 1,
+        "code": "B-07",
+        "row_index": 3,
+        "col_index": 1,
+        "slot_type": "standard",
+        "status": "available",
+        "is_active": true,
+        "id": 17
+      },
+      {
+        "parking_lot_id": 1,
+        "code": "B-08",
+        "row_index": 3,
+        "col_index": 2,
+        "slot_type": "standard",
+        "status": "available",
+        "is_active": true,
+        "id": 18
+      },
+      {
+        "parking_lot_id": 1,
+        "code": "B-09",
+        "row_index": 3,
+        "col_index": 3,
+        "slot_type": "large",
+        "status": "occupied",
+        "is_active": true,
+        "id": 19
+      },
+      {
+        "parking_lot_id": 1,
+        "code": "B-10",
+        "row_index": 3,
+        "col_index": 4,
+        "slot_type": "standard",
+        "status": "available",
+        "is_active": true,
+        "id": 20
+      },
+      {
+        "parking_lot_id": 2,
+        "code": "CR-01",
+        "row_index": 0,
+        "col_index": 0,
+        "slot_type": "standard",
+        "status": "available",
+        "is_active": true,
+        "id": 21
+      },
+      {
+        "parking_lot_id": 2,
+        "code": "CR-02",
+        "row_index": 0,
+        "col_index": 1,
+        "slot_type": "standard",
+        "status": "available",
+        "is_active": true,
+        "id": 22
+      },
+      {
+        "parking_lot_id": 2,
+        "code": "CR-03",
+        "row_index": 0,
+        "col_index": 2,
+        "slot_type": "standard",
+        "status": "available",
+        "is_active": true,
+        "id": 23
+      },
+      {
+        "parking_lot_id": 2,
+        "code": "CR-04",
+        "row_index": 0,
+        "col_index": 3,
+        "slot_type": "standard",
+        "status": "available",
+        "is_active": true,
+        "id": 24
+      },
+      {
+        "parking_lot_id": 2,
+        "code": "CR-05",
+        "row_index": 0,
+        "col_index": 4,
+        "slot_type": "standard",
+        "status": "available",
+        "is_active": true,
+        "id": 25
+      },
+      {
+        "parking_lot_id": 2,
+        "code": "CR-06",
+        "row_index": 1,
+        "col_index": 0,
+        "slot_type": "large",
+        "status": "available",
+        "is_active": true,
+        "id": 26
+      },
+      {
+        "parking_lot_id": 2,
+        "code": "CR-07",
+        "row_index": 1,
+        "col_index": 1,
+        "slot_type": "large",
+        "status": "available",
+        "is_active": true,
+        "id": 27
+      },
+      {
+        "parking_lot_id": 2,
+        "code": "CR-08",
+        "row_index": 1,
+        "col_index": 2,
+        "slot_type": "large",
+        "status": "available",
+        "is_active": true,
+        "id": 28
+      },
+      {
+        "parking_lot_id": 2,
+        "code": "CR-09",
+        "row_index": 1,
+        "col_index": 3,
+        "slot_type": "large",
+        "status": "available",
+        "is_active": true,
+        "id": 29
+      },
+      {
+        "parking_lot_id": 2,
+        "code": "CR-10",
+        "row_index": 1,
+        "col_index": 4,
+        "slot_type": "standard",
+        "status": "occupied",
+        "is_active": true,
+        "id": 30
+      },
+      {
+        "parking_lot_id": 2,
+        "code": "CR-11",
+        "row_index": 2,
+        "col_index": 0,
+        "slot_type": "standard",
+        "status": "occupied",
+        "is_active": true,
+        "id": 31
+      },
+      {
+        "parking_lot_id": 2,
+        "code": "CR-12",
+        "row_index": 2,
+        "col_index": 1,
+        "slot_type": "large",
+        "status": "occupied",
+        "is_active": true,
+        "id": 32
+      },
+      {
+        "parking_lot_id": 2,
+        "code": "CR-13",
+        "row_index": 2,
+        "col_index": 2,
+        "slot_type": "standard",
+        "status": "occupied",
+        "is_active": true,
+        "id": 33
+      },
+      {
+        "parking_lot_id": 2,
+        "code": "CR-14",
+        "row_index": 2,
+        "col_index": 3,
+        "slot_type": "standard",
+        "status": "holding",
+        "is_active": true,
+        "id": 34
+      },
+      {
+        "parking_lot_id": 2,
+        "code": "CR-15",
+        "row_index": 2,
+        "col_index": 4,
+        "slot_type": "large",
+        "status": "occupied",
+        "is_active": true,
+        "id": 35
+      },
+      {
+        "parking_lot_id": 3,
+        "code": "SB-01",
+        "row_index": 0,
+        "col_index": 0,
+        "slot_type": "standard",
+        "status": "available",
+        "is_active": true,
+        "id": 36
+      },
+      {
+        "parking_lot_id": 3,
+        "code": "SB-02",
+        "row_index": 0,
+        "col_index": 1,
+        "slot_type": "standard",
+        "status": "available",
+        "is_active": true,
+        "id": 37
+      },
+      {
+        "parking_lot_id": 3,
+        "code": "SB-03",
+        "row_index": 0,
+        "col_index": 2,
+        "slot_type": "standard",
+        "status": "available",
+        "is_active": true,
+        "id": 38
+      },
+      {
+        "parking_lot_id": 3,
+        "code": "SB-04",
+        "row_index": 0,
+        "col_index": 3,
+        "slot_type": "standard",
+        "status": "available",
+        "is_active": true,
+        "id": 39
+      },
+      {
+        "parking_lot_id": 3,
+        "code": "SB-05",
+        "row_index": 0,
+        "col_index": 4,
+        "slot_type": "standard",
+        "status": "available",
+        "is_active": true,
+        "id": 40
+      },
+      {
+        "parking_lot_id": 3,
+        "code": "SB-06",
+        "row_index": 1,
+        "col_index": 0,
+        "slot_type": "large",
+        "status": "available",
+        "is_active": true,
+        "id": 41
+      },
+      {
+        "parking_lot_id": 3,
+        "code": "SB-07",
+        "row_index": 1,
+        "col_index": 1,
+        "slot_type": "large",
+        "status": "available",
+        "is_active": true,
+        "id": 42
+      },
+      {
+        "parking_lot_id": 3,
+        "code": "SB-08",
+        "row_index": 1,
+        "col_index": 2,
+        "slot_type": "large",
+        "status": "available",
+        "is_active": true,
+        "id": 43
+      },
+      {
+        "parking_lot_id": 3,
+        "code": "SB-09",
+        "row_index": 1,
+        "col_index": 3,
+        "slot_type": "large",
+        "status": "available",
+        "is_active": true,
+        "id": 44
+      },
+      {
+        "parking_lot_id": 3,
+        "code": "SB-10",
+        "row_index": 1,
+        "col_index": 4,
+        "slot_type": "standard",
+        "status": "occupied",
+        "is_active": true,
+        "id": 45
+      },
+      {
+        "parking_lot_id": 3,
+        "code": "SB-11",
+        "row_index": 2,
+        "col_index": 0,
+        "slot_type": "ev_charging",
+        "status": "available",
+        "is_active": true,
+        "id": 46
+      },
+      {
+        "parking_lot_id": 3,
+        "code": "SB-12",
+        "row_index": 2,
+        "col_index": 1,
+        "slot_type": "ev_charging",
+        "status": "available",
+        "is_active": true,
+        "id": 47
+      },
+      {
+        "parking_lot_id": 3,
+        "code": "SB-13",
+        "row_index": 2,
+        "col_index": 2,
+        "slot_type": "standard",
+        "status": "available",
+        "is_active": true,
+        "id": 48
+      },
+      {
+        "parking_lot_id": 3,
+        "code": "SB-14",
+        "row_index": 2,
+        "col_index": 3,
+        "slot_type": "standard",
+        "status": "available",
+        "is_active": true,
+        "id": 49
+      },
+      {
+        "parking_lot_id": 3,
+        "code": "SB-15",
+        "row_index": 2,
+        "col_index": 4,
+        "slot_type": "large",
+        "status": "occupied",
+        "is_active": true,
+        "id": 50
+      },
+      {
+        "parking_lot_id": 3,
+        "code": "SB-16",
+        "row_index": 3,
+        "col_index": 0,
+        "slot_type": "standard",
+        "status": "available",
+        "is_active": true,
+        "id": 51
+      },
+      {
+        "parking_lot_id": 3,
+        "code": "SB-17",
+        "row_index": 3,
+        "col_index": 1,
+        "slot_type": "standard",
+        "status": "available",
+        "is_active": true,
+        "id": 52
+      },
+      {
+        "parking_lot_id": 3,
+        "code": "SB-18",
+        "row_index": 3,
+        "col_index": 2,
+        "slot_type": "standard",
+        "status": "available",
+        "is_active": true,
+        "id": 53
+      },
+      {
+        "parking_lot_id": 3,
+        "code": "SB-19",
+        "row_index": 3,
+        "col_index": 3,
+        "slot_type": "ev_charging",
+        "status": "occupied",
+        "is_active": true,
+        "id": 54
+      },
+      {
+        "parking_lot_id": 3,
+        "code": "SB-20",
+        "row_index": 3,
+        "col_index": 4,
+        "slot_type": "standard",
+        "status": "holding",
+        "is_active": true,
+        "id": 55
+      }
+    ],
+    "pricing_rules": [
+      {
+        "parking_lot_id": 1,
+        "name": "Gia tieu chuan ban ngay",
+        "start_time": "06:00:00",
+        "end_time": "18:00:00",
+        "hourly_rate": 20000,
+        "surcharge": 0,
+        "effective_from": "2026-01-01",
+        "effective_to": "2026-12-31",
+        "id": 1
+      },
+      {
+        "parking_lot_id": 1,
+        "name": "Gio cao diem toi",
+        "start_time": "18:00:00",
+        "end_time": "22:00:00",
+        "hourly_rate": 20000,
+        "surcharge": 5000,
+        "effective_from": "2026-01-01",
+        "effective_to": "2026-12-31",
+        "id": 2
+      },
+      {
+        "parking_lot_id": 1,
+        "name": "Gia qua dem",
+        "start_time": "22:00:00",
+        "end_time": "06:00:00",
+        "hourly_rate": 15000,
+        "surcharge": 0,
+        "effective_from": "2026-01-01",
+        "effective_to": "2026-12-31",
+        "id": 3
+      },
+      {
+        "parking_lot_id": 2,
+        "name": "Gia dong hang ngay",
+        "start_time": "06:00:00",
+        "end_time": "23:00:00",
+        "hourly_rate": 15000,
+        "surcharge": 0,
+        "effective_from": "2026-01-01",
+        "effective_to": "2026-12-31",
+        "id": 4
+      },
+      {
+        "parking_lot_id": 3,
+        "name": "Gia dai han san bay",
+        "start_time": "00:00:00",
+        "end_time": "23:59:59",
+        "hourly_rate": 12000,
+        "surcharge": 0,
+        "effective_from": "2026-01-01",
+        "effective_to": "2026-12-31",
+        "id": 5
+      }
+    ],
+    "reservations": [
+      {
+        "id": 1,
+        "user_id": 3,
+        "parking_lot_id": 1,
+        "slot_id": 3,
+        "vehicle_id": 1,
+        "start_time": {
+          "$now": 0
+        },
+        "expected_end_time": {
+          "$now": 7200000
+        },
+        "status": "holding",
+        "hold_expires_at": {
+          "$now": 480000
+        },
+        "arrival_expires_at": null,
+        "hourly_rate": 20000,
+        "deposit_amount": 20000,
+        "total_amount": null,
+        "created_at": {
+          "$now": 0
+        }
+      },
+      {
+        "id": 2,
+        "user_id": 3,
+        "parking_lot_id": 1,
+        "slot_id": 4,
+        "vehicle_id": 2,
+        "start_time": {
+          "$now": -300000
+        },
+        "expected_end_time": {
+          "$now": 10800000
+        },
+        "status": "paid",
+        "hold_expires_at": {
+          "$now": 300000
+        },
+        "arrival_expires_at": {
+          "$now": 900000
+        },
+        "hourly_rate": 20000,
+        "deposit_amount": 20000,
+        "total_amount": null,
+        "created_at": {
+          "$now": -300000
+        }
+      },
+      {
+        "id": 3,
+        "user_id": 3,
+        "parking_lot_id": 1,
+        "slot_id": 1,
+        "vehicle_id": 1,
+        "start_time": {
+          "$now": -86400000
+        },
+        "expected_end_time": {
+          "$now": -79200000
+        },
+        "status": "completed",
+        "hold_expires_at": {
+          "$now": -86400000
+        },
+        "arrival_expires_at": {
+          "$now": -85200000
+        },
+        "hourly_rate": 20000,
+        "deposit_amount": 20000,
+        "total_amount": 40000,
+        "created_at": {
+          "$now": -86400000
+        }
+      }
+    ],
+    "payments": [
+      {
+        "reservation_id": 2,
+        "provider": "vnpay",
+        "transaction_ref": "VNP_TRANS_20261013001",
+        "payment_type": "deposit",
+        "amount": 20000,
+        "status": "success",
+        "response_code": "00",
+        "paid_at": {
+          "$now": -240000
+        },
+        "id": 1
+      },
+      {
+        "reservation_id": 3,
+        "provider": "vnpay",
+        "transaction_ref": "VNP_DEP_PREV01",
+        "payment_type": "deposit",
+        "amount": 20000,
+        "status": "success",
+        "response_code": "00",
+        "paid_at": {
+          "$now": -86400000
+        },
+        "id": 2
+      },
+      {
+        "reservation_id": 3,
+        "provider": "momo",
+        "transaction_ref": "MOMO_FINAL_PREV01",
+        "payment_type": "final",
+        "amount": 20000,
+        "status": "success",
+        "response_code": "00",
+        "paid_at": {
+          "$now": -79200000
+        },
+        "id": 3
+      }
+    ],
+    "qr_tickets": [
+      {
+        "reservation_id": 2,
+        "token_hash": "6f5cbdbaf0dacc422742b2e535270cda90dfde92a2f485bdb530226c6658b73b",
+        "status": "active",
+        "issued_at": {
+          "$now": -240000
+        },
+        "expires_at": {
+          "$now": 900000
+        },
+        "id": 1
+      }
+    ],
+    "parking_sessions": [
+      {
+        "reservation_id": 3,
+        "check_in_at": {
+          "$now": -85800000
+        },
+        "check_out_at": {
+          "$now": -79200000
+        },
+        "checked_in_by": 2,
+        "checked_out_by": 2,
+        "final_amount": 40000,
+        "status": "completed",
+        "id": 1
+      }
+    ],
+    "audit_logs": [
+      {
+        "user_id": 1,
+        "parking_lot_id": 1,
+        "action": "APPROVE_LOT",
+        "entity_type": "parking_lots",
+        "entity_id": 1,
+        "note": "Admin duyet mo bai Hai Chau A",
+        "id": 1
+      },
+      {
+        "user_id": 2,
+        "parking_lot_id": 1,
+        "action": "UPDATE_SLOT",
+        "entity_type": "slots",
+        "entity_id": 4,
+        "note": "Quan ly danh dau o A-04 thanh occupied",
+        "id": 2
+      }
+    ],
+    "manager_history": [],
+    "email_otps": [],
+    "chat_messages": []
+  }
+}
