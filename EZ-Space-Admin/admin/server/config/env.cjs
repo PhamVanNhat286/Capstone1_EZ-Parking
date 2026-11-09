@@ -27,6 +27,7 @@ const root = path.resolve(__dirname, '../..');
 const envCandidates = [
   path.resolve(root, '../../../Capstone1_EZ-Parking/backend/.env'),
   path.resolve(root, '../../Capstone1_EZ-Parking/backend/.env'),
+  path.resolve(root, '../../backend/.env'),
   path.resolve(root, '../backend/.env'),
   path.join(root, '.env'),
   path.join(root, '.env.local')
