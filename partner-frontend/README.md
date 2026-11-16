@@ -45,7 +45,6 @@ Password hash và raw IPN payload bị loại khỏi dữ liệu trình duyệt.
 | /revenue | Giao dịch payments, lọc ngày/trạng thái/tìm kiếm, xuất CSV |
 | /audit | audit_logs, manager_history, chi tiết trước/sau, dòng thời gian |
 | /settings | Hồ sơ quản lý và các bãi được phân công |
-| /design-system | Bộ thành phần giao diện tham khảo |
 
 ## Kiểm tra
 
