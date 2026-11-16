@@ -2,11 +2,13 @@
 
 import Link from 'next/link';
 import { useState, type ReactNode } from 'react';
-import { Building2, CalendarDays, Car, ChevronLeft, ChevronRight, CircleHelp, Download, Grid2X2, History, Info, LayoutDashboard, MapPin, Menu, Pencil, Plus, QrCode, RefreshCw, Search, Settings, ShieldCheck, Wallet, X } from 'lucide-react';
-import { cancelHolding, consistencyWarnings, csv, dateTime, labels, lotStatuses, managedLots, money, previewGateIn, previewGateOut, reportingDay, reservationStatuses, slotStatuses, summarize, toggleLot, type ParkingLot, type PartnerData, type Reservation } from '@/lib/database-model';
+import { Building2, CalendarDays, Car, ChevronRight, CircleHelp, Download, Grid2X2, History, Info, LayoutDashboard, MapPin, Menu, Pencil, Plus, QrCode, RefreshCw, Search, Settings, ShieldCheck, Wallet, X } from 'lucide-react';
+import { cancelHolding, consistencyWarnings, csv, dateTime, labels, lotStatuses, managedLots, money, previewGateIn, previewGateOut, reservationStatuses, slotStatuses, summarize, toggleLot, type ParkingLot, type PartnerData, type Reservation } from '@/lib/database-model';
 import { useSqlWorkspace } from './SqlWorkspace';
 import PartnerDialog from './PartnerDialog';
 import SqlForm, { Field, type Editor } from './SqlForms';
+import SqlRevenue from './SqlRevenue';
+import Table from './SqlTable';
 import styles from './sql-portal.module.css';
 
 type View = 'dashboard' | 'lots' | 'layout' | 'pricing' | 'sessions' | 'kiosk' | 'revenue' | 'audit' | 'settings';
@@ -27,18 +29,13 @@ const descriptions: Record<View, string> = {
   pricing: 'Quy tắc giá theo bãi, khung giờ và khoảng ngày hiệu lực.',
   sessions: 'Đặt chỗ và phiên đỗ thực tế được theo dõi riêng.',
   kiosk: 'Tra cứu đặt chỗ, vé QR của EZ-Space và phiên đỗ liên quan.',
-  revenue: 'Thống kê từ giao dịch thanh toán theo khoảng thời gian và trạng thái.',
+  revenue: 'Theo dõi doanh thu theo ngày, tháng, năm và các giao dịch trong kỳ.',
   audit: 'Nhật ký hệ thống và lịch sử thay đổi của quản lý bãi.',
   settings: 'Thông tin tài khoản quản lý và các bãi được phân công.',
 };
 function Badge({ value, text }: { value: string; text?: string }) { return <span className={styles.badge} data-state={value}>{text ?? labels[value] ?? value}</span>; }
 function Card({ label, value, detail }: { label: string; value: ReactNode; detail: string }) { return <article className={styles.card}><small>{label}</small><strong>{value}</strong><p>{detail}</p></article>; }
 function Empty({ children = 'Chưa có dữ liệu phù hợp.' }: { children?: ReactNode }) { return <p className={styles.empty}>{children}</p>; }
-function Table({ headers, rows, name }: { headers: string[]; rows: { id: string; cells: ReactNode[] }[]; name: string }) {
-  const [page, setPage] = useState(0);
-  const current = Math.min(page, Math.max(0, Math.ceil(rows.length / 10) - 1));
-  return <><div className={styles.tableScroll}><table className={styles.table} aria-label={name}><thead><tr>{headers.map(h => <th scope="col" key={h}>{h}</th>)}</tr></thead><tbody>{rows.slice(current * 10, current * 10 + 10).map(row => <tr key={row.id}>{row.cells.map((cell, index) => <td key={index}>{cell}</td>)}</tr>)}</tbody></table></div>{!rows.length && <Empty />}<div className={styles.pagination}><span>{rows.length ? `${current * 10 + 1}–${Math.min(rows.length, current * 10 + 10)}` : '0'} / {rows.length}</span><button className={styles.secondary} disabled={current === 0} aria-label={`Trang trước: ${name}`} onClick={() => setPage(current - 1)}><ChevronLeft size={13} /></button><button className={styles.secondary} disabled={(current + 1) * 10 >= rows.length} aria-label={`Trang sau: ${name}`} onClick={() => setPage(current + 1)}><ChevronRight size={13} /></button></div></>;
-}
 function download(name: string, content: string) {
   const url = URL.createObjectURL(new Blob([content], { type: 'text/csv;charset=utf-8' }));
   const a = document.createElement('a'); a.href = url; a.download = name; a.click();
@@ -55,8 +52,6 @@ export default function SqlPortal({ view }: { view: View }) {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('all');
   const [tab, setTab] = useState('reservations');
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
   const [error, setError] = useState('');
   const [ticketId, setTicketId] = useState<string | null>(null);
   const [cancelId, setCancelId] = useState<string | null>(null);
@@ -80,9 +75,6 @@ export default function SqlPortal({ view }: { view: View }) {
     const vehicle = db.vehicles.find(v => v.id === r.vehicle_id), customer = db.users.find(u => u.id === r.user_id);
     return (filter === 'all' || filter === r.status) && matches(query, [r.id, customer?.full_name, vehicle?.license_plate, db.slots.find(s => s.id === r.slot_id)?.code]);
   });
-  const filteredPayments = stats.payments.filter(p => (filter === 'all' || p.status === filter) && (!from || reportingDay(p.created_at) >= from) && (!to || reportingDay(p.created_at) <= to) && matches(query, [p.id, p.reservation_id, p.transaction_ref, p.provider]));
-  const income = filteredPayments.filter(p => p.status === 'success' && p.payment_type !== 'refund').reduce((sum, p) => sum + p.amount, 0);
-  const refunds = filteredPayments.filter(p => p.status === 'success' && p.payment_type === 'refund').reduce((sum, p) => sum + p.amount, 0);
   const actions = view === 'lots' ? <button className={styles.primary} onClick={() => setEditor({ kind: 'lot' })}><Plus size={15} />Đăng ký bãi</button> : view === 'layout' ? <button className={styles.primary} disabled={!lot} onClick={() => setEditor({ kind: 'slot' })}><Plus size={15} />Thêm ô đỗ</button> : view === 'pricing' ? <button className={styles.primary} disabled={!lot} onClick={() => setEditor({ kind: 'pricing' })}><Plus size={15} />Thêm quy tắc giá</button> : null;
   const search = (placeholder: string) => <div className={styles.toolbar}><Search size={17} /><input type="search" aria-label={placeholder} placeholder={placeholder} value={query} onChange={e => setQuery(e.target.value)} />{view === 'lots' && <select aria-label="Trạng thái bãi" value={filter} onChange={e => setFilter(e.target.value)}><option value="all">Tất cả trạng thái</option>{lotStatuses.map(s => <option key={s} value={s}>{s === 'pending' ? 'Chờ duyệt' : labels[s]}</option>)}</select>}{view === 'sessions' && <select aria-label="Trạng thái đặt chỗ" value={filter} onChange={e => setFilter(e.target.value)}><option value="all">Tất cả trạng thái</option>{reservationStatuses.map(s => <option value={s} key={s}>{labels[s]}</option>)}</select>}</div>;
   return <div className={styles.shell}>
@@ -117,11 +109,7 @@ export default function SqlPortal({ view }: { view: View }) {
           {ticketId && <section className={styles.panel}><h2>Mô phỏng nghiệp vụ trong bản xem thử</h2><p className={styles.note}>Đối chiếu trạng thái đặt chỗ, ô, vé và phiên trước khi chuyển trạng thái. Không xác minh chữ ký QR, không điều khiển thiết bị hay tạo thanh toán.</p><div className={styles.actions}><button className={styles.primary} onClick={() => update(data => previewGateIn(data, managerId, ticketId))}>Ghi nhận xe vào (xem thử)</button></div><form className={styles.form} onSubmit={e => { e.preventDefault(); const amount = Number(new FormData(e.currentTarget).get('final_amount')); update(data => previewGateOut(data, managerId, ticketId, amount)); }}><Field label="Tổng tiền đã quyết toán (đ)"><input name="final_amount" type="number" step="0.01" required min={0} max={9999999999.99} /></Field><div className={styles.actions}><button className={styles.secondary} type="submit">Ghi nhận xe ra (xem thử)</button></div><p className={styles.note}>Chỉ hoàn tất khi các giao dịch thành công đã đủ tổng tiền nhập. Không tự tính phụ thu hoặc tự ghi giao dịch thành công.</p></form></section>}
           <div className={styles.notice}><ShieldCheck size={17} /><span>QR vé EZ-Space gắn với đặt chỗ và có thời hạn. QR của cổng thanh toán phục vụ giao dịch tiền; hai loại QR được theo dõi riêng.</span></div>
         </>}
-        {view === 'revenue' && <>
-          <div className={styles.toolbar}><Field label="Từ ngày tạo giao dịch"><input type="date" value={from} onChange={e => setFrom(e.target.value)} /></Field><Field label="Đến ngày"><input type="date" value={to} min={from} onChange={e => setTo(e.target.value)} /></Field><select aria-label="Trạng thái thanh toán" value={filter} onChange={e => setFilter(e.target.value)}>{['all', 'pending', 'success', 'failed', 'refunded'].map(s => <option key={s} value={s}>{s === 'all' ? 'Tất cả trạng thái' : s === 'pending' ? 'Chờ thanh toán' : labels[s]}</option>)}</select><button className={styles.secondary} onClick={() => { setFrom(''); setTo(''); setFilter('all'); setQuery(''); }}>Xóa bộ lọc</button></div>
-          <div className={styles.cards}><Card label="Thu thành công" value={money(income)} detail="Cọc + thanh toán cuối, status success" /><Card label="Hoàn tiền thành công" value={money(refunds)} detail="payment_type refund, status success" /><Card label="Chênh lệch thu / hoàn" value={money(income - refunds)} detail="Thu thành công trừ hoàn tiền thành công" /><Card label="Giao dịch theo bộ lọc" value={filteredPayments.length} detail="Bao gồm các trạng thái đang chọn" /></div>
-          <section className={styles.panel}><div className={styles.panelHead}><h2>Giao dịch thanh toán</h2><button className={styles.secondary} onClick={() => download('partner-payments.csv', csv([['id', 'reservation_id', 'provider', 'transaction_ref', 'payment_type', 'amount', 'status', 'created_at', 'paid_at'], ...filteredPayments.map(p => [p.id, p.reservation_id, p.provider, p.transaction_ref, p.payment_type, p.amount, p.status, p.created_at, p.paid_at])]))}><Download size={14} />Xuất CSV</button></div>{search('Tìm mã giao dịch, đơn đặt chỗ hoặc cổng thanh toán…')}<Table name="Thanh toán" headers={['Giao dịch', 'Đặt chỗ', 'Cổng', 'Loại', 'Số tiền', 'Trạng thái', 'Thanh toán lúc']} rows={filteredPayments.map(p => ({ id: p.id, cells: [<button onClick={() => inspect('payments', p.id)}>#{p.id}<small>{p.transaction_ref ?? '—'}</small></button>, `#${p.reservation_id}`, p.provider.toUpperCase(), labels[p.payment_type], money(p.amount), <Badge value={p.status} text={p.status === 'pending' ? 'Chờ thanh toán' : undefined} />, dateTime(p.paid_at)] }))} /><p className={styles.note}>Không cộng tổng tiền đặt chỗ hoặc tổng tiền phiên đỗ vào tiền thu để tránh tính trùng cọc và thanh toán cuối.</p></section>
-        </>}
+        {view === 'revenue' && <SqlRevenue onInspect={id => inspect('payments', id)} />}
         {view === 'audit' && <>
           <div className={styles.toolbar}>{[['reservations', 'Nhật ký hệ thống'], ['manager_history', 'Lịch sử quản lý'], ['timeline', 'Dòng thời gian']].map(([key, text]) => <button key={key} className={tab === key ? styles.primary : styles.secondary} onClick={() => { setTab(key); setFilter('all'); }}>{text}</button>)}</div>
           <AuditSection query={query} onQuery={setQuery} tab={tab} inspect={inspect} />

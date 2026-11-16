@@ -64,7 +64,12 @@ It is displayed and blocks invalid check-in instead of being silently repaired.
   successful funds. The final amount is entered explicitly; no invented fee or payment is added.
 - Changes append schema-shaped audit rows/history using valid action types.
 - Reports count successful deposit/final payments as receipts and successful refund rows separately.
-  Reservation totals and session final_amount are not added again. Date filters use Vietnam dates.
+  Reservation totals and session final_amount are not added again. There is no net/difference card,
+  summary column or CSV column. Day reports have 24 hourly buckets, month reports use calendar days
+  (including leap days), and year reports have 12 monthly buckets. Custom ranges remain available;
+  long ranges group by month or year to avoid unbounded day lists.
+  Periods use paid_at in Vietnam time, falling back to created_at with a visible count when paid_at
+  is null. Status/search filters apply consistently to cards, chart, summary, details and both CSVs.
 - Profile editing changes public full_name/phone only; no credential is collected or stored.
 
 All state is browser memory shared across routes. No API authentication, DB persistence,
@@ -73,7 +78,9 @@ is claimed. Permission and transaction checks must also run on the backend befor
 
 ## Validation
 
-- 18 model/contract tests cover source hashes, exact columns/enums, seed counts/links,
+- 28 model/contract tests cover source hashes, exact columns/enums, seed counts/links,
   ownership, capacity vs inventory, SQL uniqueness, pricing snapshots, money aggregation,
   unpaid cancellation, seed diagnostics, gate transitions/replay/expiry, profiles and safe CSV.
+  Revenue cases include Vietnam midnight/year boundaries, leap days, paid vs creation timestamps,
+  missing paid_at, empty/invalid ranges, filters, decimal precision and export totals.
 - TypeScript and production build are run for the complete app.

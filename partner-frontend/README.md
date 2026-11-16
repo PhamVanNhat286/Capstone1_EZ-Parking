@@ -42,7 +42,7 @@ Password hash và raw IPN payload bị loại khỏi dữ liệu trình duyệt.
 | /pricing | Quy tắc giá chung theo bãi, khung giờ và ngày hiệu lực |
 | /sessions | Hai danh sách riêng: reservations và parking_sessions |
 | /kiosk | Tra cứu vé/phiên và mô phỏng chuyển trạng thái có kiểm tra điều kiện |
-| /revenue | Giao dịch payments, lọc ngày/trạng thái/tìm kiếm, xuất CSV |
+| /revenue | Báo cáo ngày/tháng/năm/khoảng ngày, biểu đồ, tổng hợp và giao dịch, xuất CSV |
 | /audit | audit_logs, manager_history, chi tiết trước/sau, dòng thời gian |
 | /settings | Hồ sơ quản lý và các bãi được phân công |
 
@@ -54,8 +54,15 @@ npm run typecheck
 npm run build
 ```
 
-Bộ kiểm tra mới có 18 bài cho SQL contract, dữ liệu seed, phân công quản lý,
-ràng buộc ô, giá, hủy giữ chỗ, cổng, báo cáo và CSV.
+Bộ kiểm tra có 28 bài cho SQL contract, dữ liệu seed, phân công quản lý,
+ràng buộc ô, giá, hủy giữ chỗ, cổng, báo cáo theo kỳ và CSV.
+
+Báo cáo doanh thu có các lựa chọn **Theo ngày**, **Theo tháng**, **Theo năm**
+và **Khoảng ngày**. Ngày được tổng hợp theo giờ, tháng theo từng ngày,
+năm theo 12 tháng. Tiền thu, tiền hoàn và số giao dịch hiển thị riêng;
+không có mục chênh lệch thu/hoàn. Có CSV tổng hợp và CSV giao dịch theo bộ lọc.
+Kỳ báo cáo lấy từ ngày thanh toán theo UTC+7; giao dịch chưa có paid_at dùng
+ngày tạo và có ghi chú trong báo cáo.
 
 **Lưu ý nguồn seed:** bãi 1 khai báo capacity 80 nhưng mới có 20 ô;
 reservation 2 là paid trong khi ô A-04 là occupied. Bản xem thử giữ nguyên và
