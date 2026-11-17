@@ -13,6 +13,7 @@ export type Spot = {
   rowIndex?: number;
   colIndex?: number;
   nearExit?: boolean;
+  bookedIntervals?: { startTime: string; endTime: string; status: string }[];
 };
 
 
@@ -68,6 +69,7 @@ export default function ParkingSpotCard({
         </div>}
       <div className="flex justify-between text-[9px] text-slate-500 font-semibold">
         <span>{spot.nearExit ? "↗ Gần lối ra" : ""}</span>
+        {!!spot.bookedIntervals?.length && <span className="font-extrabold text-blue-700">{spot.bookedIntervals.length} lịch đặt</span>}
         {free && <span className="font-extrabold text-emerald-700">{Math.round(pricePerHour / 1000)}k/h</span>}
       </div>
     </button>

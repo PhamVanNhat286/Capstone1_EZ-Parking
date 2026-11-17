@@ -1,5 +1,6 @@
 import type { PoolClient } from 'pg';
 import { pool, query } from '../config/db';
+import { arrivalDeadline } from '../config/booking-policy';
 
 export type HeldReservation = {
   id: number;
@@ -33,7 +34,7 @@ export async function confirmDeposit(
   amount: number,
 ): Promise<'success' | 'late'> {
   const found = await client.query(
-    'SELECT id, status, hold_expires_at, deposit_amount FROM reservations WHERE id=$1 FOR UPDATE',
+    'SELECT id, status, hold_expires_at, deposit_amount, start_time FROM reservations WHERE id=$1 FOR UPDATE',
     [reservationId],
   );
   const reservation = found.rows[0];
@@ -42,8 +43,8 @@ export async function confirmDeposit(
       Number(reservation.deposit_amount) !== amount) return 'late';
 
   await client.query(
-    "UPDATE reservations SET status='paid', arrival_expires_at=NOW() + INTERVAL '20 minutes', updated_at=NOW() WHERE id=$1",
-    [reservationId],
+    "UPDATE reservations SET status='paid', arrival_expires_at=$2, updated_at=NOW() WHERE id=$1",
+    [reservationId, arrivalDeadline(new Date(reservation.start_time))],
   );
   await client.query(
     "INSERT INTO payments (reservation_id, provider, transaction_ref, payment_type, amount, status, paid_at) VALUES ($1,$2,$3,'deposit',$4,'success',NOW())",

@@ -241,3 +241,23 @@ SELECT setval('reservations_id_seq', (SELECT MAX(id) FROM reservations));
 INSERT INTO audit_logs (user_id, parking_lot_id, action, entity_type, entity_id, note) VALUES
 (1, 1, 'APPROVE_LOT', 'parking_lots', 1, 'Admin duyet mo bai Hai Chau A'),
 (2, 1, 'UPDATE_SLOT', 'slots', 4, 'Quan ly danh dau o A-04 thanh occupied');
+
+-- Trang thai o phai khop voi luot do thuc te, khong giu mau do/vang mau khi chua co xe hoac don hieu luc.
+UPDATE slots s SET status='available'
+WHERE s.status='occupied'
+  AND NOT EXISTS (SELECT 1 FROM reservations r WHERE r.slot_id=s.id AND r.status='entered')
+  AND NOT EXISTS (
+    SELECT 1 FROM parking_sessions ps JOIN reservations r ON r.id=ps.reservation_id
+    WHERE r.slot_id=s.id AND ps.status='active'
+  );
+UPDATE slots s SET status='available'
+WHERE s.status IN ('occupied','holding')
+  AND NOT EXISTS (
+    SELECT 1 FROM reservations r WHERE r.slot_id=s.id
+      AND r.status IN ('holding','paid','entered')
+      AND (r.status<>'holding' OR r.hold_expires_at>NOW())
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM parking_sessions ps JOIN reservations r ON r.id=ps.reservation_id
+    WHERE r.slot_id=s.id AND ps.status='active'
+  );

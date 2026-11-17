@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { pool, query } from "../config/db";
 import { AuthRequest } from "../middlewares/auth.middleware";
+import { arrivalDeadline } from "../config/booking-policy";
 
 const SLUG_TO_ID: Record<string, number> = {
   "hai-chau-a": 1,
@@ -31,6 +32,19 @@ export const holdSpot = async (req: AuthRequest, res: Response): Promise<void> =
 
     const lotId = resolveLotId(parking_lot_id);
     const userId = req.user?.id || req.body.user_id || 3; // Fallback user 3 (Nguyen Van A)
+    const sTime = start_time ? new Date(start_time) : new Date();
+    const eTime = expected_end_time
+      ? new Date(expected_end_time)
+      : new Date(sTime.getTime() + Number(estimated_hours) * 3600_000);
+    const durationMs = eTime.getTime() - sTime.getTime();
+    if (!Number.isFinite(sTime.getTime()) || !Number.isFinite(eTime.getTime()) ||
+        sTime.getTime() < Date.now() - 60_000 ||
+        sTime.getTime() > Date.now() + 30 * 24 * 3600_000 ||
+        durationMs <= 0 || durationMs > 24 * 3600_000) {
+      res.status(400).json({ success: false, message: "Ngày giờ đỗ phải bắt đầu trong 30 ngày tới và kéo dài tối đa 24 giờ." });
+      return;
+    }
+    const billableHours = Math.ceil(durationMs / 3600_000);
 
     // Xác định slot ID chính xác (cho phép truyền cả id dạng số hoặc code ví dụ "A-01")
     let targetSlotId: number | null = null;
@@ -61,38 +75,39 @@ export const holdSpot = async (req: AuthRequest, res: Response): Promise<void> =
     // Bắt đầu Database Transaction
     await client.query("BEGIN");
 
-    // 🔒 ATOMIC CONDITIONAL UPDATE:
-    // Chỉ cập nhật trạng thái 'holding' NẾU VÀ CHỈ NẾU status hiện tại là 'available'.
-    // Cơ chế row-level lock của PostgreSQL đảm bảo chỉ 1 request duy nhất thắng tranh chấp!
-    const updateSlotSql = `
-      UPDATE slots
-      SET status = 'holding', updated_at = NOW()
-      WHERE id = $1 AND parking_lot_id = $2 AND status = 'available' AND is_active = TRUE
-      RETURNING id, code, slot_type;
-    `;
-    const slotUpdateRes = await client.query(updateSlotSql, [targetSlotId, lotId]);
-
-    // Nếu rowCount === 0 -> Ô đỗ đã bị người khác giữ hoặc không khả dụng
-    if (slotUpdateRes.rowCount === 0) {
+    // Khóa dòng ô đỗ trước khi kiểm tra khoảng thời gian để hai khách không thể đặt trùng.
+    const slotRes = await client.query(
+      "SELECT id, code, slot_type, status FROM slots WHERE id=$1 AND parking_lot_id=$2 AND is_active=TRUE FOR UPDATE",
+      [targetSlotId, lotId]
+    );
+    const slot = slotRes.rows[0];
+    const overlap = slot ? await client.query(`
+      SELECT id FROM reservations
+      WHERE slot_id=$1 AND status IN ('holding', 'paid', 'entered')
+        AND start_time < $3::timestamptz
+        AND expected_end_time > $2::timestamptz
+        AND (status <> 'holding' OR hold_expires_at > NOW())
+      LIMIT 1
+    `, [targetSlotId, sTime, eTime]) : null;
+    const activePhysicalReservation = slot && slot.status !== 'available' ? await client.query(`
+      SELECT id FROM reservations WHERE slot_id=$1 AND status IN ('holding', 'paid', 'entered')
+        AND (status <> 'holding' OR hold_expires_at > NOW()) LIMIT 1
+    `, [targetSlotId]) : null;
+    if (!slot || overlap?.rowCount || (slot.status !== 'available' && !activePhysicalReservation?.rowCount)) {
       await client.query("ROLLBACK");
-
-      const checkCurrent = await client.query(
-        "SELECT code, status FROM slots WHERE id = $1 AND parking_lot_id = $2",
-        [targetSlotId, lotId]
-      );
-      const currentStatus = checkCurrent.rows[0]?.status || "unknown";
-      const code = checkCurrent.rows[0]?.code || slot_id;
-
       res.status(409).json({
         success: false,
         code: "SPOT_ALREADY_TAKEN",
-        message: `Ô ${code} vừa có người khác giữ chỗ hoặc đã có xe đỗ (Trạng thái hiện tại: ${currentStatus}). Vui lòng chọn ô khác!`,
-        data: { slot_id: targetSlotId, code, currentStatus },
+        message: `Ô ${slot?.code || slot_id} không còn trống trong khoảng ngày giờ đã chọn. Vui lòng chọn ô khác!`,
+        data: { slot_id: targetSlotId, code: slot?.code || slot_id, currentStatus: slot?.status || "unknown" },
       });
       return;
     }
-
-    const updatedSlot = slotUpdateRes.rows[0];
+    // Giữ trạng thái vật lý chỉ khi ô hiện trống; không ghi đè xe của lượt trước đang đỗ.
+    if (sTime.getTime() <= Date.now() && slot.status === 'available') {
+      await client.query("UPDATE slots SET status='holding', updated_at=NOW() WHERE id=$1 AND status='available'", [targetSlotId]);
+    }
+    const updatedSlot = slot;
 
     // Lấy giá theo giờ của bãi xe
     const priceRes = await client.query(
@@ -115,11 +130,6 @@ export const holdSpot = async (req: AuthRequest, res: Response): Promise<void> =
     // Tính thời gian hết hạn giữ chỗ (hold_expires_at)
     const holdSeconds = Math.max(10, Math.round(Number(hold_duration_minutes) * 60));
     const holdExpiresAt = new Date(Date.now() + holdSeconds * 1000);
-
-    const sTime = start_time ? new Date(start_time) : new Date();
-    const eTime = expected_end_time
-      ? new Date(expected_end_time)
-      : new Date(sTime.getTime() + Number(estimated_hours) * 3600 * 1000);
 
     // Hủy bỏ các đơn 'holding' cũ của chính user này trên cùng slot (nếu có)
     await client.query(
@@ -174,7 +184,7 @@ export const holdSpot = async (req: AuthRequest, res: Response): Promise<void> =
         hold_expires_at: insertRes.rows[0].hold_expires_at,
         deposit_amount: Number(insertRes.rows[0].deposit_amount),
         hourly_rate: hourlyRate,
-        estimated_hours: Number(estimated_hours),
+        estimated_hours: billableHours,
         start_time: insertRes.rows[0].start_time,
         expected_end_time: insertRes.rows[0].expected_end_time,
       },
@@ -255,7 +265,7 @@ export const payDeposit = async (req: AuthRequest, res: Response): Promise<void>
     await client.query("BEGIN");
 
     const resRes = await client.query(
-      "SELECT id, slot_id, status, deposit_amount FROM reservations WHERE id = $1 FOR UPDATE",
+      "SELECT id, slot_id, status, deposit_amount, start_time, hold_expires_at FROM reservations WHERE id = $1 FOR UPDATE",
       [reservationId]
     );
 
@@ -266,17 +276,16 @@ export const payDeposit = async (req: AuthRequest, res: Response): Promise<void>
     }
 
     const reservation = resRes.rows[0];
-    if (reservation.status !== "holding") {
+    if (reservation.status !== "holding" || new Date(reservation.hold_expires_at).getTime() <= Date.now()) {
       await client.query("ROLLBACK");
       res.status(400).json({
         success: false,
-        message: `Đơn đặt chỗ không ở trạng thái chờ thanh toán (Hiện tại: ${reservation.status})`,
+        message: "Lượt giữ chỗ đã hết hạn hoặc không còn chờ thanh toán.",
       });
       return;
     }
 
-    // Thời gian cho phép đến bãi: 20 phút
-    const arrivalExpiresAt = new Date(Date.now() + 20 * 60 * 1000);
+    const arrivalExpiresAt = arrivalDeadline(new Date(reservation.start_time));
 
     // Cập nhật reservation sang trạng thái 'paid'
     await client.query(`
@@ -330,6 +339,8 @@ export const getActiveReservation = async (req: AuthRequest, res: Response): Pro
         r.start_time,
         r.expected_end_time,
         r.status,
+        r.cancel_reason,
+        EXISTS (SELECT 1 FROM payments p WHERE p.reservation_id=r.id AND p.payment_type='refund' AND p.status='pending') AS refund_pending,
         r.hold_expires_at,
         r.arrival_expires_at,
         r.deposit_amount,
@@ -387,6 +398,8 @@ export const getMyReservations = async (req: AuthRequest, res: Response): Promis
         r.start_time,
         r.expected_end_time,
         r.status,
+        r.cancel_reason,
+        EXISTS (SELECT 1 FROM payments p WHERE p.reservation_id=r.id AND p.payment_type='refund' AND p.status='pending') AS refund_pending,
         r.hold_expires_at,
         r.arrival_expires_at,
         r.deposit_amount,
@@ -396,7 +409,9 @@ export const getMyReservations = async (req: AuthRequest, res: Response): Promis
         ps.check_in_at,
         ps.check_out_at,
         CASE 
+          WHEN r.status::text = 'cancelled' AND EXISTS (SELECT 1 FROM payments p WHERE p.reservation_id=r.id AND p.payment_type='refund' AND p.status='pending') THEN 'Chờ hoàn cọc'
           WHEN r.status::text = 'cancelled' THEN 'Đã hủy'
+          WHEN r.status::text = 'refunded' THEN 'Đã hoàn cọc'
           WHEN r.status::text = 'forfeited' THEN 'Mất cọc (Quá hạn)'
           WHEN r.status::text = 'completed' THEN 'Hoàn thành'
           WHEN r.status::text = 'entered' THEN 'Đang đỗ'
@@ -457,6 +472,8 @@ export const getReservationById = async (req: AuthRequest, res: Response): Promi
         r.start_time,
         r.expected_end_time,
         r.status,
+        r.cancel_reason,
+        EXISTS (SELECT 1 FROM payments p WHERE p.reservation_id=r.id AND p.payment_type='refund' AND p.status='pending') AS refund_pending,
         r.hold_expires_at,
         r.arrival_expires_at,
         r.deposit_amount,

@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { useStore } from '@/store';
 import { lots } from '@/lib/mock/lots';
 import { getLotByIdApi } from '@/lib/api';
+import { formatBookingTime } from '@/lib/booking-time';
 
 const DEPOSIT = 50_000;
 
@@ -22,8 +23,8 @@ export default function VNPayPage() {
   const hours = booking?.estimatedHours || 2;
   const estimatedTotal = Math.max(0, Math.round(hourlyRate * hours));
   const vehicle = vehicles.find((item) => item.id === booking?.vehicleId);
-  const startTime = booking?.startTime || (booking ? new Date(booking.createdAt).toLocaleString('vi-VN') : 'Chưa có');
-  const endTime = booking?.endTime || (booking ? new Date(booking.createdAt + hours * 60 * 60 * 1000).toLocaleString('vi-VN') : 'Chưa có');
+  const startTime = formatBookingTime(booking?.startTime);
+  const endTime = formatBookingTime(booking?.endTime);
 
   useEffect(() => {
     if (!booking?.lotId) return;
@@ -82,8 +83,8 @@ export default function VNPayPage() {
             <div className="flex justify-between gap-3"><span className="text-slate-500">Ô đỗ</span><strong>{booking?.spotId || 'Chưa có'}</strong></div>
             <div className="flex justify-between gap-3"><span className="text-slate-500">Biển số</span><strong className="text-right">{vehicle?.plate || 'Chưa có'}</strong></div>
             <div className="grid grid-cols-2 gap-2 border-t border-slate-100 pt-3">
-              <div className="rounded-xl bg-slate-50 p-3"><span className="text-xs text-slate-500">Giờ vào dự kiến</span><strong className="mt-1 block">{startTime}</strong></div>
-              <div className="rounded-xl bg-slate-50 p-3"><span className="text-xs text-slate-500">Giờ ra dự kiến</span><strong className="mt-1 block">{endTime}</strong></div>
+              <div className="rounded-xl bg-slate-50 p-3"><span className="text-xs text-slate-500">Ngày giờ vào dự kiến</span><strong className="mt-1 block">{startTime}</strong></div>
+              <div className="rounded-xl bg-slate-50 p-3"><span className="text-xs text-slate-500">Ngày giờ ra dự kiến</span><strong className="mt-1 block">{endTime}</strong></div>
             </div>
             <div className="flex justify-between gap-3"><span className="text-slate-500">Thời lượng dự kiến</span><strong>{hours} giờ</strong></div>
             <div className="flex justify-between gap-3"><span className="text-slate-500">Giá đỗ dự kiến</span><strong>{estimatedTotal.toLocaleString('vi-VN')} đ</strong></div>

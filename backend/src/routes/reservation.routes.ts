@@ -6,7 +6,8 @@ import {
   getMyReservations,
   getReservationById,
 } from "../controllers/reservation.controller";
-import { optionalAuthenticateToken } from "../middlewares/auth.middleware";
+import { authenticateToken, optionalAuthenticateToken } from "../middlewares/auth.middleware";
+import { getRelocationOptions, requestOccupiedSlotRefund, switchReservationSlot } from "../controllers/relocation.controller";
 
 const router = Router();
 
@@ -24,5 +25,9 @@ router.post("/hold", optionalAuthenticateToken, holdSpot);
 
 // Hủy giữ chỗ / giải phóng ô
 router.post("/:id/release", optionalAuthenticateToken, releaseSpot);
+
+router.get("/:id/relocation-options", authenticateToken, getRelocationOptions);
+router.post("/:id/switch-slot", authenticateToken, switchReservationSlot);
+router.post("/:id/refund-request", authenticateToken, requestOccupiedSlotRefund);
 
 export default router;

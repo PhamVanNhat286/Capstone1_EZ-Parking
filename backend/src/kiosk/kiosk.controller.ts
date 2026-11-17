@@ -158,7 +158,12 @@ export const scanIn = async (req: AuthRequest, res: Response): Promise<void> => 
       return;
     }
 
-    // Kiểm tra thời hạn đến bãi (arrival_expires_at - mặc định 20 phút)
+    // Vé có thể xem trước nhưng chỉ quét vào bãi từ đúng giờ đặt.
+    if (r.start_time && new Date() < new Date(r.start_time)) {
+      await client.query("ROLLBACK");
+      res.status(400).json({ success: false, code: "ARRIVAL_TOO_EARLY", message: "Vé chỉ dùng để vào bãi từ đúng giờ đặt." });
+      return;
+    }
     if (r.arrival_expires_at && new Date() > new Date(r.arrival_expires_at)) {
       await client.query("ROLLBACK");
       res.status(400).json({
@@ -166,6 +171,12 @@ export const scanIn = async (req: AuthRequest, res: Response): Promise<void> => 
         code: "ARRIVAL_DEADLINE_EXPIRED",
         message: `Vé đã quá thời hạn đến bãi cho phép (${new Date(r.arrival_expires_at).toLocaleTimeString("vi-VN")}).`,
       });
+      return;
+    }
+
+    if (r.slot_status === "occupied") {
+      await client.query("ROLLBACK");
+      res.status(409).json({ success: false, code: "SPOT_STILL_OCCUPIED", message: "Ô đỗ vẫn còn xe của lượt trước. Vui lòng liên hệ nhân viên bãi." });
       return;
     }
 

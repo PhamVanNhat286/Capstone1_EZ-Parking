@@ -6,6 +6,7 @@ import reservationRoutes from "./reservation.routes";
 import kioskRoutes from "../kiosk/kiosk.routes";
 import cronRoutes from "./cron.routes";
 import chatRoutes from "./chat.routes";
+import refundRoutes from "./refund.routes";
 
 const router = Router();
 
@@ -20,5 +21,6 @@ router.use("/reservations", reservationRoutes);
 router.use("/kiosk", kioskRoutes);
 router.use("/cron", cronRoutes);
 router.use("/chat", chatRoutes);
+router.use("/refunds", refundRoutes);
 
 export default router;

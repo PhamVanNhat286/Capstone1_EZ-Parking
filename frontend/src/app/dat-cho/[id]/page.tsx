@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Building2, CalendarClock, CarFront, Check, ChevronRight, Clock3, CreditCard, Info, Landmark, MapPin, Minus, Plus, ShieldCheck, Wallet, X } from "lucide-react";
+import { ArrowLeft, Building2, CalendarClock, CarFront, Clock3, Info, Landmark, MapPin, ShieldCheck } from "lucide-react";
 import { getLotByIdApi, releaseSpotApi } from "@/lib/api";
 import { lots } from "@/lib/mock/lots";
 import { useStore } from "@/store";
 import { calculateDetailedFee } from "@/lib/pricing";
+import { formatBookingTime, parseBookingTime } from "@/lib/booking-time";
 
 const DEPOSIT = 50_000;
 const money = (n: number) => Math.max(0, Math.round(n)).toLocaleString("vi-VN") + "đ";
@@ -20,13 +21,11 @@ export default function CheckoutPage() {
   const vehicles = useStore((s) => s.vehicles);
   const user = useStore((s) => s.user);
   const releaseSpot = useStore((s) => s.releaseSpot);
-  const setBookingHours = useStore((s) => s.setBookingHours);
   const addToast = useStore((s) => s.addToast);
   const [ready, setReady] = useState(false);
   const [now, setNow] = useState(Date.now());
   const [method, setMethod] = useState<Method>("vnpay");
   const [agree, setAgree] = useState(false);
-  const [editHours, setEditHours] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const fallback = lots.find((l) => l.id === booking?.lotId) || lots[0];
   const [lotName, setLotName] = useState(fallback.name);
@@ -38,49 +37,8 @@ export default function CheckoutPage() {
   const remaining = valid ? Math.max(0, Math.ceil((booking.holdExpiresAt - now) / 1000)) : 0;
   const paid = booking?.status === "paid";
 
-  const [editStartTime, setEditStartTime] = useState(booking?.startTime || "");
-  const [editEndTime, setEditEndTime] = useState(booking?.endTime || "");
-
-  const openEditDialog = () => {
-    const s = booking?.startTime || new Date(now).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
-    const e = booking?.endTime || new Date(now + hours * 3600000).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
-    setEditStartTime(s);
-    setEditEndTime(e);
-    setEditHours(true);
-  };
-
-  const editDiffInfo = (() => {
-    if (!editStartTime || !editEndTime) return { hours, text: `${hours} giờ`, isNextDay: false };
-    const [sH, sM] = editStartTime.split(":").map(Number);
-    const [eH, eM] = editEndTime.split(":").map(Number);
-    if (isNaN(sH) || isNaN(sM) || isNaN(eH) || isNaN(eM)) return { hours, text: `${hours} giờ`, isNextDay: false };
-    let startTotal = sH * 60 + sM;
-    let endTotal = eH * 60 + eM;
-    let isNextDay = false;
-    if (endTotal <= startTotal) {
-      endTotal += 24 * 60;
-      isNextDay = true;
-    }
-    const diffMin = endTotal - startTotal;
-    const billable = Math.max(1, Math.min(24, Math.ceil(diffMin / 60)));
-    const dH = Math.floor(diffMin / 60);
-    const dM = diffMin % 60;
-    const text = dH > 0 && dM > 0 ? `${dH} giờ ${dM} phút` : dH > 0 ? `${dH} giờ` : `${dM} phút`;
-    return { hours: billable, text, isNextDay };
-  })();
-
-  const feeDetails = calculateDetailedFee(booking?.lotId || "1", booking?.startTime || "", hours, rate);
-  const editFeeDetails = calculateDetailedFee(booking?.lotId || "1", editStartTime, editDiffInfo.hours, rate);
-
-  const applyEditQuickHours = (addHours: number) => {
-    if (!editStartTime) return;
-    const [sH, sM] = editStartTime.split(":").map(Number);
-    if (isNaN(sH) || isNaN(sM)) return;
-    const endTotal = (sH * 60 + sM + addHours * 60) % (24 * 60);
-    const endH = Math.floor(endTotal / 60);
-    const endM = endTotal % 60;
-    setEditEndTime(`${String(endH).padStart(2, "0")}:${String(endM).padStart(2, "0")}`);
-  };
+  const bookingStart = parseBookingTime(booking?.startTime);
+  const feeDetails = calculateDetailedFee(booking?.lotId || "1", bookingStart ? `${String(bookingStart.getHours()).padStart(2, "0")}:${String(bookingStart.getMinutes()).padStart(2, "0")}` : "", hours, rate, bookingStart || new Date());
 
   useEffect(() => { setReady(true); const timer = window.setInterval(() => setNow(Date.now()), 1000); return () => window.clearInterval(timer); }, []);
   useEffect(() => {
@@ -136,21 +94,21 @@ export default function CheckoutPage() {
       <section className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm space-y-3">
         <div className="flex justify-between items-center">
           <h3 className="text-sm font-extrabold flex items-center gap-2"><CalendarClock size={17} className="text-blue-600"/> Thời gian đỗ dự kiến</h3>
-          <button onClick={openEditDialog} className="text-xs font-bold text-blue-600">Chỉnh sửa</button>
+          <button onClick={() => setConfirmLeave(true)} className="text-xs font-bold text-blue-600">Đổi thời gian / chọn lại ô</button>
         </div>
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 bg-slate-50 rounded-2xl p-3">
           <div>
-            <span className="text-[10px] text-slate-500">Từ mấy giờ</span>
-            <p className="font-extrabold text-sm">{booking.startTime || new Date(now).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}</p>
+            <span className="text-[10px] text-slate-500">Ngày giờ vào</span>
+            <p className="font-extrabold text-sm">{formatBookingTime(booking.startTime)}</p>
           </div>
           <div className="text-blue-600 font-black text-sm">→</div>
           <div className="text-right">
-            <span className="text-[10px] text-slate-500">Đến mấy giờ</span>
-            <p className="font-extrabold text-sm">{booking.endTime || new Date(now + hours * 3600000).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}</p>
+            <span className="text-[10px] text-slate-500">Ngày giờ ra</span>
+            <p className="font-extrabold text-sm">{formatBookingTime(booking.endTime)}</p>
           </div>
         </div>
         <p className="text-[11px] text-slate-600">
-          Thời gian: <strong>{booking.startTime && booking.endTime ? `Từ ${booking.startTime} đến ${booking.endTime}` : `${hours} giờ`}</strong> ({hours} giờ tính phí). Sau khi thanh toán cọc, bạn có 20 phút để đến bãi.
+          Thời gian: <strong>{formatBookingTime(booking.startTime)} → {formatBookingTime(booking.endTime)}</strong> ({hours} giờ tính phí).
         </p>
       </section>
       <section className="space-y-2"><h3 className="text-sm font-extrabold px-1">Phương thức thanh toán</h3>
@@ -188,67 +146,6 @@ export default function CheckoutPage() {
     </div>
     <div className="sticky bottom-0 z-10 bg-white border-t border-slate-200 p-4 shadow-lg"><button disabled={!agree || remaining <= 0} onClick={proceed} className="w-full bg-blue-600 disabled:bg-slate-300 text-white rounded-2xl py-3.5 font-extrabold flex items-center justify-center gap-2 shadow-sm">Xác nhận</button></div>
 
-    {editHours && (
-      <div className="fixed inset-0 z-50 bg-slate-900/50 flex items-end justify-center">
-        <div className="bg-white rounded-t-3xl p-5 w-full max-w-[430px] space-y-4">
-          <div className="flex justify-between items-center">
-            <h3 className="font-extrabold text-base">Chỉnh sửa thời gian đỗ xe</h3>
-            <button aria-label="Đóng" onClick={() => setEditHours(false)}><X/></button>
-          </div>
-
-          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 bg-slate-50 p-3 rounded-2xl border border-slate-200">
-            <div className="bg-white p-2.5 rounded-xl border border-slate-200">
-              <label className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Từ mấy giờ</label>
-              <input
-                type="time"
-                value={editStartTime}
-                onChange={(e) => setEditStartTime(e.target.value)}
-                className="w-full text-base font-black text-slate-900 bg-transparent outline-none cursor-pointer"
-              />
-            </div>
-            <span className="text-slate-400 font-bold text-sm text-center px-0.5">→</span>
-            <div className="bg-white p-2.5 rounded-xl border border-slate-200">
-              <label className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Đến mấy giờ</label>
-              <input
-                type="time"
-                value={editEndTime}
-                onChange={(e) => setEditEndTime(e.target.value)}
-                className="w-full text-base font-black text-slate-900 bg-transparent outline-none cursor-pointer"
-              />
-            </div>
-          </div>
-
-          <div className="flex items-center gap-1.5">
-            <span className="text-[10px] font-semibold text-slate-400 shrink-0">Chọn nhanh:</span>
-            {[1, 2, 3, 4, 8].map((h) => (
-              <button
-                key={h}
-                type="button"
-                onClick={() => applyEditQuickHours(h)}
-                className="text-[11px] font-bold px-2.5 py-1 rounded-lg border bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
-              >
-                +{h}h
-              </button>
-            ))}
-          </div>
-
-          <div className="flex justify-between items-center px-1 text-xs text-slate-600 pt-2 border-t border-slate-100">
-            <span>Thời lượng: <strong className="text-blue-700">{editDiffInfo.text}</strong> ({editDiffInfo.hours} giờ tính phí)</span>
-            <span>Tổng phí: <strong className="text-blue-700">{money(editFeeDetails.totalFee)}</strong></span>
-          </div>
-
-          <button
-            onClick={() => {
-              setBookingHours(editDiffInfo.hours, editStartTime, editEndTime);
-              setEditHours(false);
-            }}
-            className="w-full bg-blue-600 text-white py-3.5 rounded-xl font-extrabold shadow-sm active:scale-[0.99] transition-transform"
-          >
-            Cập nhật thời gian
-          </button>
-        </div>
-      </div>
-    )}
     {confirmLeave && <div className="fixed inset-0 z-50 bg-slate-900/55 grid place-items-center p-5"><div className="w-full max-w-sm bg-white rounded-3xl p-5 space-y-4"><h3 className="font-extrabold text-lg">Rời khỏi thanh toán?</h3><p className="text-sm text-slate-500">Ô {booking.spotId} sẽ được nhả nếu bạn rời đi. Bạn cần chọn lại chỗ đỗ.</p><div className="flex gap-3"><button onClick={() => setConfirmLeave(false)} className="flex-1 rounded-xl bg-slate-100 py-3 font-bold">Ở lại</button><button onClick={returnToLot} className="flex-1 rounded-xl bg-rose-600 text-white py-3 font-bold">Rời đi</button></div></div></div>}
   </div>;
 }

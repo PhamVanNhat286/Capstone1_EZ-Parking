@@ -126,8 +126,10 @@ function HistoryContent() {
       spotId: activeDbItem.slot_code,
       vehicleId: String(activeDbItem.vehicle_id || "1"),
       status: activeDbItem.status,
+      startTime: activeDbItem.start_time,
+      endTime: activeDbItem.expected_end_time,
       holdExpiresAt: activeDbItem.hold_expires_at ? new Date(activeDbItem.hold_expires_at).getTime() : Date.now() + 10 * 60 * 1000,
-      arrivalExpiresAt: activeDbItem.arrival_expires_at ? new Date(activeDbItem.arrival_expires_at).getTime() : Date.now() + 20 * 60 * 1000,
+      arrivalExpiresAt: activeDbItem.arrival_expires_at ? new Date(activeDbItem.arrival_expires_at).getTime() : 0,
       createdAt: new Date(activeDbItem.created_at).getTime(),
     } as Booking : null);
 
@@ -177,6 +179,7 @@ function HistoryContent() {
         const isCompleted = r.status === "completed";
         const isForfeited = r.status === "forfeited";
         const isCancelled = r.status === "cancelled";
+        const isRefunded = r.status === "refunded";
 
         return {
           id: `EZ-${r.id}`,
@@ -188,9 +191,10 @@ function HistoryContent() {
           vehiclePlate: r.license_plate || activeVehicle.plate,
           vehicleType: r.vehicle_type || activeVehicle.type,
           status: r.status,
-          amount: isCancelled ? 0 : isForfeited ? -deposit : isCompleted ? totalAmount : deposit,
+          amount: isCancelled || isRefunded ? 0 : isForfeited ? -deposit : isCompleted ? totalAmount : deposit,
           deposit: deposit,
-          durationText: r.check_in_at && r.check_out_at ? "Hoàn thành" : isForfeited ? "Quá hạn" : isCancelled ? "Đã hủy" : "Cọc giữ chỗ",
+          durationText: r.refund_pending ? "Chờ hoàn cọc" : isRefunded ? "Đã hoàn cọc" : r.check_in_at && r.check_out_at ? "Hoàn thành" : isForfeited ? "Quá hạn" : isCancelled ? "Đã hủy" : "Cọc giữ chỗ",
+          refundPending: Boolean(r.refund_pending),
           paymentMethod: "vnpay",
           createdAt: new Date(r.created_at).getTime(),
           checkInTime: r.check_in_at ? new Date(r.check_in_at).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }) : "14:15",
@@ -241,7 +245,7 @@ function HistoryContent() {
     if (historyFilter === "completed") {
       result = result.filter((item) => item.status === "completed");
     } else if (historyFilter === "cancelled") {
-      result = result.filter((item) => item.status === "cancelled" || item.status === "forfeited");
+      result = result.filter((item) => item.status === "cancelled" || item.status === "forfeited" || item.status === "refunded");
     
     }
 
@@ -423,6 +427,7 @@ function HistoryContent() {
             const isCompleted = item.status === "completed";
             const isForfeited = item.status === "forfeited";
             const isCancelled = item.status === "cancelled";
+            const isRefunded = item.status === "refunded";
 
             const lotInfo = LOT_NAMES[String(item.lotId).toLowerCase()] || {
               name: item.lotName || "Bãi đỗ xe EZ-Space",
@@ -454,12 +459,12 @@ function HistoryContent() {
                       "w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm shrink-0 border",
                       isCompleted && "bg-emerald-50 text-emerald-600 border-emerald-100",
                       isForfeited && "bg-rose-50 text-rose-600 border-rose-100",
-                      isCancelled && "bg-slate-100 text-slate-600 border-slate-200"
+                      (isCancelled || isRefunded) && "bg-slate-100 text-slate-600 border-slate-200"
                     )}
                   >
                     {isCompleted && <Check size={18} />}
                     {isForfeited && <AlertCircle size={18} />}
-                    {isCancelled && <XCircle size={18} />}
+                    {(isCancelled || isRefunded) && <XCircle size={18} />}
                   </div>
 
                   <div>
@@ -473,10 +478,10 @@ function HistoryContent() {
                           "px-2 py-0.2 rounded-md text-[10px] font-semibold",
                           isCompleted && "bg-emerald-50 text-emerald-700",
                           isForfeited && "bg-rose-50 text-rose-700",
-                          isCancelled && "bg-slate-100 text-slate-600"
+                          (isCancelled || isRefunded) && "bg-slate-100 text-slate-600"
                         )}
                       >
-                        {isCompleted ? "Đã hoàn thành" : isForfeited ? "Mất cọc" : "Đã hủy"}
+                        {item.refundPending ? "Chờ hoàn cọc" : isRefunded ? "Đã hoàn cọc" : isCompleted ? "Đã hoàn thành" : isForfeited ? "Mất cọc" : "Đã hủy"}
                       </span>
                       <span className="text-[10px] text-slate-400 font-mono">{item.vehiclePlate}</span>
                     </div>
@@ -562,7 +567,11 @@ function HistoryContent() {
                         : "bg-blue-100 text-blue-800"
                     )}
                   >
-                    {selectedItem.status === "completed" ? (
+                    {selectedItem.refundPending ? (
+                      <><ShieldCheck size={14} className="text-amber-600" /><span>Chờ hoàn cọc</span></>
+                    ) : selectedItem.status === "refunded" ? (
+                      <><ShieldCheck size={14} className="text-emerald-600" /><span>Đã hoàn cọc</span></>
+                    ) : selectedItem.status === "completed" ? (
                       <>
                         <CheckCircle size={14} className="text-emerald-600" />
                         <span>Hoàn thành đỗ xe</span>
@@ -587,6 +596,8 @@ function HistoryContent() {
                   <X size={16} />
                 </button>
               </div>
+
+              {selectedItem.refundPending && <p className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">Bãi đã ghi nhận yêu cầu hoàn cọc vì ô còn xe và không có ô thay thế. Nhân viên đang đối soát; tiền chưa được hoàn tự động.</p>}
 
               {/* Lot & Reservation Info */}
               <div>
