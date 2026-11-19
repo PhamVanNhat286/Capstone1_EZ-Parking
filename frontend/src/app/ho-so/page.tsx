@@ -89,7 +89,6 @@ export default function ProfilePage() {
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
   const [isAvatarSheetOpen, setIsAvatarSheetOpen] = useState(false);
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
-  const [isPolicyModalOpen, setIsPolicyModalOpen] = useState(false);
 
   // Camera & Avatar state
   const [isCameraModalOpen, setIsCameraModalOpen] = useState(false);
@@ -108,6 +107,17 @@ export default function ProfilePage() {
   const [phoneInput, setPhoneInput] = useState(currentUser.phone);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isSavingPassword, setIsSavingPassword] = useState(false);
+
+  // Open edit profile sheet when navigated with ?edit=1 (e.g. from Quick Access)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("edit") === "1") {
+      setIsEditProfileOpen(true);
+      router.replace("/ho-so");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Sync profile from backend on mount
   useEffect(() => {
@@ -195,7 +205,7 @@ export default function ProfilePage() {
   const toggleFavorite = (lotId: string, lotName: string) => {
     const currentlyFav = isFav(lotId);
     toggleFavoriteLot(lotId);
-    showToast(currentlyFav ? `Đã bỏ ${lotName} khỏi danh sách yêu thích` : `Đã thêm ${lotName} vào vị trí yêu thích`);
+    showToast(currentlyFav ? `Đã bỏ ${lotName} khỏi danh sách yêu thích` : `Đã thêm ${lotName} vào bãi đỗ yêu thích`);
   };
 
   // Real calculation of parking hours from completed bookings
@@ -697,20 +707,11 @@ export default function ProfilePage() {
         <div className="px-4 mt-5 space-y-5">
           {/* 4.2 Mục "XE CỦA TÔI" (FR-02) */}
           <section>
-            <div className="flex items-center justify-between mb-2.5">
-              <div>
-                <h2 className="text-[15px] font-bold text-slate-900 flex items-center space-x-1.5">
-                  <Car className="w-4 h-4 text-primary" />
-                  <span>Xe của tôi</span>
-                </h2>
-              </div>
-              <button
-                onClick={() => setIsAddVehicleOpen(true)}
-                className="inline-flex items-center space-x-1 px-3 py-1.5 bg-primary text-white rounded-xl text-xs font-bold shadow-sm hover:bg-primary-dark active:scale-95 transition-all cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Thêm xe</span>
-              </button>
+                        <div className="mb-2.5">
+              <h2 className="text-[15px] font-bold text-slate-900 flex items-center space-x-1.5">
+                <Car className="w-4 h-4 text-primary" />
+                <span>Xe của tôi</span>
+              </h2>
             </div>
 
             {/* Danh sách xe xếp dọc (Vertical Stack) hoặc Empty State */}
@@ -826,22 +827,13 @@ export default function ProfilePage() {
             )}
           </section>
 
-          {/* VỊ TRÍ ĐỖ YÊU THÍCH */}
+          {/* BÃI ĐỖ YÊU THÍCH */}
           <section id="favoriteLocationsSection">
-            <div className="flex items-center justify-between mb-2.5">
-              <div>
-                <h2 className="text-[15px] font-bold text-slate-900 flex items-center space-x-1.5">
-                  <Heart className="w-4 h-4 text-rose-500 fill-rose-500" />
-                  <span>Vị trí đỗ yêu thích</span>
-                </h2>
-              </div>
-              <Link
-                href="/kham-pha"
-                className="inline-flex items-center space-x-1 px-2.5 py-1 bg-blue-50 text-primary border border-blue-200 rounded-xl text-xs font-bold hover:bg-blue-100 active:scale-95 transition-all"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Khám phá</span>
-              </Link>
+            <div className="mb-2.5">
+              <h2 className="text-[15px] font-bold text-slate-900 flex items-center space-x-1.5">
+                <Heart className="w-4 h-4 text-rose-500 fill-rose-500" />
+                <span>Bãi đỗ yêu thích</span>
+              </h2>
             </div>
 
             {displayFavLots.length === 0 ? (
@@ -849,17 +841,11 @@ export default function ProfilePage() {
                 <div className="w-10 h-10 rounded-full bg-rose-50 text-rose-400 flex items-center justify-center mx-auto mb-2">
                   <Heart className="w-5 h-5" />
                 </div>
-                <h3 className="text-xs font-bold text-slate-700">Chưa có vị trí đỗ yêu thích</h3>
+                <h3 className="text-xs font-bold text-slate-700">Chưa có bãi đỗ yêu thích</h3>
                 <p className="text-[11px] text-slate-400 mt-1 max-w-[260px] mx-auto">
                   Bạn chưa lưu bãi đỗ nào. Khám phá các bãi đỗ gần bạn và bấm biểu tượng trái tim để lưu lại nhé!
                 </p>
-                <Link
-                  href="/kham-pha"
-                  className="mt-3 inline-flex items-center space-x-1.5 px-3.5 py-1.5 bg-blue-50 text-primary border border-blue-200 rounded-xl text-xs font-bold hover:bg-blue-100 active:scale-95 transition-all shadow-sm"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Khám phá bãi đỗ</span>
-                </Link>
+                
               </div>
             ) : (
               <div className="space-y-2.5">
@@ -1040,10 +1026,9 @@ export default function ProfilePage() {
               <span>Hỗ trợ & Thông tin</span>
             </h2>
             <div className="divide-y divide-slate-100 text-xs">
-              {/* Button Chính sách & Quy định - Nằm TRÊN tổng đài hỗ trợ */}
-              <button
-                type="button"
-                onClick={() => setIsPolicyModalOpen(true)}
+              {/* Liên kết Chính sách & Quy định - Chuyển sang trang riêng */}
+              <Link
+                href="/chinh-sach"
                 className="w-full py-2.5 flex items-center justify-between hover:bg-slate-50 rounded-lg px-1 transition-colors text-left cursor-pointer"
               >
                 <div className="flex items-center space-x-3">
@@ -1051,7 +1036,7 @@ export default function ProfilePage() {
                   <span className="font-bold text-slate-700">Chính sách & Quy định</span>
                 </div>
                 <ChevronRight className="w-4 h-4 text-slate-400" />
-              </button>
+              </Link>
 
               <a href="tel:19006868" className="py-2.5 flex items-center justify-between hover:bg-slate-50 rounded-lg px-1">
                 <div className="flex items-center space-x-3">
@@ -1285,7 +1270,7 @@ export default function ProfilePage() {
                 <label className="block font-bold text-slate-700 mb-1">Biển số xe (Việt Nam)</label>
                 <input
                   type="text"
-                  placeholder="Ví dụ: 43A-999.88 hoặc 51K-123.45"
+                  placeholder="43A-123.45"
                   value={newVPlate}
                   onChange={(e) => setNewVPlate(e.target.value.toUpperCase())}
                   required
@@ -1772,99 +1757,6 @@ export default function ProfilePage() {
         </div>
       )}
 
-      {/* BOTTOM SHEET / MODAL: CHÍNH SÁCH & QUY ĐỊNH */}
-      {isPolicyModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/40 backdrop-blur-sm flex flex-col justify-end">
-          <div className="bg-white rounded-t-[32px] p-5 shadow-2xl sheet-transition max-h-[85%] overflow-y-auto max-w-[430px] w-full mx-auto animate-in slide-in-from-bottom duration-300">
-            <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-4" />
-            
-            {/* Header */}
-            <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-100">
-              <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 rounded-xl bg-blue-50 text-primary flex items-center justify-center">
-                  <ShieldCheck className="w-4 h-4 text-primary" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900">Chính sách & Quy định</h3>
-                  <p className="text-[10px] text-slate-400">Nền tảng đỗ xe thông minh EZ-Space</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setIsPolicyModalOpen(false)}
-                className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 transition cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Policy Items */}
-            <div className="space-y-3 text-xs">
-              {/* Policy 1: Đặt cọc & Giữ chỗ */}
-              <div className="bg-blue-50/60 rounded-2xl p-3.5 border border-blue-100/80">
-                <div className="flex items-center space-x-2 text-primary font-bold mb-1">
-                  <span className="w-5 h-5 rounded-full bg-primary text-white text-[10px] flex items-center justify-center">1</span>
-                  <span className="text-xs">Đặt cọc & Giữ chỗ độc quyền</span>
-                </div>
-                <p className="text-[11px] text-slate-600 leading-relaxed pl-7">
-                  Người dùng đặt cọc <strong>50.000₫/lượt</strong> để giữ chỗ. Vị trí đỗ bạn chọn sẽ được khóa độc quyền trong <strong>10 phút</strong>, đảm bảo không có phương tiện khác đỗ vào.
-                </p>
-              </div>
-
-              {/* Policy 2: Thời hạn đến bãi */}
-              <div className="bg-amber-50/60 rounded-2xl p-3.5 border border-amber-100/80">
-                <div className="flex items-center space-x-2 text-amber-700 font-bold mb-1">
-                  <span className="w-5 h-5 rounded-full bg-amber-600 text-white text-[10px] flex items-center justify-center">2</span>
-                  <span className="text-xs">Thời hạn 20 phút di chuyển đến bãi</span>
-                </div>
-                <p className="text-[11px] text-slate-600 leading-relaxed pl-7">
-                  Bạn có <strong>20 phút</strong> kể từ khi đặt cọc thành công để đến bãi xe và quét mã QR check-in tại cổng barie. Quá 20 phút không check-in, hệ thống sẽ tự động giải phóng vị trí.
-                </p>
-              </div>
-
-              {/* Policy 3: Hoàn cọc 100% */}
-              <div className="bg-emerald-50/60 rounded-2xl p-3.5 border border-emerald-100/80">
-                <div className="flex items-center space-x-2 text-emerald-700 font-bold mb-1">
-                  <span className="w-5 h-5 rounded-full bg-emerald-600 text-white text-[10px] flex items-center justify-center">3</span>
-                  <span className="text-xs">Hoàn cọc 100% trong 5 phút đầu</span>
-                </div>
-                <p className="text-[11px] text-slate-600 leading-relaxed pl-7">
-                  Nếu bạn thay đổi lịch trình và chủ động bấm hủy giữ chỗ trong vòng <strong>5 phút đầu tiên</strong>, toàn bộ <strong>100% tiền cọc (50.000₫)</strong> sẽ được hoàn tự động về ví/ngân hàng.
-                </p>
-              </div>
-
-              {/* Policy 4: Quy chuẩn an toàn bãi đỗ */}
-              <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-200/80">
-                <div className="flex items-center space-x-2 text-slate-800 font-bold mb-1">
-                  <span className="w-5 h-5 rounded-full bg-slate-700 text-white text-[10px] flex items-center justify-center">4</span>
-                  <span className="text-xs">Quy tắc đỗ xe & Sạc điện EV</span>
-                </div>
-                <p className="text-[11px] text-slate-600 leading-relaxed pl-7">
-                  Vui lòng đỗ đúng vạch kẻ và đúng chủng loại xe (SUV, Sedan, xe điện EV). Đối với xe điện sạc nhanh, vui lòng di chuyển xe ra khỏi trụ sạc sau khi đã sạc đủ pin để nhường chỗ cho tài xế khác.
-                </p>
-              </div>
-
-              {/* Policy 5: Bảo mật thông tin */}
-              <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-200/80">
-                <div className="flex items-center space-x-2 text-slate-800 font-bold mb-1">
-                  <span className="w-5 h-5 rounded-full bg-slate-700 text-white text-[10px] flex items-center justify-center">5</span>
-                  <span className="text-xs">Bảo mật thông tin & Hỗ trợ</span>
-                </div>
-                <p className="text-[11px] text-slate-600 leading-relaxed pl-7">
-                  Biển số xe, số điện thoại và lịch sử đỗ xe được bảo mật tuyệt đối theo chuẩn SSL. Mọi sự cố phát sinh tại bãi đỗ đều được tổng đài <strong>1900 6868</strong> hỗ trợ giải quyết 24/7.
-                </p>
-              </div>
-            </div>
-
-            {/* Nút đóng */}
-            <button
-              onClick={() => setIsPolicyModalOpen(false)}
-              className="mt-5 w-full py-3 bg-primary text-white font-bold rounded-2xl shadow-md hover:bg-primary-dark transition text-xs cursor-pointer"
-            >
-              Tôi đã hiểu & đồng ý
-            </button>
           </div>
-        </div>
-      )}
-    </div>
   );
 }

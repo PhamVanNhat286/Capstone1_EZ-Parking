@@ -1,0 +1,25 @@
+Sprint 4	Component	Task Name	Responsible Member	Estimate	Total	29-Oct	30-Oct	31-Oct	1-Nov	2-Nov	3-Nov	4-Nov	5-Nov	6-Nov	7-Nov	8-Nov	9-Nov	10-Nov	11-Nov	12-Nov	13-Nov	14-Nov	15-Nov	16-Nov	17-Nov	18-Nov
+	Initial	Sprint Plan Meeting	All	4	4	0																				
+	Initial	Sprint backlog document for Sprint 4	All	4	4	4	0																			
+	Initial	Test Plan document for Sprint 4	All	4	4	4	4	0																		
+	Design UI	Design UI for Conversational AI Assistant for Parking	Hoàng, Thái	8	8	8	8	8	4	0																
+	Design UI	Design UI for Parking Manager Occupancy & Revenue Analytics	Nhật, Huy	8	8	8	8	8	4	0																
+	Design UI	Design UI for Booking History, Directions & Active Session	Hoàng, Thái	4	4	4	4	4	4	4	0															
+	Design UI	Design UI for Booking Cancellation & Deposit Refund	Nhật, Huy	4	4	4	4	4	4	4	0															
+	Design UI	Design UI for System Administration & Simulation Controls	All	4	4	4	4	4	4	4	4	0														
+	Design UI	Design Test Case for Sprint 4	All	4	4	4	4	4	4	4	4	4	0													
+	Code	[Front-end] Conversational AI Assistant Chat Window & Cards	Huy, Thái	8	8	8	8	8	8	8	8	8	8	4	0											
+	Code	[Back-end] Conversational AI Intent Routing & History API	Nhật, Hoàng	8	8	8	8	8	8	8	8	8	8	4	0											
+	Code	[Front-end] Parking Manager Occupancy & Revenue Charts Dashboard	Huy, Thái	8	8	8	8	8	8	8	8	8	8	8	8	4	0									
+	Code	[Back-end] Parking Manager Occupancy & Revenue Aggregation Engine	Nhật, Hoàng	8	8	8	8	8	8	8	8	8	8	8	8	4	0									
+	Code	[Front-end] Booking History, Directions & Active Session Banner	Huy, Thái	4	4	4	4	4	4	4	4	4	4	4	4	4	4	0								
+	Code	[Back-end] Booking History Query & Route Navigation Helpers	Nhật, Hoàng	4	4	4	4	4	4	4	4	4	4	4	4	4	4	0								
+	Code	[Front-end] Booking Cancellation Dialog & Refund Status View	Huy, Thái	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	0							
+	Code	[Back-end] Cancellation Eligibility Validator & Refund Trigger	Nhật, Hoàng	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	0							
+	Code	[Front-end] Admin User Privileges, Audit Logs & Simulation UI	Huy, Thái	8	8	8	8	8	8	8	8	8	8	8	8	8	8	8	8	4	0					
+	Code	[Back-end] Admin RBAC Enforcement & Simulation Cron Endpoints	Nhật, Hoàng	8	8	8	8	8	8	8	8	8	8	8	8	8	8	8	8	4	0					
+	Integration	Integration for Sprint 4	All	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	0				
+	Testing	Testing for Sprint 4	All	8	8	8	8	8	8	8	8	8	8	8	8	8	8	8	8	8	8	8	4	0		
+	Sprint 4 Review Meeting	Sprint 4 Review Meeting	All	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	0	
+	Release Sprint 4	Release Sprint 4	All	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	0
+			Total	128	128	124	120	116	108	100	92	88	84	76	68	60	52	44	36	28	20	16	12	8	4	0

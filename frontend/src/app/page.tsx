@@ -1,5 +1,8 @@
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
-export default function RootPage() {
-  redirect("/kham-pha");
+export default async function RootPage() {
+  const cookieStore = await cookies();
+  const hasToken = Boolean(cookieStore.get("ezspace_token")?.value?.trim());
+  redirect(hasToken ? "/kham-pha" : "/dang-nhap");
 }

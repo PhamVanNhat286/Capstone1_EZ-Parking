@@ -1,0 +1,25 @@
+Sprint 2	Component	Task Name	Responsible Member	Estimate	Total	17-Sep	18-Sep	19-Sep	20-Sep	21-Sep	22-Sep	23-Sep	24-Sep	25-Sep	26-Sep	27-Sep	28-Sep	29-Sep	30-Sep	1-Oct	2-Oct	3-Oct	4-Oct	5-Oct	6-Oct	7-Oct
+	Initial	Sprint Plan Meeting	All	4	4	0																				
+	Initial	Sprint backlog document for Sprint 2	All	4	4	4	0																			
+	Initial	Test Plan document for Sprint 2	All	4	4	4	4	0																		
+	Design UI	Design UI for Parking Lot Search & Multi-criteria Filtering	Hoàng, Thái	8	8	8	8	8	4	0																
+	Design UI	Design UI for Real-time 2D Visual Slot Map Display	Nhật, Huy	8	8	8	8	8	4	0																
+	Design UI	Design UI for Rule-based Smart Slot Recommendation	Hoàng, Thái	4	4	4	4	4	4	4	0															
+	Design UI	Design UI for High-Concurrency Slot Holding & 10m Timer	Nhật, Huy	4	4	4	4	4	4	4	0															
+	Design UI	Design UI for Expired Hold Release Feedback & Status Alert	All	4	4	4	4	4	4	4	4	0														
+	Design UI	Design Test Case for Sprint 2	All	4	4	4	4	4	4	4	4	4	0													
+	Code	[Front-end] Parking Lot Search & Multi-criteria Filtering	Huy, Thái	8	8	8	8	8	8	8	8	8	8	4	0											
+	Code	[Back-end] Parking Lot Search & Multi-criteria Filtering	Nhật, Hoàng	8	8	8	8	8	8	8	8	8	8	4	0											
+	Code	[Front-end] Real-time 2D Visual Slot Map Display	Huy, Thái	8	8	8	8	8	8	8	8	8	8	8	8	4	0									
+	Code	[Back-end] Real-time 2D Visual Slot Map Display	Nhật, Hoàng	8	8	8	8	8	8	8	8	8	8	8	8	4	0									
+	Code	[Front-end] Rule-based Smart Slot Recommendation	Huy, Thái	4	4	4	4	4	4	4	4	4	4	4	4	4	4	0								
+	Code	[Back-end] Rule-based Smart Slot Recommendation	Nhật, Hoàng	4	4	4	4	4	4	4	4	4	4	4	4	4	4	0								
+	Code	[Front-end] High-Concurrency Slot Holding & 10m Timer	Huy, Thái	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	0							
+	Code	[Back-end] High-Concurrency Slot Holding Engine with Conflict Lock	Nhật, Hoàng	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	0							
+	Code	[Front-end] Expired Hold Status & Real-time Slot Sync	Huy, Thái	8	8	8	8	8	8	8	8	8	8	8	8	8	8	8	8	4	0					
+	Code	[Back-end] Automated Background Worker for Expired Hold Release	Nhật, Hoàng	8	8	8	8	8	8	8	8	8	8	8	8	8	8	8	8	4	0					
+	Integration	Integration for Sprint 2	All	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	0				
+	Testing	Testing for Sprint 2	All	8	8	8	8	8	8	8	8	8	8	8	8	8	8	8	8	8	8	8	4	0		
+	Sprint 2 Review Meeting	Sprint 2 Review Meeting	All	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	0	
+	Release Sprint 2	Release Sprint 2	All	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	0
+			Total	128	128	124	120	116	108	100	92	88	84	76	68	60	52	44	36	28	20	16	12	8	4	0

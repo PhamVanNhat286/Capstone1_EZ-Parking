@@ -11,21 +11,18 @@ import {
   MapPin,
   Bell,
   ChevronDown,
-  ChevronRight,
   Car,
   Zap,
   Umbrella,
   Navigation,
-  Tag,
   Clock,
   PlusCircle,
   CreditCard,
   CheckCircle,
   Camera,
   QrCode,
-  BookmarkCheck,
+  UserPen,
   BadgePercent,
-  History,
   Sparkles,
   Bot,
   X,
@@ -192,8 +189,8 @@ function ExploreContent() {
   }, []);
 
   // Filter chips state
-  const [activeFilter, setActiveFilter] = useState("Ô tô");
-  const filters = ["Ô tô", "Sạc xe điện (EV)", "Có mái che", "Gần nhất", "Giá rẻ"];
+  const [activeFilter, setActiveFilter] = useState("Gần nhất");
+  const filters = ["Gần nhất", "Sạc xe điện (EV)", "Có mái che"];
 
   // Search & Typewriter state
   const [searchQuery, setSearchQuery] = useState("");
@@ -399,8 +396,6 @@ function ExploreContent() {
       result = result.filter((l) => l.labels.some((lbl) => lbl.toLowerCase().includes("mái che")));
     } else if (activeFilter === "Gần nhất") {
       result.sort((a, b) => (a.distance ?? 999) - (b.distance ?? 999));
-    } else if (activeFilter === "Giá rẻ") {
-      result.sort((a, b) => a.price - b.price);
     } else {
       // Mặc định: Nếu có GPS, ưu tiên hiển thị bãi gần nhất trước
       if (userLocation) {
@@ -865,15 +860,15 @@ function ExploreContent() {
         <div>
           <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 px-1">Truy cập nhanh</h3>
           <div className="grid grid-cols-4 gap-2.5">
-            {/* 1. Đặt chỗ */}
+            {/* 1. Chỉnh sửa hồ sơ */}
             <Link
-              href={`/bai/${lotsList[0]?.id || "hai-chau-a"}`}
+              href="/ho-so?edit=1"
               className="p-2.5 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex flex-col items-center justify-center gap-1.5 hover:border-blue-300 hover:bg-blue-50/30 active:scale-95 transition"
             >
               <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
-                <BookmarkCheck size={20} />
+                <UserPen size={20} />
               </div>
-              <span className="text-[11px] font-bold text-slate-700">Đặt chỗ</span>
+              <span className="text-[11px] font-bold text-slate-700 text-center leading-tight">Sửa hồ sơ</span>
             </Link>
 
             {/* 2. Xe của tôi */}
@@ -898,15 +893,15 @@ function ExploreContent() {
               <span className="text-[11px] font-bold text-slate-700">Ưu đãi</span>
             </Link>
 
-            {/* 4. Lịch sử */}
+            {/* 4. Phương thức thanh toán */}
             <Link
-              href="/lich-su"
+              href="/phuong-thuc-thanh-toan"
               className="p-2.5 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex flex-col items-center justify-center gap-1.5 hover:border-blue-300 hover:bg-blue-50/30 active:scale-95 transition"
             >
               <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                <History size={20} />
+                <CreditCard size={20} />
               </div>
-              <span className="text-[11px] font-bold text-slate-700">Lịch sử</span>
+              <span className="text-[11px] font-bold text-slate-700 text-center leading-tight">Thanh toán</span>
             </Link>
           </div>
         </div>
@@ -915,13 +910,6 @@ function ExploreContent() {
         <div className="space-y-2.5">
           <div className="flex items-center justify-between px-1">
             <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Bãi đỗ gần bạn</h3>
-            <button
-              onClick={() => setSearchQuery("")}
-              className="text-xs font-bold text-blue-600 hover:underline flex items-center"
-            >
-              Xem tất cả ({filteredLots.length})
-              <ChevronRight size={14} />
-            </button>
           </div>
 
           {/* Horizontal Scrollable Filter Chips */}
@@ -931,19 +919,17 @@ function ExploreContent() {
               return (
                 <button
                   key={chip}
-                  onClick={() => setActiveFilter(chip)}
+                  onClick={() => setActiveFilter(isActive ? "Gần nhất" : chip)}
                   className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 ${isActive
                       ? "bg-blue-600 text-white shadow-sm shadow-blue-500/25 scale-[1.02]"
                       : "bg-white text-slate-600 border border-slate-200/90 hover:bg-slate-50"
                     }`}
                 >
-                  {chip === "Ô tô" && <Car size={13} />}
+                  {chip === "Gần nhất" && <Navigation size={13} />}
                   {chip === "Sạc xe điện (EV)" && (
                     <Zap size={13} className={isActive ? "text-amber-300" : "text-emerald-500"} />
                   )}
                   {chip === "Có mái che" && <Umbrella size={13} />}
-                  {chip === "Gần nhất" && <Navigation size={13} />}
-                  {chip === "Giá rẻ" && <Tag size={13} />}
                   <span>{chip}</span>
                 </button>
               );
@@ -996,7 +982,7 @@ function ExploreContent() {
                             e.stopPropagation();
                             const fav = isLotFav(lot.id);
                             toggleFavoriteLot(lot.id);
-                            addToast(fav ? `Đã bỏ ${lot.name} khỏi danh sách yêu thích` : `Đã thêm ${lot.name} vào vị trí yêu thích`, "success");
+                            addToast(fav ? `Đã bỏ ${lot.name} khỏi danh sách yêu thích` : `Đã thêm ${lot.name} vào bãi đỗ yêu thích`, "success");
                           }}
                           className="p-1 rounded-full hover:bg-slate-100 text-slate-400 active:scale-90 transition-transform cursor-pointer"
                           aria-label="Yêu thích"
