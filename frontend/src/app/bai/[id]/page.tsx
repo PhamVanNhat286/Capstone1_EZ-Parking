@@ -13,6 +13,7 @@ import { lots } from "@/lib/mock/lots";
 import { clsx } from "clsx";
 import { useStore, type Vehicle } from "@/store";
 import ParkingSpotCard, { type Spot, type Kind, type Status } from "@/components/parking/ParkingSpotCard";
+import TimeInput24h from "@/components/ui/TimeInput24h";
 import { calculateDetailedFee, getCurrentLotRate } from "@/lib/pricing";
 import { bookingDuration, formatBookingTime } from "@/lib/booking-time";
 import dayjs from "dayjs";

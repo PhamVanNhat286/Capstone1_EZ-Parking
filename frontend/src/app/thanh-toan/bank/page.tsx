@@ -6,13 +6,16 @@ import { ArrowLeft, Building2, CarFront, Check, Clock3, Copy, ExternalLink, Land
 import { API_BASE_URL } from '@/lib/config';
 import { getLotByIdApi } from '@/lib/api';
 import { lots } from '@/lib/mock/lots';
+import { calculateDetailedFee } from '@/lib/pricing';
 import { useStore } from '@/store';
 import { formatBookingTime } from '@/lib/booking-time';
 
 const DEPOSIT = 50_000;
 const money = (value: number) => Math.max(0, Math.round(value)).toLocaleString('vi-VN') + ' đ';
+const formatDateDMY = (date: Date) =>
+  `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
 const dateTime = (value: number) => new Date(value).toLocaleString('vi-VN', {
-  day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false,
 });
 
 type BankPayment = {
@@ -45,7 +48,48 @@ export default function BankPaymentPage() {
   const hours = booking?.estimatedHours || 2;
   const estimatedStart = booking?.createdAt || 0;
   const estimatedEnd = estimatedStart + hours * 60 * 60 * 1000;
-  const estimatedPrice = hourlyRate * hours;
+  const feeDetails = calculateDetailedFee(
+    booking?.lotId || '1',
+    booking?.startTime || '',
+    hours,
+    hourlyRate || 15000,
+    booking?.createdAt ? new Date(booking.createdAt) : new Date()
+  );
+  const estimatedPrice = feeDetails.totalFee;
+  const timeRange = (() => {
+    const baseMs = booking?.createdAt || Date.now();
+    const startDateObj = new Date(baseMs);
+    let startTime = startDateObj.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false });
+    if (booking?.startTime && booking.startTime.includes(':')) {
+      const [sH, sM] = booking.startTime.split(':').map(Number);
+      if (!isNaN(sH) && !isNaN(sM)) {
+        startDateObj.setHours(sH, sM, 0, 0);
+        if (startDateObj.getTime() < baseMs - 12 * 3600000) {
+          startDateObj.setDate(startDateObj.getDate() + 1);
+        }
+        startTime = `${String(sH).padStart(2, '0')}:${String(sM).padStart(2, '0')}`;
+      }
+    }
+    const endDateObj = new Date(startDateObj.getTime() + hours * 3600000);
+    let endTime = endDateObj.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false });
+    if (booking?.endTime && booking.endTime.includes(':')) {
+      const [eH, eM] = booking.endTime.split(':').map(Number);
+      if (!isNaN(eH) && !isNaN(eM)) {
+        endDateObj.setTime(startDateObj.getTime());
+        endDateObj.setHours(eH, eM, 0, 0);
+        if (endDateObj.getTime() <= startDateObj.getTime()) {
+          endDateObj.setDate(endDateObj.getDate() + 1);
+        }
+        endTime = `${String(eH).padStart(2, '0')}:${String(eM).padStart(2, '0')}`;
+      }
+    }
+    return {
+      startTime,
+      endTime,
+      startDate: formatDateDMY(startDateObj),
+      endDate: formatDateDMY(endDateObj),
+    };
+  })();
   const vehicle = vehicles.find((item) => item.id === booking?.vehicleId);
   const expiresAt = payment ? new Date(payment.expires_at).getTime() : 0;
   const remainingSeconds = now === null || !Number.isFinite(expiresAt) ? 0 : Math.max(0, Math.ceil((expiresAt - now) / 1000));

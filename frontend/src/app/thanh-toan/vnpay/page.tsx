@@ -10,6 +10,8 @@ import { getLotByIdApi } from '@/lib/api';
 import { formatBookingTime } from '@/lib/booking-time';
 
 const DEPOSIT = 50_000;
+const formatDateDMY = (date: Date) =>
+  `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
 
 export default function VNPayPage() {
   const router = useRouter();
@@ -21,7 +23,14 @@ export default function VNPayPage() {
   const [hourlyRate, setHourlyRate] = useState(fallbackRate);
   const [lotName, setLotName] = useState(lots.find((lot) => lot.id === booking?.lotId)?.name || booking?.lotId || 'Chưa có');
   const hours = booking?.estimatedHours || 2;
-  const estimatedTotal = Math.max(0, Math.round(hourlyRate * hours));
+  const feeDetails = calculateDetailedFee(
+    booking?.lotId || '1',
+    booking?.startTime || '',
+    hours,
+    hourlyRate || fallbackRate || 15000,
+    booking?.createdAt ? new Date(booking.createdAt) : new Date()
+  );
+  const estimatedTotal = Math.max(0, Math.round(feeDetails.totalFee));
   const vehicle = vehicles.find((item) => item.id === booking?.vehicleId);
   const startTime = formatBookingTime(booking?.startTime);
   const endTime = formatBookingTime(booking?.endTime);

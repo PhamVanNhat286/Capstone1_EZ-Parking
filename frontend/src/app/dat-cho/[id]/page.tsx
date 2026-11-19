@@ -12,6 +12,8 @@ import { formatBookingTime, parseBookingTime } from "@/lib/booking-time";
 const DEPOSIT = 50_000;
 const money = (n: number) => Math.max(0, Math.round(n)).toLocaleString("vi-VN") + "đ";
 const clock = (seconds: number) => `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+const formatDateDMY = (date: Date) =>
+  `${String(date.getDate()).padStart(2, "0")}/${String(date.getMonth() + 1).padStart(2, "0")}/${date.getFullYear()}`;
 type Method = "vnpay" | "bank";
 
 export default function CheckoutPage() {
