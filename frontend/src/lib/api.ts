@@ -81,11 +81,15 @@ export async function getLotByIdApi(lotId: string) {
   }
 }
 
-export async function getLotSlotsApi(lotId: string) {
+export async function getLotSlotsApi(lotId: string, startTime?: string, endTime?: string) {
   try {
-    const res = await fetch(`${API_BASE_URL}/lots/${lotId}/slots`, { cache: "no-store" });
+    const params = new URLSearchParams();
+    if (startTime) params.set("start_time", startTime);
+    if (endTime) params.set("end_time", endTime);
+    const res = await fetch(`${API_BASE_URL}/lots/${lotId}/slots${params.size ? `?${params}` : ""}`, { cache: "no-store" });
+    if (!res.ok) return null;
     const json = await res.json();
-    if (!json.success || !Array.isArray(json.data)) return [];
+    if (!json.success || !Array.isArray(json.data)) return null;
 
     return json.data.map((s: any) => ({
       id: s.code || `A${s.id}`,
@@ -95,10 +99,11 @@ export async function getLotSlotsApi(lotId: string) {
       rowIndex: s.row_index,
       colIndex: s.col_index,
       isElevator: s.col_index === 0,
+      bookedIntervals: Array.isArray(s.booked_intervals) ? s.booked_intervals : [],
     }));
   } catch (error) {
     console.warn("Không thể tải ô đỗ từ Backend:", error);
-    return [];
+    return null;
   }
 }
 
@@ -333,6 +338,45 @@ export async function getReservationByIdApi(id: string | number, token?: string)
 
   const res = await fetch(`${API_BASE_URL}/reservations/${id}`, { headers, cache: "no-store" });
   return res.json().catch(() => ({ success: false, data: null }));
+}
+
+export type RelocationOption = { id: number; code: string };
+
+export async function getRelocationOptionsApi(id: string | number, token?: string) {
+  const res = await fetch(`${API_BASE_URL}/reservations/${id}/relocation-options`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {}, cache: "no-store",
+  });
+  return res.json() as Promise<{ success: boolean; message?: string; data?: { needsMove: boolean; originalSlot: string; options: RelocationOption[] } }>;
+}
+
+export async function switchReservationSlotApi(id: string | number, slotId: number, token?: string) {
+  const res = await fetch(`${API_BASE_URL}/reservations/${id}/switch-slot`, {
+    method: "POST", headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    body: JSON.stringify({ slot_id: slotId }),
+  });
+  return res.json() as Promise<{ success: boolean; message?: string; data?: { slot_id: number; slot_code: string } }>;
+}
+
+export async function requestOccupiedSlotRefundApi(id: string | number, token?: string) {
+  const res = await fetch(`${API_BASE_URL}/reservations/${id}/refund-request`, {
+    method: "POST", headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  return res.json() as Promise<{ success: boolean; message?: string; data?: { status: string } }>;
+}
+
+export type PendingRefund = { id: number; reservation_id: number; amount: number; provider: string; created_at: string; lot_name: string; slot_code: string; customer_name: string; customer_email: string };
+
+export async function getPendingRefundsApi(token: string) {
+  const res = await fetch(`${API_BASE_URL}/refunds/pending`, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
+  return res.json() as Promise<{ success: boolean; message?: string; data?: PendingRefund[] }>;
+}
+
+export async function confirmManualRefundApi(paymentId: number, transferReference: string, token: string) {
+  const res = await fetch(`${API_BASE_URL}/refunds/${paymentId}/confirm`, {
+    method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ transfer_reference: transferReference, transferred: true }),
+  });
+  return res.json() as Promise<{ success: boolean; message?: string }>;
 }
 
 // ================= KIOSK GATE APIS =================

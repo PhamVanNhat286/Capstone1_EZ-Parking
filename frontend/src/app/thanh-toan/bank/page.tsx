@@ -8,6 +8,7 @@ import { getLotByIdApi } from '@/lib/api';
 import { lots } from '@/lib/mock/lots';
 import { calculateDetailedFee } from '@/lib/pricing';
 import { useStore } from '@/store';
+import { formatBookingTime } from '@/lib/booking-time';
 
 const DEPOSIT = 50_000;
 const money = (value: number) => Math.max(0, Math.round(value)).toLocaleString('vi-VN') + ' đ';
@@ -326,13 +327,11 @@ export default function BankPaymentPage() {
           <div className="mt-5 grid grid-cols-2 gap-2">
             <div className="rounded-2xl bg-slate-50 p-3">
               <div className="flex items-center gap-1 text-xs text-slate-500"><Clock3 size={13} /> Giờ vào dự kiến</div>
-              <p className="mt-1 text-sm font-bold tabular-nums">{booking.startTime ? timeRange.startTime : dateTime(estimatedStart)}</p>
-              {booking.startTime && <p className="mt-0.5 text-[11px] text-slate-500">{timeRange.startDate}</p>}
+              <p className="mt-1 text-sm font-bold tabular-nums">{formatBookingTime(booking.startTime)}</p>
             </div>
             <div className="rounded-2xl bg-slate-50 p-3">
               <div className="flex items-center gap-1 text-xs text-slate-500"><Clock3 size={13} /> Giờ ra dự kiến</div>
-              <p className="mt-1 text-sm font-bold tabular-nums">{booking.endTime ? timeRange.endTime : dateTime(estimatedEnd)}</p>
-              {booking.endTime && <p className="mt-0.5 text-[11px] text-slate-500">{timeRange.endDate}</p>}
+              <p className="mt-1 text-sm font-bold tabular-nums">{formatBookingTime(booking.endTime)}</p>
             </div>
           </div>
           <p className="mt-2 text-xs text-slate-500">Thời lượng dự kiến: {hours} giờ. Thời gian thực tế được tính khi xe vào và ra bãi.</p>

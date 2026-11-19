@@ -475,7 +475,7 @@ export const useStore = create<StoreState>()(
             ...activeBooking,
             status: "paid",
             paymentMethod: method,
-            arrivalExpiresAt: Date.now() + 20 * 60 * 1000, // 20 minutes to arrive
+            arrivalExpiresAt: new Date(activeBooking.startTime || Date.now()).getTime() + 20 * 60 * 1000,
           },
         });
       },
