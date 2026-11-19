@@ -316,12 +316,35 @@ export default function ParkingMapPage() {
       let serverReservationId: number | undefined;
       let serverHoldExpiresAt: number | undefined;
 
+      let startIso: string | undefined;
+      let endIso: string | undefined;
+      if (startTime && endTime) {
+        const [sH, sM] = startTime.split(":").map(Number);
+        const [eH, eM] = endTime.split(":").map(Number);
+        if (!isNaN(sH) && !isNaN(sM) && !isNaN(eH) && !isNaN(eM)) {
+          const sDate = new Date();
+          sDate.setHours(sH, sM, 0, 0);
+          if (sDate.getTime() < Date.now() - 12 * 60 * 60 * 1000) {
+            sDate.setDate(sDate.getDate() + 1);
+          }
+          const eDate = new Date(sDate);
+          eDate.setHours(eH, eM, 0, 0);
+          if (eDate <= sDate) {
+            eDate.setDate(eDate.getDate() + 1);
+          }
+          startIso = sDate.toISOString();
+          endIso = eDate.toISOString();
+        }
+      }
+
       // Gọi API giữ chỗ chống trùng (Atomic Update) ở Backend
       const holdRes = await holdSpotApi({
         parking_lot_id: lotId,
         slot_id: selected.dbId || selected.id,
         vehicle_id: car.id,
         estimated_hours: durationInfo.hours,
+        start_time: startIso,
+        expected_end_time: endIso,
         token: user?.token,
       });
 
@@ -389,7 +412,7 @@ export default function ParkingMapPage() {
             toast(
               isFavorite
                 ? `Đã bỏ ${lot.name} khỏi danh sách yêu thích`
-                : `Đã thêm ${lot.name} vào vị trí yêu thích`,
+                : `Đã thêm ${lot.name} vào bãi đỗ yêu thích`,
               "success"
             );
           }}

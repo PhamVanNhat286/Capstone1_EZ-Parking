@@ -1,0 +1,21 @@
+Sprint 5	Component	Task Name	Responsible Member	Estimate	Total	19-Nov	20-Nov	21-Nov	22-Nov	23-Nov	24-Nov	25-Nov	26-Nov	27-Nov	28-Nov	29-Nov	30-Nov	1-Dec	2-Dec	3-Dec	4-Dec	5-Dec	6-Dec
+	Initial	Sprint 5 Plan Meeting	All	4	4	0																	
+	Initial	Capstone 1 Release Backlog & Quality Strategy Doc	All	4	4	4	0																
+	Initial	Comprehensive System Test Plan for Capstone Defense	All	4	4	4	4	0															
+	Testing & Optimization	End-to-End User Journey Testing (Driver, Manager, Kiosk, Admin)	All	8	8	8	8	8	4	0													
+	Testing & Optimization	Concurrency & Load Testing on Redis Slot Locks (JMeter)	Nhật, Hoàng	8	8	8	8	8	4	0													
+	Testing & Optimization	Cross-browser & Mobile UX Responsiveness Polish	Huy, Thái	4	4	4	4	4	4	4	0												
+	Testing & Optimization	API Latency Profiling & SQL Index Optimization (<500ms)	Nhật, Hoàng	4	4	4	4	4	4	4	0												
+	Testing & Optimization	Security Hardening (JWT, HMAC Callback, BCrypt, CORS)	Nhật, Hoàng	4	4	4	4	4	4	4	4	0											
+	Testing & Optimization	Edge Case Simulation & Fault Recovery Verification	All	4	4	4	4	4	4	4	4	4	0										
+	Deployment & DevOps	[DevOps] Docker Compose Multi-container Setup	Nhật, Huy	8	8	8	8	8	8	8	8	8	8	4	0								
+	Deployment & DevOps	[DevOps] Database Migration & Master Data Seeding	Nhật, Hoàng	8	8	8	8	8	8	8	8	8	8	4	0								
+	Deployment & DevOps	[DevOps] CI/CD Pipeline Configuration with GitHub Actions	Huy, Thái	4	4	4	4	4	4	4	4	4	4	4	4	0							
+	Deployment & DevOps	[DevOps] Live Deployment & Health Check Monitoring	Nhật, Huy	4	4	4	4	4	4	4	4	4	4	4	4	4	0						
+	Documentation & Release	Capstone Final Project Report Document (CMU-SE 450)	All	8	8	8	8	8	8	8	8	8	8	8	8	8	8	4	0				
+	Documentation & Release	User Manual & Technical Documentation Compilation	All	8	8	8	8	8	8	8	8	8	8	8	8	8	8	4	0				
+	Documentation & Release	Demo Video Recording & Slide Presentation Preparation	All	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	0			
+	Documentation & Release	Rehearsal & Dry-run Capstone Defense Presentation	All	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	0		
+	Review	Sprint 5 Review & Final Acceptance Sign-off Meeting	All	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	0	
+	Release	Final Capstone Release (v1.0 Tag & Defense Ready)	All	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	0
+			Total	100	100	96	92	88	80	72	64	60	56	48	40	36	32	24	16	12	8	4	0
