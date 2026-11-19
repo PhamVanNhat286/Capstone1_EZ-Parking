@@ -1,0 +1,25 @@
+Sprint 3	Component	Task Name	Responsible Member	Estimate	Total	8-Oct	9-Oct	10-Oct	11-Oct	12-Oct	13-Oct	14-Oct	15-Oct	16-Oct	17-Oct	18-Oct	19-Oct	20-Oct	21-Oct	22-Oct	23-Oct	24-Oct	25-Oct	26-Oct	27-Oct	28-Oct
+	Initial	Sprint Plan Meeting	All	4	4	0																				
+	Initial	Sprint backlog document for Sprint 3	All	4	4	4	0																			
+	Initial	Test Plan document for Sprint 3	All	4	4	4	4	0																		
+	Design UI	Design UI for Sandbox Deposit Payment Integration (VNPay/MoMo)	Hoàng, Thái	8	8	8	8	8	4	0																
+	Design UI	Design UI for Dynamic QR Ticket Display & Security Watermark	Nhật, Huy	8	8	8	8	8	4	0																
+	Design UI	Design UI for Kiosk Scan-In Check-In Terminal	Hoàng, Thái	4	4	4	4	4	4	4	0															
+	Design UI	Design UI for Kiosk Scan-Out Settle & Release Terminal	Nhật, Huy	4	4	4	4	4	4	4	0															
+	Design UI	Design UI for No-Show Forfeiture Notification & Alerts	All	4	4	4	4	4	4	4	4	0														
+	Design UI	Design Test Case for Sprint 3	All	4	4	4	4	4	4	4	4	4	0													
+	Code	[Front-end] Sandbox Deposit Payment Integration	Huy, Thái	8	8	8	8	8	8	8	8	8	8	4	0											
+	Code	[Back-end] Sandbox Deposit Payment & IPN Webhook Verification	Nhật, Hoàng	8	8	8	8	8	8	8	8	8	8	4	0											
+	Code	[Front-end] Dynamic QR Ticket Issuance Screen	Huy, Thái	8	8	8	8	8	8	8	8	8	8	8	8	4	0									
+	Code	[Back-end] Dynamic QR Cryptographic Signing & Validation	Nhật, Hoàng	8	8	8	8	8	8	8	8	8	8	8	8	4	0									
+	Code	[Front-end] Kiosk Scan-In Check-In Terminal	Huy, Thái	4	4	4	4	4	4	4	4	4	4	4	4	4	4	0								
+	Code	[Back-end] Kiosk Scan-In Check-In Processing & State Change	Nhật, Hoàng	4	4	4	4	4	4	4	4	4	4	4	4	4	4	0								
+	Code	[Front-end] Kiosk Scan-Out Settle & Release Terminal	Huy, Thái	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	0							
+	Code	[Back-end] Kiosk Scan-Out Settle & Fee Calculation	Nhật, Hoàng	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	0							
+	Code	[Front-end] Deposit Status & Forfeiture Warning UI	Huy, Thái	8	8	8	8	8	8	8	8	8	8	8	8	8	8	8	8	4	0					
+	Code	[Back-end] Automated No-Show Forfeiture Worker (20-min grace)	Nhật, Hoàng	8	8	8	8	8	8	8	8	8	8	8	8	8	8	8	8	4	0					
+	Integration	Integration for Sprint 3	All	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	0				
+	Testing	Testing for Sprint 3	All	8	8	8	8	8	8	8	8	8	8	8	8	8	8	8	8	8	8	8	4	0		
+	Sprint 3 Review Meeting	Sprint 3 Review Meeting	All	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	0	
+	Release Sprint 3	Release Sprint 3	All	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	0
+			Total	128	128	124	120	116	108	100	92	88	84	76	68	60	52	44	36	28	20	16	12	8	4	0

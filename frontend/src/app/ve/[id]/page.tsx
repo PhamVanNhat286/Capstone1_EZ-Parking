@@ -22,12 +22,103 @@ import {
 import { QRCodeSVG } from "qrcode.react";
 import { getLotByIdApi, getReservationByIdApi, kioskScanInApi, kioskScanOutApi, releaseSpotApi } from "@/lib/api";
 import { lots } from "@/lib/mock/lots";
+import { calculateDetailedFee } from "@/lib/pricing";
 import { useStore } from "@/store";
 
 const DEPOSIT = 50_000;
-const money = (n: number) => Math.max(0, n).toLocaleString("vi-VN") + "đ";
+const HH_MM_REGEX = /^\d{1,2}:\d{2}$/;
+const money = (n: number) => Math.max(0, Math.round(n)).toLocaleString("vi-VN") + "đ";
 const timer = (sec: number) =>
   `${String(Math.floor(sec / 60)).padStart(2, "0")}:${String(sec % 60).padStart(2, "0")}`;
+
+const formatClockTime = (value?: string | number | null): string | null => {
+  if (value === undefined || value === null || value === "") return null;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (HH_MM_REGEX.test(trimmed)) {
+      const [h, m] = trimmed.split(":");
+      return `${h.padStart(2, "0")}:${m.padStart(2, "0")}`;
+    }
+  }
+  const date = new Date(value);
+  if (isNaN(date.getTime())) return null;
+  return date.toLocaleTimeString("vi-VN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+};
+
+const formatDateDMY = (value?: string | number | Date | null): string | null => {
+  if (value === undefined || value === null || value === "") return null;
+  const date = value instanceof Date ? value : new Date(value);
+  if (isNaN(date.getTime())) return null;
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const year = date.getFullYear();
+  return `${day}/${month}/${year}`;
+};
+
+const resolveDateObj = (
+  raw?: string | number | null,
+  fallbackBaseMs?: number,
+  addDay = false
+): Date | null => {
+  if (raw !== undefined && raw !== null && raw !== "") {
+    if (typeof raw === "string" && HH_MM_REGEX.test(raw.trim())) {
+      const [h, m] = raw.trim().split(":").map(Number);
+      const base = new Date(fallbackBaseMs || Date.now());
+      base.setHours(h, m, 0, 0);
+      if (addDay) base.setDate(base.getDate() + 1);
+      return base;
+    }
+    const parsed = new Date(raw);
+    if (!isNaN(parsed.getTime())) return parsed;
+  }
+  return null;
+};
+
+const computeParkingDuration = (
+  startRaw?: string | null,
+  endRaw?: string | null,
+  fallbackHours = 2
+): { hours: number; isNextDay: boolean } => {
+  if (startRaw && endRaw) {
+    const sStr = startRaw.trim();
+    const eStr = endRaw.trim();
+
+    if (HH_MM_REGEX.test(sStr) && HH_MM_REGEX.test(eStr)) {
+      const [sH, sM] = sStr.split(":").map(Number);
+      const [eH, eM] = eStr.split(":").map(Number);
+      const startTotal = sH * 60 + sM;
+      let endTotal = eH * 60 + eM;
+      let isNextDay = false;
+      if (endTotal <= startTotal) {
+        endTotal += 24 * 60;
+        isNextDay = true;
+      }
+      const hours = Math.max(1, Math.min(24, Math.ceil((endTotal - startTotal) / 60)));
+      return { hours, isNextDay };
+    }
+
+    const startDate = new Date(sStr);
+    const endDate = new Date(eStr);
+    if (!isNaN(startDate.getTime()) && !isNaN(endDate.getTime())) {
+      const diffMs = endDate.getTime() - startDate.getTime();
+      if (diffMs > 0) {
+        const totalMinutes = Math.round(diffMs / 60000);
+        const hours = Math.max(1, Math.min(24, Math.ceil(totalMinutes / 60)));
+        const isNextDay =
+          startDate.getFullYear() !== endDate.getFullYear() ||
+          startDate.getMonth() !== endDate.getMonth() ||
+          startDate.getDate() !== endDate.getDate();
+        return { hours, isNextDay };
+      }
+    }
+  }
+
+  return { hours: Math.max(1, fallbackHours || 2), isNextDay: false };
+};
 
 export default function TicketPage() {
   const { id } = useParams<{ id: string }>();
@@ -80,11 +171,11 @@ export default function TicketPage() {
         arrivalExpiresAt: dbBooking.arrival_expires_at ? new Date(dbBooking.arrival_expires_at).getTime() : 0,
         startTime: dbBooking.start_time,
         endTime: dbBooking.expected_end_time,
-        estimatedHours: 2,
+        estimatedHours: computeParkingDuration(dbBooking.start_time, dbBooking.expected_end_time, 2).hours,
         createdAt: new Date(dbBooking.created_at).getTime(),
         depositAmount: Number(dbBooking.deposit_amount) || DEPOSIT,
         hourlyRate: Number(dbBooking.hourly_rate) || 20000,
-        totalAmount: Number(dbBooking.total_amount) || 40000,
+        totalAmount: dbBooking.total_amount != null ? Number(dbBooking.total_amount) : undefined,
         qrPayload: dbBooking.qr_payload,
         licensePlate: dbBooking.license_plate,
         vehicleType: dbBooking.vehicle_type,
@@ -212,7 +303,45 @@ export default function TicketPage() {
   const qrPayload =
     dbBooking?.qr_payload ||
     `EZPARKING-DEMO-TICKET|ID=${booking.id}|LOT=${booking.lotId}|SPOT=${booking.spotId}|VEHICLE=${vehicle?.plate || "UNKNOWN"}`;
-  const total = lot.price * (booking.estimatedHours || 2);
+
+  const startTimeFormatted = formatClockTime(booking.startTime);
+  const endTimeFormatted = formatClockTime(booking.endTime);
+  const parkingDuration = computeParkingDuration(
+    booking.startTime,
+    booking.endTime,
+    booking.estimatedHours || 2
+  );
+  const billableHours = parkingDuration.hours;
+  const createdTimeFormatted = formatClockTime(booking.createdAt);
+  const createdDateFormatted = formatDateDMY(booking.createdAt);
+  const arrivalTimeFormatted = formatClockTime(booking.arrivalExpiresAt);
+  const arrivalDateFormatted = formatDateDMY(booking.arrivalExpiresAt);
+  const startDateObj = resolveDateObj(booking.startTime, booking.createdAt);
+  const endDateObj = resolveDateObj(booking.endTime, booking.createdAt, parkingDuration.isNextDay);
+  const startDateFormatted = formatDateDMY(startDateObj);
+  const endDateFormatted = formatDateDMY(endDateObj);
+  const parkingDateRange =
+    startDateFormatted && endDateFormatted
+      ? startDateFormatted === endDateFormatted
+        ? startDateFormatted
+        : `${startDateFormatted} → ${endDateFormatted}`
+      : startDateFormatted || createdDateFormatted;
+  const depositAmount = dbBooking ? Number(dbBooking.deposit_amount) || DEPOSIT : DEPOSIT;
+  const startRefDate = startDateObj || new Date(booking.createdAt || Date.now());
+  const estimatedFeeDetails = calculateDetailedFee(
+    booking.lotId,
+    startTimeFormatted || "",
+    billableHours,
+    lot.price,
+    startRefDate
+  );
+  const isCompletedWithActualTotal =
+    booking.status === "completed" && Number(dbBooking?.total_amount) > 0;
+  const total = isCompletedWithActualTotal
+    ? Number(dbBooking.total_amount)
+    : estimatedFeeDetails.totalFee;
+  const remainingFee = Math.max(0, total - depositAmount);
+  const estimatedRefund = Math.max(0, depositAmount - total);
 
   const handleScanIn = async () => {
     setIsScanning(true);
@@ -389,10 +518,7 @@ export default function TicketPage() {
             </div>
             <p className="text-xs font-extrabold mt-1">
               {booking.status === "paid"
-                ? `Đến bãi trước ${new Date(booking.arrivalExpiresAt || 0).toLocaleTimeString("vi-VN", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}`
+                ? `Đến bãi trước ${arrivalTimeFormatted || "--:--"}${arrivalDateFormatted ? `, ${arrivalDateFormatted}` : ""}`
                 : booking.status === "entered"
                 ? "Xe đã được xác nhận vào bãi"
                 : "Vé không còn dùng để vào bãi"}
@@ -495,30 +621,55 @@ export default function TicketPage() {
               <div>
                 <span className="text-slate-500">Giờ đặt chỗ</span>
                 <p className="font-bold mt-1">
-                  {new Date(booking.createdAt).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}
+                  {createdTimeFormatted || "--:--"}
                 </p>
+                {createdDateFormatted && (
+                  <p className="text-[11px] text-slate-500 mt-0.5">{createdDateFormatted}</p>
+                )}
               </div>
               <div>
                 <span className="text-slate-500">Thời gian đỗ</span>
                 <p className="font-bold mt-1">
-                  {booking.startTime && booking.endTime
-                    ? `${booking.startTime} - ${booking.endTime}`
-                    : `${booking.estimatedHours || 2} giờ`}
+                  {startTimeFormatted && endTimeFormatted
+                    ? `${startTimeFormatted} - ${endTimeFormatted} (${billableHours} giờ)`
+                    : `${billableHours} giờ`}
                 </p>
+                {parkingDateRange && (
+                  <p className="text-[11px] text-slate-500 mt-0.5">{parkingDateRange}</p>
+                )}
               </div>
             </div>
 
             <div className="border-t border-slate-100 pt-3 text-xs space-y-2">
               <div className="flex justify-between">
+                <span className="text-slate-500">
+                  {isCompletedWithActualTotal
+                    ? "Tổng phí đỗ thực tế"
+                    : `Tổng phí dự kiến (${billableHours} giờ)`}
+                </span>
+                <b className="text-slate-800">{money(total)}</b>
+              </div>
+              <div className="flex justify-between">
                 <span className="text-slate-500">Cọc đã thanh toán</span>
                 <b className="text-emerald-700">
-                  {["paid", "entered", "completed"].includes(booking.status) ? money(DEPOSIT) : "Chưa thanh toán"}
+                  {["paid", "entered", "completed"].includes(booking.status)
+                    ? money(depositAmount)
+                    : "Chưa thanh toán"}
                 </b>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500">Phí còn lại ước tính</span>
-                <b>{money(Math.max(0, total - DEPOSIT))}</b>
+                <span className="text-slate-500">
+                  {isCompletedWithActualTotal ? "Phí thanh toán thêm" : "Phí còn lại ước tính"}
+                </span>
+                <b>{money(remainingFee)}</b>
               </div>
+              {!isCompletedWithActualTotal &&
+                estimatedRefund > 0 &&
+                ["paid", "entered"].includes(booking.status) && (
+                  <p className="text-[11px] text-slate-400">
+                    Tiền cọc đã đủ trả phí dự kiến (dự kiến hoàn lại {money(estimatedRefund)} khi ra bãi nếu đúng thời gian).
+                  </p>
+                )}
             </div>
           </div>
         </section>
