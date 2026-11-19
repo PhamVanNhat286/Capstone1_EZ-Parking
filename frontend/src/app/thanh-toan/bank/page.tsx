@@ -6,12 +6,15 @@ import { ArrowLeft, Building2, CarFront, Check, Clock3, Copy, ExternalLink, Land
 import { API_BASE_URL } from '@/lib/config';
 import { getLotByIdApi } from '@/lib/api';
 import { lots } from '@/lib/mock/lots';
+import { calculateDetailedFee } from '@/lib/pricing';
 import { useStore } from '@/store';
 
 const DEPOSIT = 50_000;
 const money = (value: number) => Math.max(0, Math.round(value)).toLocaleString('vi-VN') + ' đ';
+const formatDateDMY = (date: Date) =>
+  `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
 const dateTime = (value: number) => new Date(value).toLocaleString('vi-VN', {
-  day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false,
 });
 
 type BankPayment = {
@@ -44,7 +47,48 @@ export default function BankPaymentPage() {
   const hours = booking?.estimatedHours || 2;
   const estimatedStart = booking?.createdAt || 0;
   const estimatedEnd = estimatedStart + hours * 60 * 60 * 1000;
-  const estimatedPrice = hourlyRate * hours;
+  const feeDetails = calculateDetailedFee(
+    booking?.lotId || '1',
+    booking?.startTime || '',
+    hours,
+    hourlyRate || 15000,
+    booking?.createdAt ? new Date(booking.createdAt) : new Date()
+  );
+  const estimatedPrice = feeDetails.totalFee;
+  const timeRange = (() => {
+    const baseMs = booking?.createdAt || Date.now();
+    const startDateObj = new Date(baseMs);
+    let startTime = startDateObj.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false });
+    if (booking?.startTime && booking.startTime.includes(':')) {
+      const [sH, sM] = booking.startTime.split(':').map(Number);
+      if (!isNaN(sH) && !isNaN(sM)) {
+        startDateObj.setHours(sH, sM, 0, 0);
+        if (startDateObj.getTime() < baseMs - 12 * 3600000) {
+          startDateObj.setDate(startDateObj.getDate() + 1);
+        }
+        startTime = `${String(sH).padStart(2, '0')}:${String(sM).padStart(2, '0')}`;
+      }
+    }
+    const endDateObj = new Date(startDateObj.getTime() + hours * 3600000);
+    let endTime = endDateObj.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false });
+    if (booking?.endTime && booking.endTime.includes(':')) {
+      const [eH, eM] = booking.endTime.split(':').map(Number);
+      if (!isNaN(eH) && !isNaN(eM)) {
+        endDateObj.setTime(startDateObj.getTime());
+        endDateObj.setHours(eH, eM, 0, 0);
+        if (endDateObj.getTime() <= startDateObj.getTime()) {
+          endDateObj.setDate(endDateObj.getDate() + 1);
+        }
+        endTime = `${String(eH).padStart(2, '0')}:${String(eM).padStart(2, '0')}`;
+      }
+    }
+    return {
+      startTime,
+      endTime,
+      startDate: formatDateDMY(startDateObj),
+      endDate: formatDateDMY(endDateObj),
+    };
+  })();
   const vehicle = vehicles.find((item) => item.id === booking?.vehicleId);
   const expiresAt = payment ? new Date(payment.expires_at).getTime() : 0;
   const remainingSeconds = now === null || !Number.isFinite(expiresAt) ? 0 : Math.max(0, Math.ceil((expiresAt - now) / 1000));
@@ -282,11 +326,13 @@ export default function BankPaymentPage() {
           <div className="mt-5 grid grid-cols-2 gap-2">
             <div className="rounded-2xl bg-slate-50 p-3">
               <div className="flex items-center gap-1 text-xs text-slate-500"><Clock3 size={13} /> Giờ vào dự kiến</div>
-              <p className="mt-1 text-sm font-bold tabular-nums">{booking.startTime || dateTime(estimatedStart)}</p>
+              <p className="mt-1 text-sm font-bold tabular-nums">{booking.startTime ? timeRange.startTime : dateTime(estimatedStart)}</p>
+              {booking.startTime && <p className="mt-0.5 text-[11px] text-slate-500">{timeRange.startDate}</p>}
             </div>
             <div className="rounded-2xl bg-slate-50 p-3">
               <div className="flex items-center gap-1 text-xs text-slate-500"><Clock3 size={13} /> Giờ ra dự kiến</div>
-              <p className="mt-1 text-sm font-bold tabular-nums">{booking.endTime || dateTime(estimatedEnd)}</p>
+              <p className="mt-1 text-sm font-bold tabular-nums">{booking.endTime ? timeRange.endTime : dateTime(estimatedEnd)}</p>
+              {booking.endTime && <p className="mt-0.5 text-[11px] text-slate-500">{timeRange.endDate}</p>}
             </div>
           </div>
           <p className="mt-2 text-xs text-slate-500">Thời lượng dự kiến: {hours} giờ. Thời gian thực tế được tính khi xe vào và ra bãi.</p>

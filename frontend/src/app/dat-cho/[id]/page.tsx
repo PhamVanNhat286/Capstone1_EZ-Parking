@@ -7,10 +7,13 @@ import { getLotByIdApi, releaseSpotApi } from "@/lib/api";
 import { lots } from "@/lib/mock/lots";
 import { useStore } from "@/store";
 import { calculateDetailedFee } from "@/lib/pricing";
+import TimeInput24h from "@/components/ui/TimeInput24h";
 
 const DEPOSIT = 50_000;
 const money = (n: number) => Math.max(0, Math.round(n)).toLocaleString("vi-VN") + "đ";
 const clock = (seconds: number) => `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+const formatDateDMY = (date: Date) =>
+  `${String(date.getDate()).padStart(2, "0")}/${String(date.getMonth() + 1).padStart(2, "0")}/${date.getFullYear()}`;
 type Method = "vnpay" | "bank";
 
 export default function CheckoutPage() {
@@ -42,8 +45,8 @@ export default function CheckoutPage() {
   const [editEndTime, setEditEndTime] = useState(booking?.endTime || "");
 
   const openEditDialog = () => {
-    const s = booking?.startTime || new Date(now).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
-    const e = booking?.endTime || new Date(now + hours * 3600000).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+    const s = booking?.startTime || new Date(now).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit", hour12: false });
+    const e = booking?.endTime || new Date(now + hours * 3600000).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit", hour12: false });
     setEditStartTime(s);
     setEditEndTime(e);
     setEditHours(true);
@@ -71,6 +74,43 @@ export default function CheckoutPage() {
 
   const feeDetails = calculateDetailedFee(booking?.lotId || "1", booking?.startTime || "", hours, rate);
   const editFeeDetails = calculateDetailedFee(booking?.lotId || "1", editStartTime, editDiffInfo.hours, rate);
+
+  const timeRangeDisplay = (() => {
+    const baseMs = booking?.createdAt || now;
+    const startDateObj = new Date(baseMs);
+    let startLabel = startDateObj.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit", hour12: false });
+    if (booking?.startTime && booking.startTime.includes(":")) {
+      const [sH, sM] = booking.startTime.split(":").map(Number);
+      if (!isNaN(sH) && !isNaN(sM)) {
+        startDateObj.setHours(sH, sM, 0, 0);
+        if (startDateObj.getTime() < baseMs - 12 * 3600000) {
+          startDateObj.setDate(startDateObj.getDate() + 1);
+        }
+        startLabel = `${String(sH).padStart(2, "0")}:${String(sM).padStart(2, "0")}`;
+      }
+    }
+
+    const endDateObj = new Date(startDateObj.getTime() + hours * 3600000);
+    let endLabel = endDateObj.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit", hour12: false });
+    if (booking?.endTime && booking.endTime.includes(":")) {
+      const [eH, eM] = booking.endTime.split(":").map(Number);
+      if (!isNaN(eH) && !isNaN(eM)) {
+        endDateObj.setTime(startDateObj.getTime());
+        endDateObj.setHours(eH, eM, 0, 0);
+        if (endDateObj.getTime() <= startDateObj.getTime()) {
+          endDateObj.setDate(endDateObj.getDate() + 1);
+        }
+        endLabel = `${String(eH).padStart(2, "0")}:${String(eM).padStart(2, "0")}`;
+      }
+    }
+
+    return {
+      startLabel,
+      endLabel,
+      startDate: formatDateDMY(startDateObj),
+      endDate: formatDateDMY(endDateObj),
+    };
+  })();
 
   const applyEditQuickHours = (addHours: number) => {
     if (!editStartTime) return;
@@ -141,17 +181,16 @@ export default function CheckoutPage() {
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 bg-slate-50 rounded-2xl p-3">
           <div>
             <span className="text-[10px] text-slate-500">Từ mấy giờ</span>
-            <p className="font-extrabold text-sm">{booking.startTime || new Date(now).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}</p>
+            <p className="font-extrabold text-sm">{timeRangeDisplay.startLabel}</p>
+            <p className="text-[11px] text-slate-500 mt-0.5">{timeRangeDisplay.startDate}</p>
           </div>
           <div className="text-blue-600 font-black text-sm">→</div>
           <div className="text-right">
             <span className="text-[10px] text-slate-500">Đến mấy giờ</span>
-            <p className="font-extrabold text-sm">{booking.endTime || new Date(now + hours * 3600000).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}</p>
+            <p className="font-extrabold text-sm">{timeRangeDisplay.endLabel}</p>
+            <p className="text-[11px] text-slate-500 mt-0.5">{timeRangeDisplay.endDate}</p>
           </div>
         </div>
-        <p className="text-[11px] text-slate-600">
-          Thời gian: <strong>{booking.startTime && booking.endTime ? `Từ ${booking.startTime} đến ${booking.endTime}` : `${hours} giờ`}</strong> ({hours} giờ tính phí). Sau khi thanh toán cọc, bạn có 20 phút để đến bãi.
-        </p>
       </section>
       <section className="space-y-2"><h3 className="text-sm font-extrabold px-1">Phương thức thanh toán</h3>
         {([{ key: "vnpay", name: "VNPay", desc: "Chọn ngân hàng hoặc thẻ trên cổng VNPay", symbol: "VNP", color: "text-blue-700" }, { key: "bank", name: "Chuyển khoản ngân hàng", desc: "Quét VietQR, xác nhận tự động qua SePay", symbol: "QR", color: "text-emerald-700" }] as const).map((m) => <button key={m.key} onClick={() => setMethod(m.key)} className={`w-full bg-white rounded-2xl p-3.5 flex items-center gap-3 border-2 text-left ${method === m.key ? "border-blue-600 shadow-sm" : "border-transparent"}`}><div className={`w-12 h-11 bg-slate-50 rounded-xl grid place-items-center font-black ${m.color}`}>{m.key === "bank" ? <Landmark size={24} strokeWidth={2.2} /> : m.symbol}</div><span className="flex-1"><strong className="block text-sm">{m.name}</strong><span className="block text-[11px] text-slate-500">{m.desc}</span></span><div className={`w-5 h-5 rounded-full border-2 grid place-items-center ${method === m.key ? "border-blue-600" : "border-slate-300"}`}>{method === m.key && <span className="w-2.5 h-2.5 rounded-full bg-blue-600"/>}</div></button>)}
@@ -199,22 +238,12 @@ export default function CheckoutPage() {
           <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 bg-slate-50 p-3 rounded-2xl border border-slate-200">
             <div className="bg-white p-2.5 rounded-xl border border-slate-200">
               <label className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Từ mấy giờ</label>
-              <input
-                type="time"
-                value={editStartTime}
-                onChange={(e) => setEditStartTime(e.target.value)}
-                className="w-full text-base font-black text-slate-900 bg-transparent outline-none cursor-pointer"
-              />
+              <TimeInput24h value={editStartTime} onChange={setEditStartTime} ariaLabel="Từ mấy giờ" />
             </div>
             <span className="text-slate-400 font-bold text-sm text-center px-0.5">→</span>
             <div className="bg-white p-2.5 rounded-xl border border-slate-200">
               <label className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Đến mấy giờ</label>
-              <input
-                type="time"
-                value={editEndTime}
-                onChange={(e) => setEditEndTime(e.target.value)}
-                className="w-full text-base font-black text-slate-900 bg-transparent outline-none cursor-pointer"
-              />
+              <TimeInput24h value={editEndTime} onChange={setEditEndTime} ariaLabel="Đến mấy giờ" />
             </div>
           </div>
 

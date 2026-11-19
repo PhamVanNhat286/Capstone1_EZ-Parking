@@ -13,6 +13,7 @@ import { lots } from "@/lib/mock/lots";
 import { clsx } from "clsx";
 import { useStore, type Vehicle } from "@/store";
 import ParkingSpotCard, { type Spot, type Kind, type Status } from "@/components/parking/ParkingSpotCard";
+import TimeInput24h from "@/components/ui/TimeInput24h";
 import { calculateDetailedFee, getCurrentLotRate } from "@/lib/pricing";
 
 const money = (n: number) => Math.round(n).toLocaleString("vi-VN") + "đ";
@@ -500,7 +501,7 @@ export default function ParkingMapPage() {
                 <Clock3 size={13} className="text-blue-600" /> Thời gian đỗ xe
               </span>
               <span className="text-xs font-bold text-blue-700 bg-blue-100/70 px-2.5 py-0.5 rounded-full">
-                Thời lượng: {durationInfo.text} {durationInfo.isNextDay && <span className="text-[10px] text-amber-600 font-semibold">(qua đêm)</span>}
+                Thời lượng: {durationInfo.text}
               </span>
             </div>
 
@@ -508,24 +509,14 @@ export default function ParkingMapPage() {
             <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
               <div className="bg-white border border-slate-200 rounded-xl p-2.5 shadow-sm focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-100 transition-all">
                 <label className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Từ mấy giờ</label>
-                <input
-                  type="time"
-                  value={startTime}
-                  onChange={(e) => setStartTime(e.target.value)}
-                  className="w-full text-base font-black text-slate-900 bg-transparent outline-none cursor-pointer"
-                />
+                <TimeInput24h value={startTime} onChange={setStartTime} ariaLabel="Từ mấy giờ" />
               </div>
 
               <span className="text-slate-400 font-bold text-sm text-center px-0.5">→</span>
 
               <div className="bg-white border border-slate-200 rounded-xl p-2.5 shadow-sm focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-100 transition-all">
                 <label className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Đến mấy giờ</label>
-                <input
-                  type="time"
-                  value={endTime}
-                  onChange={(e) => setEndTime(e.target.value)}
-                  className="w-full text-base font-black text-slate-900 bg-transparent outline-none cursor-pointer"
-                />
+                <TimeInput24h value={endTime} onChange={setEndTime} ariaLabel="Đến mấy giờ" />
               </div>
             </div>
 
@@ -539,7 +530,7 @@ export default function ParkingMapPage() {
                   onClick={() => applyQuickHours(h)}
                   className={clsx(
                     "text-[11px] font-bold px-2.5 py-1 rounded-lg border transition-all active:scale-95",
-                    durationInfo.hours === h && !durationInfo.isNextDay
+                    durationInfo.hours === h
                       ? "bg-blue-600 text-white border-blue-600 shadow-sm"
                       : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
                   )}
