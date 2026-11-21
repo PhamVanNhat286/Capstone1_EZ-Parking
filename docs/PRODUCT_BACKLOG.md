@@ -45,7 +45,7 @@
 | **Start Date** | 21 Aug 2026 | **End Date** | 06 Dec 2026 |
 | **Lead Institution** | International School, Duy Tan University | | |
 | **Project Mentor** | Pham Thanh Dat, M.Sc. | | |
-| **Project Manager & contact details** | Pham Van Nhat  <br>Email: nhatpv.dtu@gmail.com  <br>Tel: 09xx-xxx-xxx | | |
+| **Project Manager & contact details** | Pham Van Nhat  <br>Email: nhatpv.dtu@gmail.com  <br>Tel: 0905280605 | | |
 | **Partner Organization** | Duy Tan University Software Center | | |
 | **Project Web URL** | https://ezspace.vercel.app | | |
 
@@ -53,10 +53,10 @@
 
 | Student ID | Name | Role | Email | Tel |
 | :--- | :--- | :--- | :--- | :--- |
-| 272112xxxxx | Pham Van Nhat | Team Leader / Product Owner / Backend | nhatpv.dtu@gmail.com | 09xx-xxx-xxx |
-| 272112xxxxx | Pham Thuan Hoang | Backend Developer | hoangpt.dtu@gmail.com | 09xx-xxx-xxx |
-| 272112xxxxx | Pham Van Huy | Frontend / DevOps Engineer | huypv.dtu@gmail.com | 09xx-xxx-xxx |
-| 272112xxxxx | Pham Tran Vu Thai | Frontend / Scrum Master / QA | thaipv.dtu@gmail.com | 09xx-xxx-xxx |
+| 27211241890 | Pham Van Nhat | Team Leader / Product Owner / Backend | nhatpv.dtu@gmail.com | 0905280605 |
+| 27211241572 | Pham Thuan Hoang | Backend Developer | hoangpt.dtu@gmail.com | 0935270305 |
+| 27211242134 | Pham Van Huy | Frontend / DevOps Engineer | huypv.dtu@gmail.com | 0775456789 |
+| 27211240988 | Pham Tran Vu Thai | Frontend / Scrum Master / QA | thaipv.dtu@gmail.com | 0978141702 |
 
 ---
 
