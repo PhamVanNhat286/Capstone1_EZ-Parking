@@ -37,7 +37,7 @@ Password hash và raw IPN payload bị loại khỏi dữ liệu trình duyệt.
 | Đường dẫn | Nội dung |
 | --- | --- |
 | / và /dashboard | Sức chứa khai báo, số ô thực tế, đặt chỗ, phiên và thanh toán |
-| /lots | Bãi theo phân công, thông tin, giờ mở/đóng, loại xe, trạng thái duyệt |
+| /lots | Bãi theo phân công; bấm tên bãi hoặc Xem ô trống để lọc vị trí theo Sedan/SUV/EV |
 | /layout | Ô theo row_index/col_index, mã, loại ô, trạng thái và is_active |
 | /pricing | Quy tắc giá chung theo bãi, khung giờ và ngày hiệu lực |
 | /sessions | Hai danh sách riêng: reservations và parking_sessions |
@@ -54,8 +54,15 @@ npm run typecheck
 npm run build
 ```
 
-Bộ kiểm tra có 28 bài cho SQL contract, dữ liệu seed, phân công quản lý,
-ràng buộc ô, giá, hủy giữ chỗ, cổng, báo cáo theo kỳ và CSV.
+Bộ kiểm tra có 33 bài cho SQL contract, dữ liệu seed, phân công quản lý,
+ràng buộc ô, vị trí trống theo loại xe, giá, hủy giữ chỗ, cổng, báo cáo theo kỳ và CSV.
+
+Trong **Bãi đỗ xe**, bấm tên bãi hoặc **Xem ô trống** để xem số lượng,
+mã vị trí và hàng/cột. Có bộ lọc **Sedan**, **SUV**, **EV** và tìm theo mã ô.
+Quy ước theo backend hiện tại: standard → Sedan, large → SUV,
+ev_charging → EV; ô disabled được hiển thị riêng là ô ưu tiên.
+Chỉ ô có is_active = true và status = available được tính là còn trống.
+Các vị trí thuộc đúng bãi được bấm; sức chứa chưa tạo ô không được cộng vào.
 
 Báo cáo doanh thu có các lựa chọn **Theo ngày**, **Theo tháng**, **Theo năm**
 và **Khoảng ngày**. Ngày được tổng hợp theo giờ, tháng theo từng ngày,

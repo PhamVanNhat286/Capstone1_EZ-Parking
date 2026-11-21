@@ -78,9 +78,11 @@ is claimed. Permission and transaction checks must also run on the backend befor
 
 ## Validation
 
-- 28 model/contract tests cover source hashes, exact columns/enums, seed counts/links,
+- 33 model/contract tests cover source hashes, exact columns/enums, seed counts/links,
   ownership, capacity vs inventory, SQL uniqueness, pricing snapshots, money aggregation,
   unpaid cancellation, seed diagnostics, gate transitions/replay/expiry, profiles and safe CSV.
   Revenue cases include Vietnam midnight/year boundaries, leap days, paid vs creation timestamps,
   missing paid_at, empty/invalid ranges, filters, decimal precision and export totals.
+  Lot availability cases cover per-lot isolation, vehicle categories, separate priority spaces,
+  active/available status, exact position codes, physical ordering and empty inventory.
 - TypeScript and production build are run for the complete app.
