@@ -1,11 +1,44 @@
 # EZ-Space Partner
 
-Giao diện Partner độc lập, dùng **database/schema.sql trên develop** làm chuẩn.
-Không áp dụng mô hình capacity-only trong Google Docs hoặc file SQL UUID gửi riêng.
+Ứng dụng Partner độc lập dùng **PostgreSQL thật qua backend của hệ thống**.
+Schema chuẩn: [develop/database](https://github.com/PhamVanNhat286/Capstone1_EZ-Parking/tree/develop/database),
+đã đối chiếu với commit `ef18ea8732d1938ec5a7a83408c1d2b5adfaf5db`.
+
+## Cấu hình PostgreSQL
+
+Dùng Node.js 24 và PostgreSQL đang chạy. Tại thư mục gốc repository:
+
+```powershell
+cd backend
+npm ci
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
+```
+
+Mở `backend/.env`, điền đúng `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`,
+`DB_NAME` và `JWT_SECRET` theo môi trường của nhóm. Mặc định database là `ez_space`.
+Không commit `.env` hoặc gửi mật khẩu trong chat.
+
+```powershell
+npm run db:partner:check
+```
+
+Database mới, chưa có bảng: chạy `npm run db:partner:init` để tạo database và nạp
+đúng `database/schema.sql` + `database/seed.sql`. Lệnh dừng nếu đã có bảng trong public,
+không chạy lại seed trên database đang có dữ liệu.
+
+Database đã có schema cũ: `npm run db:partner:sync` chỉ bổ sung provider `bank`
+và kiểm tra lại bảng/trường/enum. Các dữ liệu đang sử dụng được giữ nguyên.
+Nếu có trường còn thiếu, công cụ in danh sách để áp dụng migration của nhóm.
 
 ## Chạy trên VS Code
 
-Từ thư mục gốc repository, dùng Node.js 24:
+Terminal 1, trong `backend`:
+
+```powershell
+npm run dev
+```
+
+Terminal 2, từ thư mục gốc:
 
 ```powershell
 cd partner-frontend
@@ -13,67 +46,53 @@ npm ci
 npm run dev
 ```
 
-Mở http://localhost:3001/dashboard. Nếu cổng 3001 đã có ứng dụng chạy, mở ứng dụng
-đó hoặc chạy cổng khác: `npx next dev --webpack --port 3003`.
+Mở [Partner](http://localhost:3001/lots), đăng nhập tài khoản có role `manager`.
+Nếu vừa khởi tạo database mới từ seed: `manager@ezspace.vn` / `password123`.
+Tài khoản của database đang sử dụng giữ nguyên mật khẩu hiện có.
 
-## Nguồn dữ liệu và giới hạn
+Partner gọi `/api/*` cùng origin; Next.js chuyển tiếp tới backend cổng 5000.
+Có thể đổi `PARTNER_BACKEND_URL` trong `partner-frontend/.env.local` theo `.env.example`,
+sau đó khởi động lại Next.js. Các cổng thanh toán và Partner cùng dùng pool PostgreSQL của backend.
 
-Đây là **bản xem thử frontend**, chưa đăng nhập hoặc kết nối PostgreSQL/API.
-Không cần chạy backend để xem. Dữ liệu được sinh trực tiếp từ SQL seed và có thông báo
-chế độ xem thử trên mọi màn nghiệp vụ. Manager mẫu là user 2, được phân công bãi 1 và 2.
-Bãi 3 không được đưa vào các danh sách quản lý của tài khoản này.
+## Dữ liệu và thao tác
 
-Các thay đổi hồ sơ, bãi, ô, giá, hủy giữ chỗ, check-in/out chỉ tồn tại trong phiên.
-Không có giao dịch tiền thật hoặc lệnh mở barie. Tải lại trang hoặc bấm Đặt lại
-sẽ đọc lại dữ liệu mẫu. QR vé và QR thanh toán không được coi là cùng một loại.
-
-`npm run db:generate` đọc schema và seed để tạo hợp đồng dữ liệu cùng bản xem thử;
-script **không thực thi SQL**, không kết nối DB và không chạy TRUNCATE trong seed.
-Lệnh này tự chạy trước dev, build, test và typecheck. Không sửa file generated bằng tay.
-Password hash và raw IPN payload bị loại khỏi dữ liệu trình duyệt.
-
-## Các màn
+- Các màn đọc một snapshot nhất quán từ PostgreSQL, giới hạn theo bãi được phân công.
+- Đăng ký/sửa bãi, cấu hình ô, bảng giá, hồ sơ và hủy giữ chỗ chưa cọc được lưu qua API.
+- Thay đổi được đọc lại sau khi lưu và tự làm mới mỗi 15 giây hoặc khi quay lại cửa sổ.
+- Bản ghi đã được người khác sửa sẽ trả về xung đột thay vì ghi đè âm thầm.
+- Mất backend/database sẽ hiển thị lỗi và thời điểm đồng bộ gần nhất; không thay bằng seed.
+- Gate Kiosk tra cứu vé/phiên thật; tích hợp xác thực QR và thiết bị barie chưa nằm trong phần này.
+- Token QR, password hash, OTP và raw IPN không được gửi trong snapshot Partner.
 
 | Đường dẫn | Nội dung |
 | --- | --- |
-| / và /dashboard | Sức chứa khai báo, số ô thực tế, đặt chỗ, phiên và thanh toán |
-| /lots | Bãi theo phân công; bấm tên bãi hoặc Xem ô trống để lọc vị trí theo Sedan/SUV/EV |
-| /layout | Ô theo row_index/col_index, mã, loại ô, trạng thái và is_active |
-| /pricing | Quy tắc giá chung theo bãi, khung giờ và ngày hiệu lực |
-| /sessions | Hai danh sách riêng: reservations và parking_sessions |
-| /kiosk | Tra cứu vé/phiên và mô phỏng chuyển trạng thái có kiểm tra điều kiện |
-| /revenue | Báo cáo ngày/tháng/năm/khoảng ngày, biểu đồ, tổng hợp và giao dịch, xuất CSV |
-| /audit | audit_logs, manager_history, chi tiết trước/sau, dòng thời gian |
+| / và /dashboard | Ô đỗ, đặt chỗ, phiên đỗ, tiền thu thành công |
+| /lots | Bãi được phân công; bấm tên bãi / Xem ô trống để lọc Sedan, SUV, EV |
+| /layout | Mã, tọa độ, loại và trạng thái ô đỗ |
+| /pricing | Quy tắc giá theo bãi, giờ và khoảng ngày hiệu lực |
+| /sessions | Đặt chỗ và phiên đỗ thực tế |
+| /kiosk | Tra cứu vé và phiên đỗ |
+| /revenue | Theo ngày/tháng/năm, biểu đồ, tổng hợp, giao dịch và CSV |
+| /audit | Nhật ký hệ thống, lịch sử quản lý và chi tiết trước/sau |
 | /settings | Hồ sơ quản lý và các bãi được phân công |
+
+Ô tiêu chuẩn `standard` → Sedan, ô lớn `large` → SUV, ô `ev_charging` → EV;
+ô `disabled` hiển thị riêng là ô ưu tiên. Chỉ tính ô đang khai thác có trạng thái trống.
+Sức chứa chưa tạo ô không được cộng vào danh sách vị trí còn trống.
+
+Doanh thu lấy từ các giao dịch đã lưu: cọc/final thành công là tiền thu, refund thành công
+là tiền hoàn. Không cộng lại tổng tiền đặt chỗ/phiên đỗ và không có mục chênh lệch thu hoàn.
+Ngày báo cáo theo `paid_at` giờ Việt Nam; giao dịch chưa có ngày thanh toán dùng `created_at`
+và có ghi chú. Provider gồm `vnpay`, `bank`, `momo`, `card` đúng SQL mới.
 
 ## Kiểm tra
 
-```powershell
-npm test
-npm run typecheck
-npm run build
-```
+Trong `partner-frontend`: `npm test`, `npm run typecheck`, `npm run build`.
+36 kiểm tra frontend gồm hợp đồng SQL, seed fixtures dành cho test, loại ô/xe, báo cáo và API client.
+Seed fixture không được dùng làm dữ liệu vận hành trong trình duyệt.
 
-Bộ kiểm tra có 33 bài cho SQL contract, dữ liệu seed, phân công quản lý,
-ràng buộc ô, vị trí trống theo loại xe, giá, hủy giữ chỗ, cổng, báo cáo theo kỳ và CSV.
+Trong `backend`: `npm run build`, `npm run test:partner:unit`, `npm run test:partner`.
+Bộ tích hợp cần kết nối PostgreSQL trong `.env`; mỗi lần chạy tạo một schema `partner_test_*`
+riêng, dùng SQL chuẩn để kiểm tra API rồi xóa đúng schema đó. Không reset bảng ứng dụng hiện có.
 
-Trong **Bãi đỗ xe**, bấm tên bãi hoặc **Xem ô trống** để xem số lượng,
-mã vị trí và hàng/cột. Có bộ lọc **Sedan**, **SUV**, **EV** và tìm theo mã ô.
-Quy ước theo backend hiện tại: standard → Sedan, large → SUV,
-ev_charging → EV; ô disabled được hiển thị riêng là ô ưu tiên.
-Chỉ ô có is_active = true và status = available được tính là còn trống.
-Các vị trí thuộc đúng bãi được bấm; sức chứa chưa tạo ô không được cộng vào.
-
-Báo cáo doanh thu có các lựa chọn **Theo ngày**, **Theo tháng**, **Theo năm**
-và **Khoảng ngày**. Ngày được tổng hợp theo giờ, tháng theo từng ngày,
-năm theo 12 tháng. Tiền thu, tiền hoàn và số giao dịch hiển thị riêng;
-không có mục chênh lệch thu/hoàn. Có CSV tổng hợp và CSV giao dịch theo bộ lọc.
-Kỳ báo cáo lấy từ ngày thanh toán theo UTC+7; giao dịch chưa có paid_at dùng
-ngày tạo và có ghi chú trong báo cáo.
-
-**Lưu ý nguồn seed:** bãi 1 khai báo capacity 80 nhưng mới có 20 ô;
-reservation 2 là paid trong khi ô A-04 là occupied. Bản xem thử giữ nguyên và
-cảnh báo mâu thuẫn; không tự thêm 60 ô hay sửa trạng thái để làm đẹp số liệu.
-Gate từ chối chuyển trạng thái khi dữ liệu không nhất quán.
-
-Chi tiết ánh xạ: [IMPLEMENTATION.md](IMPLEMENTATION.md).
+Chi tiết: [IMPLEMENTATION.md](IMPLEMENTATION.md).

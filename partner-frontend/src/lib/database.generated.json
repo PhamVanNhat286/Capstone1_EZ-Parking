@@ -1,7 +1,7 @@
 {
   "source": "database/schema.sql + database/seed.sql",
-  "schema_sha256": "ba569f920cfe66d34d82f168efe1431f06bec50d319612d181fdbf997628ac3d",
-  "seed_sha256": "e913dc193a3470f311bdfb348b730684df34f634b3e34568f45b6886a4e276cd",
+  "schema_sha256": "d195bc88a42697905425e9090bfbaa36cde2834d8b15085cdac5adc045f47a5d",
+  "seed_sha256": "abc6711830404d5d14bf18b0a0ca3dd5a872aacea40243cba5085bfce1c561bb",
   "enums": {
     "user_role": [
       "customer",
@@ -47,6 +47,7 @@
     ],
     "payment_provider": [
       "vnpay",
+      "bank",
       "momo",
       "card"
     ],
@@ -285,6 +286,14 @@
         "full_name": "Le Thi B",
         "email": "lethib@gmail.com",
         "phone": "0905222333",
+        "role": "customer",
+        "status": "active"
+      },
+      {
+        "id": 5,
+        "full_name": "Bay Cho",
+        "email": "baycho@yopmailo.com",
+        "phone": "0935313826",
         "role": "customer",
         "status": "active"
       }

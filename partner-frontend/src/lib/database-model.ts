@@ -1,5 +1,6 @@
 // Application contract: database/schema.sql on develop. IDs are BIGINT strings.
 export const vehicleTypes = ['Sedan', 'SUV', 'EV'] as const;
+export const paymentProviders = ['vnpay', 'bank', 'momo', 'card'] as const;
 export const lotStatuses = ['pending', 'active', 'inactive', 'rejected'] as const;
 export const slotStatuses = ['available', 'holding', 'occupied', 'unavailable'] as const;
 export const slotTypes = ['standard', 'ev_charging', 'large', 'disabled'] as const;
@@ -19,8 +20,8 @@ export type LotManager = { id: Id; parking_lot_id: Id; manager_id: Id; assigned_
 export type Slot = Timestamps & { id: Id; parking_lot_id: Id; code: string; row_index: number; col_index: number; slot_type: SlotType; status: SlotStatus; is_active: boolean };
 export type PricingRule = Timestamps & { id: Id; parking_lot_id: Id; name: string | null; start_time: string | null; end_time: string | null; hourly_rate: number; surcharge: number; effective_from: string | null; effective_to: string | null };
 export type Reservation = Timestamps & { id: Id; user_id: Id; parking_lot_id: Id; slot_id: Id; vehicle_id: Id; start_time: string; expected_end_time: string; status: ReservationStatus; hold_expires_at: string; arrival_expires_at: string | null; hourly_rate: number; deposit_amount: number; total_amount: number | null; cancelled_at: string | null; cancel_reason: string | null };
-export type Payment = Timestamps & { id: Id; reservation_id: Id; provider: 'vnpay' | 'momo' | 'card'; transaction_ref: string | null; payment_type: 'deposit' | 'final' | 'refund'; amount: number; status: 'pending' | 'success' | 'failed' | 'refunded'; response_code: string | null; ipn_received_at: string | null; paid_at: string | null };
-export type QrTicket = { id: Id; reservation_id: Id; token_hash: string; status: 'active' | 'used' | 'expired' | 'cancelled'; issued_at: string; used_at: string | null; expires_at: string; created_at: string };
+export type Payment = Timestamps & { id: Id; reservation_id: Id; provider: typeof paymentProviders[number]; transaction_ref: string | null; payment_type: 'deposit' | 'final' | 'refund'; amount: number; status: 'pending' | 'success' | 'failed' | 'refunded'; response_code: string | null; ipn_received_at: string | null; paid_at: string | null };
+export type QrTicket = { id: Id; reservation_id: Id; token_hash?: string; status: 'active' | 'used' | 'expired' | 'cancelled'; issued_at: string; used_at: string | null; expires_at: string; created_at: string };
 export type ParkingSession = Timestamps & { id: Id; reservation_id: Id; check_in_at: string | null; check_out_at: string | null; checked_in_by: Id | null; checked_out_by: Id | null; final_amount: number | null; status: 'active' | 'completed' | 'abandoned' };
 export type AuditLog = { id: Id; user_id: Id | null; parking_lot_id: Id | null; action: string; entity_type: string | null; entity_id: Id | null; old_value: unknown; new_value: unknown; note: string | null; created_at: string };
 export type ManagerAction = 'lot_created' | 'lot_updated' | 'slot_updated' | 'pricing_updated' | 'reservation_cancelled' | 'report_viewed';

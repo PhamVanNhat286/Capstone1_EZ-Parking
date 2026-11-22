@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from 'react';
-import { saveLot, saveSlot, savePricing, updateProfile, vehicleTypes, slotTypes, labels, type LotInput, type SlotInput, type PricingInput, type VehicleType, type SlotType, type SlotStatus } from '@/lib/database-model';
+import { vehicleTypes, slotTypes, labels, type LotInput, type SlotInput, type PricingInput, type VehicleType, type SlotType, type SlotStatus } from '@/lib/database-model';
 import { useSqlWorkspace } from './SqlWorkspace';
 import styles from './sql-portal.module.css';
 
@@ -12,27 +12,28 @@ const numberOrNull = (form: FormData, name: string) => field(form, name) === '' 
 export function Field({ label, children }: { label: string; children: ReactNode }) { return <label className={styles.field}><span>{label}</span>{children}</label>; }
 
 export default function SqlForm({ editor, onClose }: { editor: Editor; onClose: () => void }) {
-  const { db, managerId, selectedId, apply } = useSqlWorkspace();
+  const { db, managerId, selectedId, saveEditor, busy } = useSqlWorkspace();
   const [error, setError] = useState('');
   const lot = db.parking_lots.find(l => l.id === editor.id);
   const slot = db.slots.find(s => s.id === editor.id);
   const price = db.pricing_rules.find(p => p.id === editor.id);
   const user = db.users.find(u => u.id === managerId)!;
+  const [version] = useState(() => editor.kind === 'profile' ? user.updated_at : editor.kind === 'lot' ? lot?.updated_at : editor.kind === 'slot' ? slot?.updated_at : price?.updated_at);
   const supported = db.parking_lot_vehicle_types.filter(v => v.parking_lot_id === lot?.id).map(v => v.vehicle_type);
-  return <form className={styles.form} onSubmit={e => {
+  return <form className={styles.form} onSubmit={async e => {
     e.preventDefault(); setError('');
     const form = new FormData(e.currentTarget);
     try {
       if (editor.kind === 'lot') {
         const input: LotInput = { name: field(form, 'name'), address: field(form, 'address'), description: optional(form, 'description'), latitude: numberOrNull(form, 'latitude'), longitude: numberOrNull(form, 'longitude'), open_time: optional(form, 'open_time'), close_time: optional(form, 'close_time'), capacity: Number(field(form, 'capacity')), vehicle_types: form.getAll('vehicle_types') as VehicleType[] };
-        apply(data => saveLot(data, managerId, input, editor.id));
+        await saveEditor(editor, { ...input, expected_updated_at: version });
       } else if (editor.kind === 'slot') {
         const input: SlotInput = { parking_lot_id: selectedId, code: field(form, 'code'), row_index: Number(field(form, 'row_index')), col_index: Number(field(form, 'col_index')), slot_type: field(form, 'slot_type') as SlotType, status: field(form, 'status') as SlotStatus, is_active: form.has('is_active') };
-        apply(data => saveSlot(data, managerId, input, editor.id));
+        await saveEditor(editor, { ...input, expected_updated_at: version });
       } else if (editor.kind === 'pricing') {
         const input: PricingInput = { parking_lot_id: selectedId, name: optional(form, 'name'), start_time: optional(form, 'start_time'), end_time: optional(form, 'end_time'), hourly_rate: Number(field(form, 'hourly_rate')), surcharge: Number(field(form, 'surcharge')), effective_from: optional(form, 'effective_from'), effective_to: optional(form, 'effective_to') };
-        apply(data => savePricing(data, managerId, input, editor.id));
-      } else apply(data => updateProfile(data, managerId, field(form, 'full_name'), field(form, 'phone')));
+        await saveEditor(editor, { ...input, expected_updated_at: version });
+      } else await saveEditor(editor, { full_name: field(form, 'full_name'), phone: field(form, 'phone'), expected_updated_at: version });
       onClose();
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Không thể lưu dữ liệu.'); }
   }}>
@@ -68,6 +69,6 @@ export default function SqlForm({ editor, onClose }: { editor: Editor; onClose: 
       <p className={styles.note}>Vai trò và trạng thái tài khoản chỉ hiển thị, không tự thay đổi quyền truy cập.</p>
     </>}
     {error && <p className={styles.error} role="alert">{error}</p>}
-    <div className={styles.actions}><button type="button" className={styles.secondary} onClick={onClose}>Hủy</button><button className={styles.primary} type="submit">Lưu trong bản xem thử</button></div>
+    <div className={styles.actions}><button type="button" className={styles.secondary} onClick={onClose} disabled={busy}>Hủy</button><button className={styles.primary} type="submit" disabled={busy}>{busy ? 'Đang lưu…' : 'Lưu thay đổi'}</button></div>
   </form>;
 }

