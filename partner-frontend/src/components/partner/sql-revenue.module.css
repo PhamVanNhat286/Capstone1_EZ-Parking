@@ -6,16 +6,5 @@
 .periodHeading { display:flex; gap:12px; justify-content:space-between; align-items:center; margin:26px 0 -4px; }
 .periodHeading h2 { font-size:19px; font-weight:750; color:#173b76; }
 .periodHeading > span { font-size:11px; color:#64748b; }
-.legend { display:flex; gap:20px; flex-wrap:wrap; font-size:11px; color:#64748b; margin-bottom:16px; }
-.legend span { display:flex; align-items:center; gap:6px; }
-.legend i { width:9px; height:9px; background:#2563eb; border-radius:2px; }
-.legend span:nth-child(2) i { background:#f59e0b; }
-.chartScroll { overflow-x:auto; }
-.chart { display:flex; gap:4px; padding-top:8px; width:100%; }
-.chartColumn { flex:1 0 26px; min-width:26px; text-align:center; }
-.barPair { height:155px; display:flex; align-items:flex-end; justify-content:center; gap:3px; border-bottom:1px solid #dce6f5; background:repeating-linear-gradient(to top,transparent 0,transparent 38px,#eff4fb 38px,#eff4fb 39px); }
-.barPair > div { width:36%; max-width:22px; background:#2563eb; border-radius:3px 3px 0 0; }
-.barPair > div:nth-child(2) { background:#f59e0b; }
-.chartColumn > span { display:block; font-size:9px; color:#7c8ca5; padding:9px 0; white-space:nowrap; }
 .activeOnly { display:flex; gap:8px; align-items:center; font-size:11px; color:#64748b; margin:0 0 16px; }
 @media(max-width:760px) { .totals { grid-template-columns:1fr; }.filters { gap:12px; }.filters > label { min-width:0; flex:1 1 145px; }.filters > button { flex:1 1 145px; }.periodHeading { flex-wrap:wrap; gap:4px; }.modes { gap:6px; }.modes > button { flex:1 1 calc(50% - 6px); } }

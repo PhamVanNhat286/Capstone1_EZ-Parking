@@ -6,6 +6,7 @@ import { csv, dateTime, labels, money, summarize, type Payment } from '@/lib/dat
 import { buildRevenueReport, defaultRevenueFilter, revenueSummaryRows, type RevenueMode, type RevenueTotals } from '@/lib/revenue-report';
 import { useSqlWorkspace } from './SqlWorkspace';
 import SqlTable from './SqlTable';
+import RevenueLineChart from './RevenueLineChart';
 import { Field } from './SqlForms';
 import styles from './sql-portal.module.css';
 import reportStyles from './sql-revenue.module.css';
@@ -42,7 +43,6 @@ export default function SqlRevenue({ onInspect }: { onInspect: (id: string) => v
   const report = buildRevenueReport(summarize(db, selectedId).payments, filter);
   const visibleBuckets = activeOnly ? report.buckets.filter(row => row.transactions > 0) : report.buckets;
   const tableKey = `${selectedId}-${JSON.stringify(filter)}-${activeOnly}`;
-  const maxBar = Math.max(1, ...report.buckets.flatMap(row => [row.receipts, row.refunds]));
   const filename = report.period ? `${filter.mode}-${report.period.from}-${report.period.to}` : 'invalid';
 
   return <>
@@ -75,16 +75,8 @@ export default function SqlRevenue({ onInspect }: { onInspect: (id: string) => v
       <div className={reportStyles.periodHeading} aria-live="polite"><h2>{report.period!.label}</h2><span>Tổng hợp theo {groupLabels[report.period!.group]}</span></div>
       <Totals totals={report.totals} />
       <section className={styles.panel} aria-label="Biểu đồ doanh thu">
-        <div className={styles.panelHead}><div><h2>Thu và hoàn tiền trong kỳ</h2><small>Mỗi cột tương ứng một {groupLabels[report.period!.group]}; giá trị bằng 0 khi không phát sinh</small></div></div>
-        <div className={reportStyles.legend}><span><i />Thu thành công</span><span><i />Hoàn tiền thành công</span></div>
-        <div className={reportStyles.chartScroll}>
-          <div className={reportStyles.chart} style={{ minWidth: report.buckets.length * 32 }} aria-hidden="true">
-            {report.buckets.map(row => <div key={row.key} className={reportStyles.chartColumn} title={`${row.label}: thu ${money(row.receipts)}, hoàn ${money(row.refunds)}`}>
-              <div className={reportStyles.barPair}><div style={{ height: `${row.receipts / maxBar * 100}%` }} /><div style={{ height: `${row.refunds / maxBar * 100}%` }} /></div>
-              <span>{row.shortLabel}</span>
-            </div>)}
-          </div>
-        </div>
+        <div className={styles.panelHead}><div><h2>Biểu đồ doanh thu theo thời gian</h2><small>Diễn biến tiền thu và hoàn tiền theo {groupLabels[report.period!.group]} trong kỳ đang chọn</small></div></div>
+        <RevenueLineChart key={tableKey} buckets={report.buckets} />
         {report.totals.transactions === 0 && <p className={styles.empty} role="status">Không có giao dịch trong kỳ theo bộ lọc đang chọn.</p>}
       </section>
 
