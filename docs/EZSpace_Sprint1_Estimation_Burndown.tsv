@@ -1,0 +1,25 @@
+Sprint 1	Component	Task Name	Responsible Member	Estimate	Total	27-Aug	28-Aug	29-Aug	30-Aug	31-Aug	1-Sep	2-Sep	3-Sep	4-Sep	5-Sep	6-Sep	7-Sep	8-Sep	9-Sep	10-Sep	11-Sep	12-Sep	13-Sep	14-Sep	15-Sep	16-Sep
+	Initial	Sprint Plan Meeting	All	4	4	0																				
+	Initial	Sprint backlog document for Sprint 1	All	4	4	4	0																			
+	Initial	Test Plan document for Sprint 1	All	4	4	4	4	0																		
+	Design UI	Design UI for User Registration & Profile Management	Hoàng, Thái	8	8	8	8	8	4	0																
+	Design UI	Design UI for Secure JWT Authentication & OTP Password Recovery	Nhật, Huy	8	8	8	8	8	4	0																
+	Design UI	Design UI for Customer Vehicle Management	Hoàng, Thái	4	4	4	4	4	4	4	0															
+	Design UI	Design UI for Parking Lot Registration & Profile Configuration	Nhật, Huy	4	4	4	4	4	4	4	0															
+	Design UI	Design UI for 2D Parking Slot Matrix & Classification Builder	All	4	4	4	4	4	4	4	4	0														
+	Design UI	Design Test Case for Sprint 1	All	4	4	4	4	4	4	4	4	4	0													
+	Code	[Front-end] User Registration & Profile Management	Huy, Thái	8	8	8	8	8	8	8	8	8	8	4	0											
+	Code	[Back-end] User Registration & Profile Management	Nhật, Hoàng	8	8	8	8	8	8	8	8	8	8	4	0											
+	Code	[Front-end] Secure JWT Authentication & OTP Password Recovery	Huy, Thái	8	8	8	8	8	8	8	8	8	8	8	8	4	0									
+	Code	[Back-end] Secure JWT Authentication & OTP Password Recovery	Nhật, Hoàng	8	8	8	8	8	8	8	8	8	8	8	8	4	0									
+	Code	[Front-end] Customer Vehicle Management	Huy, Thái	4	4	4	4	4	4	4	4	4	4	4	4	4	4	0								
+	Code	[Back-end] Customer Vehicle Management	Nhật, Hoàng	4	4	4	4	4	4	4	4	4	4	4	4	4	4	0								
+	Code	[Front-end] Parking Lot Registration & Profile Configuration	Huy, Thái	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	0							
+	Code	[Back-end] Parking Lot Registration & Profile Configuration	Nhật, Hoàng	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	0							
+	Code	[Front-end] 2D Parking Slot Matrix & Classification Builder	Huy, Thái	8	8	8	8	8	8	8	8	8	8	8	8	8	8	8	8	4	0					
+	Code	[Back-end] 2D Parking Slot Matrix & Classification Builder	Nhật, Hoàng	8	8	8	8	8	8	8	8	8	8	8	8	8	8	8	8	4	0					
+	Integration	Integration for Sprint 1	All	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	0				
+	Testing	Testing for Sprint 1	All	8	8	8	8	8	8	8	8	8	8	8	8	8	8	8	8	8	8	8	4	0		
+	Sprint 1 Review Meeting	Sprint 1 Review Meeting	All	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	0	
+	Release Sprint 1	Release Sprint 1	All	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	4	0
+			Total	128	128	124	120	116	108	100	92	88	84	76	68	60	52	44	36	28	20	16	12	8	4	0

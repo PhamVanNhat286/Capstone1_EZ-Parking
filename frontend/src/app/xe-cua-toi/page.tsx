@@ -414,7 +414,7 @@ export default function MyVehiclesPage() {
                     setFormPlate(e.target.value.toUpperCase());
                     if (plateError) setPlateError("");
                   }}
-                  placeholder="Ví dụ: 43A-123.45 hoặc 29A-888.99"
+                  placeholder="43A-123.45"
                   className={clsx(
                     "w-full bg-slate-50 border rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 uppercase tracking-wider outline-none transition",
                     plateError

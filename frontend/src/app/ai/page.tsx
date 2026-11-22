@@ -454,7 +454,7 @@ function AIContent() {
   const handleConfirmBooking = () => {
     if (!bookingModal) return;
     holdSpot(bookingModal.lotId, bookingModal.slotCode, activeVehicle.id);
-    addToast(`Đã giữ ô ${bookingModal.slotCode} trong 10 phút!`, "success");
+    useStore.getState().clearToasts();
     const targetSpot = bookingModal.slotCode;
     setBookingModal(null);
     router.push(`/dat-cho/${targetSpot}`);
@@ -475,8 +475,6 @@ function AIContent() {
       chips.push(`🚙 SUV 7 chỗ (${activeVehicle.plate})`);
     } else if (q.includes("sedan") || q.includes("4 chỗ")) {
       chips.push("🚗 Sedan tiêu chuẩn");
-    } else if (q.includes("ev") || q.includes("sạc") || q.includes("điện")) {
-      chips.push("⚡ Sạc nhanh EV (60kW)");
     }
     return chips;
   };
@@ -631,16 +629,10 @@ function AIContent() {
 
             {/* QUICK SUGGESTIONS GRID (2x2) */}
             <div className="w-full mt-4">
-              <div className="flex items-center justify-between mb-2 px-1">
+              <div className="flex items-center mb-2 px-1">
                 <span className="text-[12px] font-bold text-slate-500 uppercase tracking-wider flex items-center">
                   <Sparkles size={14} className="mr-1 text-blue-500" />
                   Gợi ý nhanh
-                </span>
-                <span
-                  onClick={() => handleSend("Gợi ý các bãi đỗ xe tốt nhất tại Đà Nẵng")}
-                  className="text-[11px] text-blue-600 font-medium cursor-pointer hover:underline"
-                >
-                  Xem thêm
                 </span>
               </div>
 
@@ -939,25 +931,6 @@ function AIContent() {
 
       {/* ================= 4. INPUT BAR SECTION ================= */}
       <div className="relative z-20 px-3 py-2 bg-white/95 backdrop-blur-md border-t border-slate-200/80 shadow-[0_-4px_16px_rgba(0,0,0,0.03)] shrink-0">
-
-        {/* Smart Prompt Chips Bar */}
-        <div className="flex space-x-1.5 overflow-x-auto no-scrollbar pb-1.5">
-          {[
-            { label: "Trạm sạc EV", icon: "⚡", query: "Bãi nào có trạm sạc xe điện EV gần đây?" },
-            { label: "Gần Hải Châu", icon: "📍", query: "Tìm bãi đỗ xe gần khu vực Hải Châu" },
-            { label: "Có mái che", icon: "☂️", query: "Tìm bãi đỗ có mái che an toàn" },
-            { label: "Gửi qua đêm", icon: "🌙", query: "Biểu phí gửi xe ô tô qua đêm như thế nào?" },
-          ].map((chip) => (
-            <button
-              key={chip.label}
-              onClick={() => handleSend(chip.query)}
-              className="flex-shrink-0 px-2.5 py-1 bg-slate-100 hover:bg-blue-50 hover:text-blue-600 text-slate-600 rounded-full text-[11px] font-semibold border border-slate-200/70 transition-all active:scale-95 flex items-center gap-1"
-            >
-              <span>{chip.icon}</span>
-              <span>{chip.label}</span>
-            </button>
-          ))}
-        </div>
 
         {/* Chat Input Field */}
         <form

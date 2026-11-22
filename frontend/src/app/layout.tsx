@@ -8,6 +8,9 @@ import DynamicIsland from "../components/layout/DynamicIsland";
 export const metadata: Metadata = {
   title: "EZ-Space Smart Parking",
   description: "Tìm kiếm và đặt chỗ đỗ xe dễ dàng",
+  icons: {
+    icon: "/icon.svg",
+  },
 };
 
 export default function RootLayout({

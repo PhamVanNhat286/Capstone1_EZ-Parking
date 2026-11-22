@@ -1,6 +1,9 @@
 import app from "./app";
 import { testDbConnection, initDbTables } from "./config/db";
 import { startHoldExpirationWorker } from "./services/expiration.worker";
+import { initVnpayTables } from './config/vnpay-db';
+import { initBankTables } from './config/bank-db';
+import { startBankReconciliationWorker } from './payment/bank';
 
 const PORT = process.env.PORT || 5000;
 
@@ -14,6 +17,9 @@ const startServer = async () => {
   } else {
     // Tự động kiểm tra và tạo bảng email_otps
     await initDbTables();
+    await initVnpayTables();
+    await initBankTables();
+    startBankReconciliationWorker();
     // Bắt đầu background worker tự động giải phóng giữ chỗ quá hạn
     startHoldExpirationWorker(15000);
   }

@@ -26,10 +26,11 @@ RESTART IDENTITY CASCADE;
 -- Mat khau mac dinh cho tat ca tai khoan: password123 (bcrypt hash)
 -- =============================================================
 INSERT INTO users (id, full_name, email, phone, password_hash, role, status) VALUES
-(1, 'Admin He Thong', 'admin@ezspace.vn', '0905000111', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'admin', 'active'),
-(2, 'Tran Van Quan Ly', 'manager@ezspace.vn', '0905987654', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'manager', 'active'),
-(3, 'Nguyen Van A', 'customer@ezspace.vn', '0905123456', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'customer', 'active'),
-(4, 'Le Thi B', 'lethib@gmail.com', '0905222333', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'customer', 'active');
+(1, 'Admin He Thong', 'admin@ezspace.vn', '0905000111', '$2b$10$RdqNottLFJknQfTn0JTb8eDNvFGxZqGMdGj4CCEBeMgLUsW5YBMMq', 'admin', 'active'),
+(2, 'Tran Van Quan Ly', 'manager@ezspace.vn', '0905987654', '$2b$10$RdqNottLFJknQfTn0JTb8eDNvFGxZqGMdGj4CCEBeMgLUsW5YBMMq', 'manager', 'active'),
+(3, 'Nguyen Van A', 'customer@ezspace.vn', '0905123456', '$2b$10$RdqNottLFJknQfTn0JTb8eDNvFGxZqGMdGj4CCEBeMgLUsW5YBMMq', 'customer', 'active'),
+(4, 'Le Thi B', 'lethib@gmail.com', '0905222333', '$2b$10$RdqNottLFJknQfTn0JTb8eDNvFGxZqGMdGj4CCEBeMgLUsW5YBMMq', 'customer', 'active'),
+(5, 'Bay Cho', 'baycho@yopmailo.com', '0935313826', '$2b$10$wmCnsOFybdxuqDAyA7aOtemNW16Ffbk4ZpZceqXzzYmsCNOvBaOk6', 'customer', 'active');
 
 -- Reset sequence cho bang users
 SELECT setval('users_id_seq', (SELECT MAX(id) FROM users));

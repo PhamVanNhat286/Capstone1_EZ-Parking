@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { clearAuthCookies, setAuthCookies } from "@/lib/authCookies";
 
 export type Vehicle = {
   id: string;
@@ -26,7 +27,7 @@ export type Booking = {
   arrivalExpiresAt?: number; // timestamp
   enteredAt?: number; // timestamp
   exitedAt?: number; // timestamp
-  paymentMethod?: "vnpay" | "momo" | "card";
+  paymentMethod?: "vnpay" | "bank" | "momo" | "card";
   createdAt: number;
 };
 
@@ -103,8 +104,8 @@ type StoreState = {
   setBookingHours: (hours: number, startTime?: string, endTime?: string) => void;
   isDemo: boolean;
   setDemo: (val: boolean) => void;
-  lastPaymentMethod: "vnpay" | "momo" | "card" | null;
-  payDeposit: (method: "vnpay" | "momo" | "card") => void;
+  lastPaymentMethod: "vnpay" | "bank" | "momo" | "card" | null;
+  payDeposit: (method: "vnpay" | "bank" | "momo" | "card") => void;
   cancelBooking: () => void;
   releaseSpot: () => void;
   completeBooking: () => void;
@@ -158,7 +159,7 @@ export const useStore = create<StoreState>()(
               ...allMap,
               [key]: updated,
             },
-            lastPaymentMethod: newAccount.type === "banking" ? "card" : (newAccount.type as any),
+            lastPaymentMethod: newAccount.type === "banking" ? "bank" : (newAccount.type as any),
           };
         }),
 
@@ -232,7 +233,7 @@ export const useStore = create<StoreState>()(
               ...allMap,
               [key]: updated,
             },
-            lastPaymentMethod: found?.type === "banking" ? "card" : ((found?.type as any) || null),
+            lastPaymentMethod: found?.type === "banking" ? "bank" : ((found?.type as any) || null),
           };
         }),
 
@@ -341,20 +342,26 @@ export const useStore = create<StoreState>()(
           };
         }),
       login: (userData) => {
+        const resolvedToken = userData?.token || "ezspace-session";
+        const resolvedRole = userData?.role || "customer";
         const tempUser = {
           id: userData?.id,
           name: userData?.name || "Người dùng",
           phone: userData?.phone || "",
           email: userData?.email || "",
           token: userData?.token,
-          role: userData?.role || "customer",
+          role: resolvedRole,
           isLoggedIn: true,
         };
         const key = getUserChatKey(tempUser);
         let cachedAvatar = "";
         let cachedPayments: SavedPaymentAccount[] = [];
         if (typeof window !== "undefined") {
+          setAuthCookies(resolvedToken, resolvedRole);
           try {
+            if (userData?.token) {
+              localStorage.setItem("ezspace_token", userData.token);
+            }
             cachedAvatar = localStorage.getItem(`ez_avatar_${key}`) || "";
             const rawPay = localStorage.getItem(`ez_payments_${key}`);
             if (rawPay) cachedPayments = JSON.parse(rawPay);
@@ -410,10 +417,11 @@ export const useStore = create<StoreState>()(
         }),
       logout: () => {
         if (typeof window !== "undefined") {
-          localStorage.removeItem("ezspace_token");
-          // Xóa cookie cho Edge Middleware
-          document.cookie = "ezspace_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Strict";
-          document.cookie = "ezspace_role=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Strict";
+          try {
+            localStorage.removeItem("ezspace_token");
+          } catch {}
+          // Xóa cookie cho Proxy/Middleware
+          clearAuthCookies();
         }
         set((state) => {
           const histories = state.chatHistories || {};

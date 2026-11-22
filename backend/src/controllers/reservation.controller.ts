@@ -338,7 +338,7 @@ export const getActiveReservation = async (req: AuthRequest, res: Response): Pro
       JOIN slots s ON s.id = r.slot_id
       JOIN parking_lots l ON l.id = r.parking_lot_id
       LEFT JOIN vehicles v ON v.id = r.vehicle_id
-      WHERE r.user_id = $1 AND r.status IN ('holding', 'paid')
+      WHERE r.user_id = $1 AND r.status IN ('holding', 'paid', 'entered')
       ORDER BY r.id DESC
       LIMIT 1;
     `;
@@ -364,11 +364,11 @@ export const getMyReservations = async (req: AuthRequest, res: Response): Promis
     const params: any[] = [userId, Number(limit), Number(offset)];
 
     if (status === "active") {
-      filterStatus = "AND r.status IN ('holding', 'paid', 'entered')";
+      filterStatus = "AND r.status IN ('paid', 'entered')";
     } else if (status === "completed") {
       filterStatus = "AND r.status = 'completed'";
     } else if (status === "cancelled") {
-      filterStatus = "AND r.status IN ('cancelled', 'forfeited', 'refunded')";
+      filterStatus = "AND (r.status IN ('forfeited', 'refunded') OR (r.status = 'cancelled' AND r.arrival_expires_at IS NOT NULL))";
     }
 
     const sql = `
@@ -409,7 +409,10 @@ export const getMyReservations = async (req: AuthRequest, res: Response): Promis
       JOIN parking_lots l ON l.id = r.parking_lot_id
       LEFT JOIN vehicles v ON v.id = r.vehicle_id
       LEFT JOIN parking_sessions ps ON ps.reservation_id = r.id
-      WHERE r.user_id = $1 ${filterStatus}
+      WHERE r.user_id = $1 
+        AND r.status != 'holding'
+        AND NOT (r.status = 'cancelled' AND r.arrival_expires_at IS NULL)
+        ${filterStatus}
       ORDER BY r.id DESC
       LIMIT $2 OFFSET $3;
     `;

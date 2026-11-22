@@ -76,7 +76,7 @@ function HistoryContent() {
   // Search & Filter state
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [historyFilter, setHistoryFilter] = useState<"all" | "active" | "completed" | "cancelled">("all");
+  const [historyFilter, setHistoryFilter] = useState<"all" | "completed" | "cancelled">("all");
 
   // Fetch real reservations from PostgreSQL Database
   const loadHistoryFromApi = async () => {
@@ -113,25 +113,27 @@ function HistoryContent() {
     return () => clearInterval(interval);
   }, []);
 
-  // Identify active item from DB or LocalStore
+  // Identify active item from DB or LocalStore: Chỉ lấy vé ĐÃ THANH TOÁN (paid / entered)
   const activeDbItem = useMemo(() => {
-    return dbReservations.find((r) => ["holding", "paid", "entered"].includes(r.status));
+    return dbReservations.find((r) => ["paid", "entered"].includes(r.status));
   }, [dbReservations]);
 
   const effectiveActiveBooking = useMemo(() => {
-    if (activeBooking) return activeBooking;
-    if (activeDbItem) {
-      return {
-        id: `EZ-${activeDbItem.id}`,
-        backendId: activeDbItem.id,
-        lotId: String(activeDbItem.parking_lot_id),
-        spotId: activeDbItem.slot_code,
-        vehicleId: String(activeDbItem.vehicle_id || "1"),
-        status: activeDbItem.status,
-        holdExpiresAt: activeDbItem.hold_expires_at ? new Date(activeDbItem.hold_expires_at).getTime() : Date.now() + 10 * 60 * 1000,
-        arrivalExpiresAt: activeDbItem.arrival_expires_at ? new Date(activeDbItem.arrival_expires_at).getTime() : Date.now() + 20 * 60 * 1000,
-        createdAt: new Date(activeDbItem.created_at).getTime(),
-      } as Booking;
+    const candidate = activeBooking || (activeDbItem ? {
+      id: `EZ-${activeDbItem.id}`,
+      backendId: activeDbItem.id,
+      lotId: String(activeDbItem.parking_lot_id),
+      spotId: activeDbItem.slot_code,
+      vehicleId: String(activeDbItem.vehicle_id || "1"),
+      status: activeDbItem.status,
+      holdExpiresAt: activeDbItem.hold_expires_at ? new Date(activeDbItem.hold_expires_at).getTime() : Date.now() + 10 * 60 * 1000,
+      arrivalExpiresAt: activeDbItem.arrival_expires_at ? new Date(activeDbItem.arrival_expires_at).getTime() : Date.now() + 20 * 60 * 1000,
+      createdAt: new Date(activeDbItem.created_at).getTime(),
+    } as Booking : null);
+
+    // Chỉ coi là vé hiệu lực nếu đã thanh toán
+    if (candidate && ["paid", "entered"].includes(candidate.status)) {
+      return candidate;
     }
     return null;
   }, [activeBooking, activeDbItem]);
@@ -157,7 +159,15 @@ function HistoryContent() {
     let sourceList: any[] = [];
 
     if (dbReservations.length > 0) {
-      sourceList = dbReservations.map((r: any) => {
+      sourceList = dbReservations
+        .filter((r: any) => {
+          // Bỏ các đơn holding (mới bấm giữ chỗ chưa thanh toán)
+          if (r.status === "holding") return false;
+          // Bỏ các đơn cancelled mà chưa từng trả cọc (0đ)
+          if (r.status === "cancelled" && !r.arrival_expires_at) return false;
+          return true;
+        })
+        .map((r: any) => {
         const lotInfo = LOT_NAMES[String(r.parking_lot_id)] || {
           name: r.lot_name || "Bãi đỗ xe EZ-Space",
           address: r.lot_address || "Đà Nẵng",
@@ -191,7 +201,13 @@ function HistoryContent() {
         };
       });
     } else {
-      sourceList = history.map((b) => {
+      sourceList = history
+        .filter((b) => {
+          if (b.status === "holding") return false;
+          if (b.status === "cancelled" && !b.arrivalExpiresAt) return false;
+          return true;
+        })
+        .map((b) => {
         const lotInfo = LOT_NAMES[String(b.lotId).toLowerCase()] || {
           name: "Bãi đỗ xe EZ-Space",
           address: "Đà Nẵng",
@@ -226,8 +242,7 @@ function HistoryContent() {
       result = result.filter((item) => item.status === "completed");
     } else if (historyFilter === "cancelled") {
       result = result.filter((item) => item.status === "cancelled" || item.status === "forfeited");
-    } else if (historyFilter === "active") {
-      result = result.filter((item) => ["holding", "paid", "entered"].includes(item.status));
+    
     }
 
     // Filter by search query
@@ -246,7 +261,7 @@ function HistoryContent() {
   }, [dbReservations, history, historyFilter, searchQuery, activeVehicle, vehicles]);
 
   // Statistics from real data
-  const totalTrips = displayHistory.length + (effectiveActiveBooking ? 1 : 0);
+  const totalTrips = displayHistory.length;
   const totalSpent = useMemo(() => {
     return (
       displayHistory.reduce(
@@ -285,25 +300,20 @@ function HistoryContent() {
             <div className="w-6 h-6 rounded-lg bg-blue-600 text-white font-black text-xs flex items-center justify-center shadow-sm">
               P
             </div>
-            <h1 className="text-xl font-bold text-slate-900 tracking-tight">Vé và lịch sử</h1>
+            <h1 className="text-xl font-bold text-slate-900 tracking-tight">Lịch sử đỗ xe</h1>
           </div>
-          <p className="text-xs text-slate-500 mt-0.5 font-medium">Quản lý vé đỗ xe và các giao dịch</p>
+          <p className="text-xs text-slate-500 mt-0.5 font-medium">Lịch sử các chuyến đỗ xe của bạn</p>
         </div>
 
         {/* Quick Actions Header */}
         <div className="flex items-center gap-2">
-          {dbConnected && (
-            <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              CSDL PostgreSQL
-            </span>
-          )}
+
           <button
             onClick={() => {
               loadHistoryFromApi();
-              addToast("Đã đồng bộ lịch sử từ cơ sở dữ liệu", "success");
+              addToast("Đã làm mới lịch sử vé", "success");
             }}
-            title="Làm mới từ CSDL"
+            title="Làm mới"
             aria-label="Làm mới"
             className="w-9 h-9 rounded-full bg-white border border-slate-200/80 shadow-sm flex items-center justify-center text-slate-600 active:scale-95 transition-transform hover:bg-slate-50"
           >
@@ -357,7 +367,6 @@ function HistoryContent() {
         <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1">
           {[
             { id: "all", label: `Tất cả (${totalTrips})` },
-            { id: "active", label: "Đang diễn ra", badge: effectiveActiveBooking ? "1" : undefined },
             { id: "completed", label: "Đã hoàn tất" },
             { id: "cancelled", label: "Đã hủy / Mất cọc" },
           ].map((chip) => {
@@ -374,147 +383,11 @@ function HistoryContent() {
                 )}
               >
                 <span>{chip.label}</span>
-                {chip.badge && (
-                  <span
-                    className={clsx(
-                      "px-1.5 py-0.2 rounded-full text-[10px] font-bold",
-                      isActive ? "bg-white text-blue-600" : "bg-blue-100 text-blue-600"
-                    )}
-                  >
-                    {chip.badge}
-                  </span>
-                )}
               </button>
             );
           })}
         </div>
 
-        {/* ACTIVE BOOKING CARD (ĐƠN HIỆU LỰC) - HIỂN THỊ TỪ CSDL HOẶC STORE */}
-        {(historyFilter === "all" || historyFilter === "active") && effectiveActiveBooking && activeLotInfo && (
-          <div className="space-y-2">
-            <div className="flex items-center justify-between px-0.5">
-              <div className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600">
-                  Đơn đang đặt / Đang diễn ra
-                </span>
-              </div>
-              <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-200 text-[10px] font-bold">
-                1 đơn hiệu lực
-              </span>
-            </div>
-
-            <div className="bg-white rounded-2xl shadow-md border border-blue-200 overflow-hidden relative transition-all">
-              {/* Header Gradient */}
-              <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-2.5 text-white flex items-center justify-between">
-                <span className="px-2 py-0.5 rounded-full bg-white/20 text-white font-bold text-[10px] uppercase backdrop-blur-sm flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  {effectiveActiveBooking?.status === "entered"
-                    ? "ĐANG ĐỖ XE TRONG BÃI"
-                    : effectiveActiveBooking?.status === "holding"
-                    ? "ĐANG GIỮ CHỖ TẠM THỜI"
-                    : "ĐÃ ĐẶT CỌC - Chờ đến bãi"}
-                </span>
-                <div className="flex items-center gap-1 text-xs font-semibold bg-blue-900/40 px-2.5 py-0.5 rounded-full">
-                  <Clock size={13} className="text-blue-200" />
-                  <span>
-                    Hạn đến: <strong className="text-white font-mono">{formatMinSec(paidCountdown)}</strong>
-                  </span>
-                </div>
-              </div>
-
-              {/* Card Body */}
-              <div className="p-4">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h3 className="text-base font-bold text-slate-900 leading-tight">{activeLotInfo.name}</h3>
-                    <p className="text-xs text-slate-500 flex items-center gap-1 mt-0.5 font-medium">
-                      <MapPin size={12} className="text-slate-400" /> {activeLotInfo.address}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-[10px] uppercase font-bold text-slate-400">Vị trí ô</span>
-                    <div className="text-lg font-black text-blue-600 tracking-tight">{effectiveActiveBooking.spotId}</div>
-                  </div>
-                </div>
-
-                {/* Details Grid */}
-                <div className="grid grid-cols-3 gap-2 mt-3 p-2.5 bg-slate-50 rounded-xl border border-slate-100 text-[11px]">
-                  <div>
-                    <div className="text-slate-400 font-medium">Biển số</div>
-                    <div className="font-bold text-slate-800">{activeVehicle.plate}</div>
-                  </div>
-                  <div>
-                    <div className="text-slate-400 font-medium">Dòng xe</div>
-                    <div className="font-bold text-slate-800">{activeVehicle.type}</div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-slate-400 font-medium">Đã cọc</div>
-                    <div className="font-bold text-blue-600">
-                      {effectiveActiveBooking.status === "holding" ? "Chưa cọc" : `${DEPOSIT.toLocaleString("vi-VN")}đ`}
-                    </div>
-                  </div>
-                </div>
-
-                {/* QR Code Bar */}
-                <div className="mt-3 pt-3 border-t border-dashed border-slate-200 flex items-center justify-between">
-                  <div
-                    className="flex items-center gap-2.5 cursor-pointer group"
-                    onClick={() =>
-                      setQrModalItem({
-                        code: effectiveActiveBooking.id,
-                        lotName: activeLotInfo.name,
-                        spotId: effectiveActiveBooking.spotId,
-                        plate: activeVehicle.plate,
-                      })
-                    }
-                  >
-                    <div className="w-9 h-9 rounded-lg bg-blue-50 border border-blue-200 flex items-center justify-center p-1 text-blue-600 group-hover:scale-105 transition-transform">
-                      <QrCode size={20} />
-                    </div>
-                    <div>
-                      <div className="text-xs font-bold text-slate-800 font-mono">{effectiveActiveBooking.id}</div>
-                      <div className="text-[10px] text-slate-400">Chạm để mở mã QR</div>
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() => copyTicketCode(effectiveActiveBooking.id)}
-                    className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 text-[11px] flex items-center gap-1 font-medium transition active:scale-95"
-                  >
-                    <Copy size={13} className="text-blue-600" />
-                    <span>Sao chép</span>
-                  </button>
-                </div>
-
-                {/* Actions Button */}
-                <div className="w-full grid grid-cols-2 gap-2 mt-3.5">
-                  <button
-                    onClick={() =>
-                      setQrModalItem({
-                        code: effectiveActiveBooking.id,
-                        lotName: activeLotInfo.name,
-                        spotId: effectiveActiveBooking.spotId,
-                        plate: activeVehicle.plate,
-                      })
-                    }
-                    className="h-10 rounded-xl bg-white border border-slate-200 font-semibold text-xs text-slate-700 flex items-center justify-center gap-1.5 hover:bg-slate-50 active:scale-95 transition shadow-sm"
-                  >
-                    <Maximize size={15} className="text-slate-600" />
-                    <span>Xem vé QR</span>
-                  </button>
-                  <Link
-                    href={`/ve/${effectiveActiveBooking.backendId || effectiveActiveBooking.id}`}
-                    className="h-10 rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 font-semibold text-xs text-white flex items-center justify-center gap-1.5 hover:opacity-95 active:scale-95 transition shadow-md shadow-blue-500/25"
-                  >
-                    <Navigation size={15} />
-                    <span>Chi tiết & Dẫn đường</span>
-                  </Link>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* STATISTICS SUMMARY (3 COLUMNS) - DỮ LIỆU THỰC */}
         <div className="grid grid-cols-3 gap-2">
@@ -641,7 +514,7 @@ function HistoryContent() {
                 Tài khoản mới chưa phát sinh giao dịch hoặc vé đỗ. Hãy tìm bãi đỗ và đặt chỗ ngay!
               </p>
               <Link
-                href="/"
+                href="/kham-pha"
                 className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md shadow-blue-500/20 active:scale-95 transition"
               >
                 <Car size={15} />
