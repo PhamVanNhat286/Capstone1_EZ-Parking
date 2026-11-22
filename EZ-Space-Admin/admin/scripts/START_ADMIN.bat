@@ -1,6 +1,6 @@
 @echo off
 setlocal
-cd /d "%~dp0"
+cd /d "%~dp0.."
 title EZ-Space Admin Portal
 where node >nul 2>&1
 if errorlevel 1 (

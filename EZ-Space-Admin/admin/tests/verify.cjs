@@ -5,15 +5,16 @@ const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 
 const root = path.resolve(__dirname, '..');
+const pagesDir = path.join(root, 'pages');
 const pages = ['index.html', 'lots.html', 'users.html', 'revenue.html', 'logs.html', 'data.html', 'settings.html'];
 
 for (const page of pages) {
-  const html = fs.readFileSync(path.join(root, page), 'utf8');
+  const html = fs.readFileSync(path.join(pagesDir, page), 'utf8');
   assert.match(html, /id="live-root"/, page + ' thiếu vùng hiển thị');
-  assert.match(html, /js\/app\.js/, page + ' thiếu script điều phối');
-  const refs = [...html.matchAll(/(?:src|href)="((?:css|js)\/[^"?]+)"/g)].map(x => x[1]);
+  assert.match(html, /js\/core\/app\.js/, page + ' thiếu script điều phối');
+  const refs = [...html.matchAll(/(?:src|href)="((?:\.\.\/)?(?:css|js)\/[^"?]+)"/g)].map(x => x[1]);
   for (const file of refs) {
-    assert.ok(fs.existsSync(path.join(root, file)), page + ' thiếu ' + file);
+    assert.ok(fs.existsSync(path.resolve(pagesDir, file)), page + ' thiếu ' + file);
   }
   assert.doesNotMatch(html, /href="login\.html"/i);
   assert.doesNotMatch(html, /Đang kiểm tra PostgreSQL|PostgreSQL · app thật|id="sync-pill"|id="topbar-status"/i, page + ' vẫn còn nhãn trạng thái kết nối DB');
@@ -62,7 +63,7 @@ for (const table of schemaTables) {
   assert.match(allControllers, new RegExp(table), 'Thiếu truy vấn bảng ' + table);
 }
 
-const core = fs.readFileSync(path.join(root, 'js/core.js'), 'utf8');
+const core = fs.readFileSync(path.join(root, 'js/core/core.js'), 'utf8');
 assert.match(core, /paid:'Đã cọc'/);
 assert.match(core, /viewRange='all'/);
 

@@ -97,13 +97,18 @@ const pages = new Set([
 ]);
 
 function serveStatic(res, pathname) {
-  const filename = pathname === '/' ? 'index.html' : pathname.replace(/^\//, '');
-  if (!pages.has(filename) && !/^((css|js)\/[a-zA-Z0-9_./-]+\.(css|js)|favicon\.ico)$/.test(filename)) {
+  const raw = pathname === '/' ? 'index.html' : pathname.replace(/^\//, '');
+  const pageName = raw.startsWith('pages/') ? raw.slice(6) : raw;
+  let file;
+  if (pages.has(pageName)) {
+    file = path.resolve(root, 'pages', pageName);
+  } else if (/^((css|js)\/[a-zA-Z0-9_./-]+\.(css|js)|favicon\.ico)$/.test(raw)) {
+    file = path.resolve(root, raw);
+  } else {
     res.writeHead(404);
     res.end('Not found');
     return;
   }
-  const file = path.resolve(root, filename);
   if (!file.startsWith(root + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile()) {
     res.writeHead(404);
     res.end('Not found');

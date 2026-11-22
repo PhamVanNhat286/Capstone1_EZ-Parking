@@ -4,16 +4,16 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
-  <title>EZ-Space Admin — Quản lý người dùng hệ thống (User Management)</title>
+  <title>EZ-Space Admin — Dữ liệu nghiệp vụ (Operational Data)</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Material+Symbols+Outlined" rel="stylesheet">
-  <link rel="stylesheet" href="css/base.css">
-  <link rel="stylesheet" href="css/layout.css">
-  <link rel="stylesheet" href="css/components.css">
-  <link rel="stylesheet" href="css/pages/users.css">
+  <link rel="stylesheet" href="../css/core/base.css">
+  <link rel="stylesheet" href="../css/core/layout.css">
+  <link rel="stylesheet" href="../css/core/components.css">
+  <link rel="stylesheet" href="../css/pages/records.css">
 </head>
-<body data-page="users" class="reference-layout">
+<body data-page="records" class="reference-layout">
   <aside class="sidebar" aria-label="Điều hướng hệ thống">
     <div class="sidebar-body">
       <div class="brand">
@@ -27,10 +27,10 @@
       <nav class="nav">
         <a href="index.html"><span class="ms">dashboard</span><span>Tổng quan nền tảng</span></a>
         <a href="lots.html"><span class="ms">apartment</span><span>Quản lý bãi đỗ</span><span class="badge" data-pending-badge hidden>0</span></a>
-        <a href="users.html" class="active" aria-current="page"><span class="ms">group</span><span>Quản lý người dùng</span></a>
+        <a href="users.html"><span class="ms">group</span><span>Quản lý người dùng</span></a>
         <a href="revenue.html"><span class="ms">account_balance_wallet</span><span>Báo cáo doanh thu</span></a>
         <a href="logs.html"><span class="ms">history</span><span>Nhật ký hệ thống</span></a>
-        <a href="data.html"><span class="ms">database</span><span>Dữ liệu nghiệp vụ</span></a>
+        <a href="data.html" class="active" aria-current="page"><span class="ms">database</span><span>Dữ liệu nghiệp vụ</span></a>
         <a href="settings.html"><span class="ms">settings</span><span>Cài đặt nền tảng</span></a>
       </nav>
     </div>
@@ -48,7 +48,7 @@
   </aside>
   <main class="main">
     <div class="reference-topbar">
-      <div class="crumb top-crumb"><span>Admin Portal</span><span class="ms">chevron_right</span><b>Quản lý người dùng hệ thống</b></div>
+      <div class="crumb top-crumb"><span>Admin Portal</span><span class="ms">chevron_right</span><b>Dữ liệu nghiệp vụ</b></div>
       <div class="topbar-actions">
         <span id="sync-time" class="sync-time"></span>
         <button class="btn" id="btn-refresh" type="button"><span class="ms">refresh</span> Làm mới</button>
@@ -57,17 +57,17 @@
     <nav class="mobile-nav">
       <a href="index.html"><span class="ms">dashboard</span>Tổng quan nền tảng</a>
       <a href="lots.html"><span class="ms">apartment</span>Quản lý bãi đỗ</a>
-      <a href="users.html" class="active"><span class="ms">group</span>Quản lý người dùng</a>
+      <a href="users.html"><span class="ms">group</span>Quản lý người dùng</a>
       <a href="revenue.html"><span class="ms">account_balance_wallet</span>Báo cáo doanh thu</a>
       <a href="logs.html"><span class="ms">history</span>Nhật ký hệ thống</a>
-      <a href="data.html"><span class="ms">database</span>Dữ liệu nghiệp vụ</a>
+      <a href="data.html" class="active"><span class="ms">database</span>Dữ liệu nghiệp vụ</a>
       <a href="settings.html"><span class="ms">settings</span>Cài đặt nền tảng</a>
     </nav>
     <div class="container live-container reference-content">
       <header class="page-head">
         <div class="heading-area">
-          <div class="title-row"><h1>Quản lý người dùng hệ thống (User Management)</h1></div>
-          <p class="sub">Quản lý hồ sơ khách hàng, chủ bãi đỗ xe, phương tiện cá nhân và trạng thái hoạt động của tài khoản.</p>
+          <div class="title-row"><h1>Dữ liệu nghiệp vụ (Operational Data)</h1></div>
+          <p class="sub">Tra cứu chi tiết đơn đặt chỗ, phương tiện, ô đỗ 2D, thanh toán, vé QR, phiên đỗ xe, bảng giá, lịch sử Chat AI và OTP.</p>
         </div>
       </header>
       <div id="error-banner" class="live-error" role="alert" hidden></div>
@@ -87,20 +87,18 @@
     </div>
   </div>
   <div class="toast" id="toast" role="status"><span class="ms" id="toast-icon">check_circle</span><span id="toast-msg"></span></div>
-  <script src="js/icons.js" defer></script>
-  <script src="js/core/constants.js" defer></script>
-  <script src="js/core/format.js" defer></script>
-  <script src="js/core/date-range.js" defer></script>
-  <script src="js/core.js" defer></script>
-  <script src="js/core/revenue-math.js" defer></script>
-  <script src="js/core/seed-data.js" defer></script>
-  <script src="js/core/api.js" defer></script>
-  <script src="js/core/components.js" defer></script>
-  <script src="js/pages/users.js" defer></script>
-  <script src="js/actions/modal.js" defer></script>
-  <script src="js/actions/export.js" defer></script>
-  <script src="js/actions/user-detail.js" defer></script>
-  <script src="js/actions/user-status.js" defer></script>
-  <script src="js/app.js" defer></script>
+  <script src="../js/core/icons.js" defer></script>
+  <script src="../js/core/constants.js" defer></script>
+  <script src="../js/core/format.js" defer></script>
+  <script src="../js/core/date-range.js" defer></script>
+  <script src="../js/core/core.js" defer></script>
+  <script src="../js/core/revenue-math.js" defer></script>
+  <script src="../js/core/seed-data.js" defer></script>
+  <script src="../js/core/api.js" defer></script>
+  <script src="../js/core/components.js" defer></script>
+  <script src="../js/pages/records.js" defer></script>
+  <script src="../js/actions/modal.js" defer></script>
+  <script src="../js/actions/export.js" defer></script>
+  <script src="../js/core/app.js" defer></script>
 </body>
 </html>

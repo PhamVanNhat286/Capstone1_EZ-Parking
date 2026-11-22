@@ -94,10 +94,10 @@ test('currency rounding is symmetric for a payment and its refund', () => {
 function browser(page) {
   const context = vm.createContext({ document: { body: { dataset: { page } } } });
   vm.runInContext('window = globalThis;', context);
-  const html = fs.readFileSync(path.join(root, page === 'dashboard' ? 'index.html' : 'revenue.html'), 'utf8');
-  const sources = [...html.matchAll(/<script src="([^"]+)" defer><\/script>/g)].map(match => match[1]);
+  const html = fs.readFileSync(path.join(root, 'pages', page === 'dashboard' ? 'index.html' : 'revenue.html'), 'utf8');
+  const sources = [...html.matchAll(/<script src="([^"]+)" defer><\/script>/g)].map(match => match[1].replace(/^\.\.\//, ''));
   for (const src of sources) {
-    if (src === 'js/icons.js' || src === 'js/app.js') continue;
+    if (src === 'js/core/icons.js' || src === 'js/core/app.js') continue;
     vm.runInContext(fs.readFileSync(path.join(root, src), 'utf8'), context, { filename: src });
   }
   vm.runInContext("summary = EZ_SEED_STORE.summary(); lastData = EZ_SEED_STORE[PAGE]({ range: 'all' });", context);
@@ -148,7 +148,7 @@ test('editing a filter keeps the displayed period until a successful load; faile
       return new Promise(resolve => { resolveReport = resolve; });
     };
   `, context);
-  vm.runInContext(fs.readFileSync(path.join(root, 'js/app.js'), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(path.join(root, 'js/core/app.js'), 'utf8'), context);
   vm.runInContext(`
     rangeDraft = { mode: 'calendar-month', year: '2026', month: '6', from: '', to: '' };
     request = { mode: rangeDraft.mode, params: draftRangeParams(), draftSnapshot: JSON.stringify(rangeDraft) };
