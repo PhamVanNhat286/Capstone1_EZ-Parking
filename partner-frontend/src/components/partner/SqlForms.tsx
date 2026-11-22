@@ -8,7 +8,6 @@ import styles from './sql-portal.module.css';
 export type Editor = { kind: 'lot' | 'slot' | 'pricing' | 'profile'; id?: string };
 const field = (form: FormData, name: string) => String(form.get(name) ?? '').trim();
 const optional = (form: FormData, name: string) => field(form, name) || null;
-const numberOrNull = (form: FormData, name: string) => field(form, name) === '' ? null : Number(field(form, name));
 export function Field({ label, children }: { label: string; children: ReactNode }) { return <label className={styles.field}><span>{label}</span>{children}</label>; }
 
 export default function SqlForm({ editor, onClose }: { editor: Editor; onClose: () => void }) {
@@ -25,7 +24,7 @@ export default function SqlForm({ editor, onClose }: { editor: Editor; onClose: 
     const form = new FormData(e.currentTarget);
     try {
       if (editor.kind === 'lot') {
-        const input: LotInput = { name: field(form, 'name'), address: field(form, 'address'), description: optional(form, 'description'), latitude: numberOrNull(form, 'latitude'), longitude: numberOrNull(form, 'longitude'), open_time: optional(form, 'open_time'), close_time: optional(form, 'close_time'), capacity: Number(field(form, 'capacity')), vehicle_types: form.getAll('vehicle_types') as VehicleType[] };
+        const input: LotInput = { name: field(form, 'name'), address: field(form, 'address'), description: optional(form, 'description'), latitude: lot?.latitude ?? null, longitude: lot?.longitude ?? null, open_time: optional(form, 'open_time'), close_time: optional(form, 'close_time'), capacity: Number(field(form, 'capacity')), vehicle_types: form.getAll('vehicle_types') as VehicleType[] };
         await saveEditor(editor, { ...input, expected_updated_at: version });
       } else if (editor.kind === 'slot') {
         const input: SlotInput = { parking_lot_id: selectedId, code: field(form, 'code'), row_index: Number(field(form, 'row_index')), col_index: Number(field(form, 'col_index')), slot_type: field(form, 'slot_type') as SlotType, status: field(form, 'status') as SlotStatus, is_active: form.has('is_active') };
@@ -41,7 +40,6 @@ export default function SqlForm({ editor, onClose }: { editor: Editor; onClose: 
       <Field label="Tên bãi"><input name="name" required maxLength={150} defaultValue={lot?.name} /></Field>
       <Field label="Địa chỉ"><input name="address" required maxLength={255} defaultValue={lot?.address} /></Field>
       <Field label="Mô tả"><textarea name="description" rows={3} defaultValue={lot?.description ?? ''} /></Field>
-      <div className={styles.columns}><Field label="Vĩ độ"><input name="latitude" type="number" step="0.0000001" min={-90} max={90} defaultValue={lot?.latitude ?? ''} /></Field><Field label="Kinh độ"><input name="longitude" type="number" step="0.0000001" min={-180} max={180} defaultValue={lot?.longitude ?? ''} /></Field></div>
       <div className={styles.columns}><Field label="Giờ mở cửa"><input name="open_time" type="time" step={1} defaultValue={lot?.open_time ?? ''} /></Field><Field label="Giờ đóng cửa"><input name="close_time" type="time" step={1} defaultValue={lot?.close_time ?? ''} /></Field></div>
       <Field label="Sức chứa khai báo"><input name="capacity" type="number" required min={0} max={2147483647} step={1} defaultValue={lot?.capacity ?? 20} /></Field>
       <fieldset className={styles.choices}><legend>Loại xe tiếp nhận</legend>{vehicleTypes.map(type => <label key={type}><input type="checkbox" name="vehicle_types" value={type} defaultChecked={supported.includes(type)} />{type}</label>)}</fieldset>
