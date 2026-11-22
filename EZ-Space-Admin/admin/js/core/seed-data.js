@@ -7,11 +7,11 @@
 
 (function (root, factory) {
   if (typeof module !== 'undefined' && module.exports) {
-    module.exports = factory();
+    module.exports = factory(require('./revenue-math.js'), require('./date-range.js'));
   } else {
-    root.EZ_SEED_STORE = factory();
+    root.EZ_SEED_STORE = factory(root.EZ_REVENUE, root.EZ_DATE_RANGE);
   }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (revenueMath, dateRanges) {
   const STORAGE_KEY = 'ez_space_admin_seed_state_v2';
 
   function fmtVn(dateInput) {
@@ -480,24 +480,14 @@
 
   loadPersistedMutations();
 
-  function getRangeBounds(kind = 'all') {
-    const now = new Date();
-    const vnTodayStr = fmtVn(now).slice(0, 10);
-    let fromStr = '2000-01-01 00:00:00';
-    if (kind === 'today') {
-      fromStr = vnTodayStr + ' 00:00:00';
-    } else if (kind === 'week') {
-      fromStr = fmtVn(new Date(now.getTime() - 6 * 86400000)).slice(0, 10) + ' 00:00:00';
-    } else if (kind === 'month') {
-      fromStr = vnTodayStr.slice(0, 8) + '01 00:00:00';
-    }
-    const toStr = fmtVn(new Date(now.getTime() + 60000));
-    return { from: fromStr, to: toStr };
+  function getRangeBounds(params) {
+    const bounds = dateRanges.rangeDates(params.range || 'all', params);
+    return { from: fmtVn(bounds.from), to: fmtVn(bounds.to), display: dateRanges.viewRange(bounds) };
   }
 
   function inRange(ts, range) {
     const s = String(ts || '');
-    return s >= range.from && s <= range.to;
+    return s >= range.from && s < range.to;
   }
 
   function summary() {
@@ -567,7 +557,7 @@
   }
 
   function dashboard(params = {}) {
-    const range = getRangeBounds(params.range || 'all');
+    const range = getRangeBounds(params);
     const resInRange = db.reservations.filter(r => inRange(r.created_at, range));
     const payInRange = db.payments.filter(p => inRange(p.paid_at, range));
 
@@ -592,14 +582,14 @@
       .filter(p => p.payment_type === 'refund' && ['success', 'refunded'].includes(p.status))
       .reduce((s, p) => s + Number(p.amount), 0);
 
-    const payments = {
+    const payments = revenueMath.withRevenue({
       transactions: payInRange.length,
       received: deposits + finals,
       deposits,
       finals,
       refunds,
       successful: payInRange.filter(p => p.status === 'success').length
-    };
+    });
 
     const hourMap = new Map();
     for (const r of resInRange) {
@@ -667,7 +657,7 @@
         lot_name: db.parking_lots.find(l => l.id === a.parking_lot_id)?.name || null
       }));
 
-    return { range, books, payments, hourly, recent, pending, logs };
+    return { range: range.display, books, payments, hourly, recent, pending, logs };
   }
 
   function lots() {
@@ -848,7 +838,7 @@
   }
 
   function revenue(params = {}) {
-    const range = getRangeBounds(params.range || 'all');
+    const range = getRangeBounds(params);
     const payInRange = db.payments.filter(p => inRange(p.paid_at, range));
 
     const deposits = payInRange
@@ -900,12 +890,13 @@
 
     const provMap = new Map();
     for (const p of payInRange) {
-      const cur = provMap.get(p.provider) || { provider: p.provider, transactions: 0, received: 0 };
+      const cur = provMap.get(p.provider) || { provider: p.provider, transactions: 0, received: 0, refunds: 0 };
       cur.transactions += 1;
       if (p.status === 'success' && ['deposit', 'final'].includes(p.payment_type)) {
         cur.received += Number(p.amount);
       }
       provMap.set(p.provider, cur);
+      if (p.payment_type === 'refund' && ['success', 'refunded'].includes(p.status)) cur.refunds += Number(p.amount);
     }
     const byProvider = [...provMap.values()].sort((a, b) => b.received - a.received);
 
@@ -914,19 +905,21 @@
       const r = db.reservations.find(x => x.id === p.reservation_id);
       const v = db.vehicles.find(x => x.id === r?.vehicle_id);
       if (!v) continue;
-      const cur = vehMap.get(v.vehicle_type) || { vehicle_type: v.vehicle_type, received: 0, resSet: new Set() };
+      const cur = vehMap.get(v.vehicle_type) || { vehicle_type: v.vehicle_type, received: 0, refunds: 0, resSet: new Set() };
       if (p.status === 'success' && ['deposit', 'final'].includes(p.payment_type)) {
         cur.received += Number(p.amount);
       }
       cur.resSet.add(p.reservation_id);
       vehMap.set(v.vehicle_type, cur);
+      if (p.payment_type === 'refund' && ['success', 'refunded'].includes(p.status)) cur.refunds += Number(p.amount);
     }
     const byVehicle = [...vehMap.values()]
-      .map(x => ({ vehicle_type: x.vehicle_type, received: x.received, bookings: x.resSet.size }))
+      .map(x => ({ vehicle_type: x.vehicle_type, received: x.received, refunds: x.refunds, bookings: x.resSet.size }))
       .sort((a, b) => b.received - a.received);
 
     const recent = [...payInRange]
       .sort((a, b) => String(b.paid_at).localeCompare(String(a.paid_at)) || b.id - a.id)
+      .slice(0, 200)
       .map(p => {
         const r = db.reservations.find(x => x.id === p.reservation_id) || {};
         const l = db.parking_lots.find(x => x.id === r.parking_lot_id) || {};
@@ -935,6 +928,7 @@
         return {
           ...p,
           lot_name: l.name,
+          slot_code: db.slots.find(s => s.id === r.slot_id)?.code,
           customer: u.full_name,
           license_plate: v.license_plate
         };
@@ -943,14 +937,15 @@
     const dayMap = new Map();
     for (const p of payInRange) {
       const day = String(p.paid_at).slice(0, 10);
-      const cur = dayMap.get(day) || { day, deposits: 0, finals: 0 };
+      const cur = dayMap.get(day) || { day, deposits: 0, finals: 0, refunds: 0 };
       if (p.status === 'success' && p.payment_type === 'deposit') cur.deposits += Number(p.amount);
       if (p.status === 'success' && p.payment_type === 'final') cur.finals += Number(p.amount);
+      if (p.payment_type === 'refund' && ['success', 'refunded'].includes(p.status)) cur.refunds += Number(p.amount);
       dayMap.set(day, cur);
     }
-    const byDay = [...dayMap.values()].sort((a, b) => a.day.localeCompare(b.day));
+    const byDay = [...dayMap.values()].sort((a, b) => a.day.localeCompare(b.day)).slice(-120);
 
-    return { range, totals, byLot, byProvider, byVehicle, recent, byDay, commission: null };
+    return revenueMath.withReportRevenue({ range: range.display, totals, byLot, byProvider, byVehicle, recent, byDay });
   }
 
   function logs() {

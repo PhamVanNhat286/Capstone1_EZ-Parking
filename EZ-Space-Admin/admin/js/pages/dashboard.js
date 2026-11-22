@@ -123,7 +123,7 @@ function dashboard(d) {
       kpi('Tổng người dùng', nf(u.total), 'groups', `${nf(u.customers)} khách hàng · ${nf(u.managers)} chủ bãi`),
       kpi('Bãi đỗ vận hành', nf(l.active), 'apartment', `${nf(l.pending)} bãi chờ phê duyệt · Tổng ${nf(l.total)} bãi`),
       kpi('Đặt chỗ trong kỳ', nf(books.total), 'event_available', `${nf(s.occupied)} ô đang đỗ · ${nf(s.holding)} ô giữ chỗ`),
-      kpi('Dòng tiền đã thu', money(pay.received), 'payments', `${nf(pay.successful)} giao dịch thanh toán thành công`)
+      kpi('Doanh thu Admin (5%)', money(pay.admin_revenue), 'payments', '5% tiền thực thu sau hoàn tiền của mỗi lượt đặt ô')
     ].join('')}</div>` +
     `<div class="reference-dashboard-hero">
       ${section(

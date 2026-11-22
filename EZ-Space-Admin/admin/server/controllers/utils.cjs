@@ -1,5 +1,6 @@
 'use strict';
 const { err, safeFirst } = require('../db.cjs');
+const { viewRange } = require('../../js/core/date-range.js');
 
 const pass = v => (typeof v === 'string' ? v.trim() : '');
 
@@ -7,11 +8,6 @@ const validId = value => {
   const n = Number(value);
   if (!Number.isSafeInteger(n) || n < 1) err('ID không hợp lệ');
   return n;
-};
-
-const viewRange = range => {
-  const f = x => new Date(x).toLocaleString('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false });
-  return { from: f(range.from), to: f(range.to) };
 };
 
 async function getActor(client) {

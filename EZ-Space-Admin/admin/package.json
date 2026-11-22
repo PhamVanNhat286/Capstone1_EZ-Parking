@@ -7,7 +7,7 @@
     "dev": "node server/index.cjs",
     "start": "node server/index.cjs",
     "check-db": "node scripts/check-db.cjs",
-    "test": "node tests/verify.cjs"
+    "test": "node tests/verify.cjs && node --test tests/revenue.cjs tests/date-range.cjs"
   },
   "engines": {
     "node": ">=18"

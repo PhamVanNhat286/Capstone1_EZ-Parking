@@ -23,38 +23,44 @@ function exportNow() {
   if (!lastData) return;
   let arr = [];
   if (PAGE === 'records') {
-    const rows = lastData[tab] || [];
-    const fields = rows.length ? Object.keys(rows[0]) : [];
-    arr = [fields, ...rows.map(x => fields.map(k => x[k]))];
+    const kw = search.toLocaleLowerCase('vi-VN');
+    const rows = (lastData[tab] || []).filter(
+      x => !search || Object.values(x).some(v => String(v ?? '').toLocaleLowerCase('vi-VN').includes(kw))
+    );
+    const fields = rows.length ? Object.keys(rows[0]) : Object.keys((lastData[tab] || [])[0] || {});
+    arr = fields.length ? [fields, ...rows.map(x => fields.map(k => x[k]))] : [];
   } else if (PAGE === 'lots') {
+    const rows = filterRows(lastData.items || [], 'lots');
     arr = [
       ['ID', 'Tên bãi', 'Địa chỉ', 'Trạng thái', 'Sức chứa', 'Tổng ô', 'Ô trống', 'Ô đang đỗ', 'Ô giữ chỗ', 'Quản lý', 'Người duyệt', 'Giá từ'],
-      ...lastData.items.map(x => [
+      ...rows.map(x => [
         x.id, x.name, x.address, LOT[x.status] || x.status, x.capacity,
         x.slot_total, x.slot_available, x.slot_occupied, x.slot_holding,
         x.managers, x.approver_name, x.min_rate
       ])
     ];
   } else if (PAGE === 'users') {
+    const rows = filterRows(lastData.items || [], 'users');
     arr = [
       ['ID', 'Họ tên', 'Email', 'Điện thoại', 'Vai trò', 'Trạng thái', 'Số xe', 'Số đơn', 'Bãi quản lý', 'Ngày tạo'],
-      ...lastData.items.map(x => [
+      ...rows.map(x => [
         x.id, x.full_name, x.email, x.phone, ROLE[x.role] || x.role,
         USER[x.status] || x.status, x.vehicles, x.reservations, x.lots, x.created_at
       ])
     ];
   } else if (PAGE === 'revenue') {
     arr = [
-      ['ID thanh toán', 'Mã đơn', 'Khách hàng', 'Biển số', 'Bãi đỗ', 'Cổng', 'Loại', 'Số tiền', 'Trạng thái', 'Thời gian'],
+      ['ID thanh toán', 'Mã đơn', 'Khách hàng', 'Biển số', 'Bãi đỗ', 'Ô đỗ', 'Cổng', 'Loại', 'Số tiền', 'Admin (5%)', 'Chủ bãi (95%)', 'Trạng thái', 'Thời gian'],
       ...lastData.recent.map(x => [
-        x.id, x.reservation_id, x.customer, x.license_plate, x.lot_name,
-        x.provider, x.payment_type, x.amount, x.status, x.paid_at
+        x.id, x.reservation_id, x.customer, x.license_plate, x.lot_name, x.slot_code,
+        x.provider, x.payment_type, x.amount, x.admin_revenue, x.owner_revenue, x.status, x.paid_at
       ])
     ];
   } else if (PAGE === 'logs') {
+    const rows = filterRows(window.liveLogs || [], 'logs');
     arr = [
       ['Nguồn', 'ID', 'Thời gian', 'Sự kiện', 'Tác nhân', 'Đối tượng', 'Bãi đỗ', 'Ghi chú'],
-      ...(window.liveLogs || []).map(x => [
+      ...rows.map(x => [
         x.source, x.id, x.created_at, x.action, x.actor,
         (x.entity_type || '') + '#' + (x.entity_id || ''), x.lot_name, x.note
       ])

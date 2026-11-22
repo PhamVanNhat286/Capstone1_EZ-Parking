@@ -1,6 +1,7 @@
 'use strict';
 const { q, first, safeFirst, rangeDates } = require('../db.cjs');
 const { viewRange } = require('./utils.cjs');
+const { withRevenue } = require('../../js/core/revenue-math.js');
 
 async function summary() {
   const users = await first(`
@@ -84,7 +85,7 @@ async function summary() {
 }
 
 async function dashboard(params) {
-  const range = rangeDates(params.range || 'today');
+  const range = rangeDates(params.range || 'today', params);
   const a = [range.from, range.to];
 
   const books = await first(
@@ -158,7 +159,7 @@ async function dashboard(params) {
     LIMIT 8
   `);
 
-  return { range: viewRange(range), books, payments, hourly, recent, pending, logs };
+  return { range: viewRange(range), books, payments: withRevenue(payments), hourly, recent, pending, logs };
 }
 
 module.exports = { summary, dashboard };

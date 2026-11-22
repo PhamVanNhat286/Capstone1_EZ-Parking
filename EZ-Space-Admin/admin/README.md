@@ -19,7 +19,6 @@ admin/
 │   ├── base.css                # Biến màu, reset, typography, hệ thống icon
 │   ├── layout.css              # Bố cục Sidebar, Topbar, Container, Header, Footer
 │   ├── components.css          # Nút, Nhãn, Card, KPI, Bảng, Toolbar, Modal, Toast
-│   ├── style.css               # File tổng hợp CSS nền tảng
 │   └── pages/                  # CSS riêng biệt cho từng mục
 │       ├── dashboard.css
 │       ├── lots.css
@@ -93,3 +92,15 @@ npm run dev
 ```
 
 Mở trình duyệt tại: **http://127.0.0.1:8000/** (hoặc mở trực tiếp các file `.html` bằng VS Code Live Server).
+
+## 3. Doanh thu Admin
+
+- Admin nhận **5% tiền thực thu của mỗi lượt đặt ô giữ xe**; phần còn lại thuộc chủ bãi.
+- Tiền thực thu = cọc thanh toán thành công + tiền tất toán thu thêm thành công − tiền hoàn thành công/đã hoàn. Không cộng thêm `reservations.total_amount` để tránh tính trùng tiền cọc.
+- Ví dụ: một lượt đặt ô có cọc 20.000đ và tất toán thêm 20.000đ thì Admin nhận 2.000đ, chủ bãi nhận 38.000đ. Hoàn lại 10.000đ sẽ giảm doanh thu Admin 500đ.
+- Giao dịch chờ xử lý/thất bại không tạo doanh thu. Cọc bị mất do no-show vẫn thuộc tiền thực thu. Khoản hoàn được ghi giảm vào kỳ hoàn tiền, nên doanh thu kỳ đó có thể âm.
+- Quy tắc dùng chung tại `js/core/revenue-math.js`, áp dụng cho API PostgreSQL và dữ liệu mẫu. Báo cáo, tổng quan và CSV tách rõ tiền khách trả với phần doanh thu Admin.
+
+Trang tổng quan và báo cáo dùng một thanh lọc **Thời gian** với các lựa chọn: Tất cả thời gian, Hôm nay, 7 ngày gần đây, Tháng này, Theo tháng, Theo năm và Khoảng ngày. Chỉ những ô phù hợp với lựa chọn hiện tại được hiển thị; tất cả dùng chung nút **Áp dụng**.
+
+Theo năm chỉ cần nhập năm; Theo tháng chọn tháng và năm; Khoảng ngày chọn ngày bắt đầu/kết thúc (chọn cùng ngày để xem một ngày). Bộ lọc tính trọn ngày kết thúc theo giờ Việt Nam. Biểu đồ từng bãi, tổng doanh thu, đối soát và CSV dùng chung kỳ đã áp dụng. Nhãn **Thay đổi chưa áp dụng** giúp phân biệt giá trị đang nhập với dữ liệu đang xem; kỳ hiển thị chỉ đổi khi tải dữ liệu thành công.

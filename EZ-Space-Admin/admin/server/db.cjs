@@ -1,6 +1,7 @@
 'use strict';
 const { Pool, types } = require('pg');
 const { cfg } = require('./config/env.cjs');
+const { rangeDates } = require('../js/core/date-range.js');
 
 // Giữ ngày/giờ PostgreSQL ở timezone do server trả về, thay vì đổi về UTC khi JSON hóa.
 for (const oid of [1082, 1083, 1114, 1184]) {
@@ -51,33 +52,6 @@ async function safeQuery(sql, params = [], fallback = []) {
 async function safeFirst(sql, params = [], fallback = {}) {
   const rows = await safeQuery(sql, params, []);
   return rows[0] || fallback;
-}
-
-function rangeDates(kind) {
-  const fmt = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Ho_Chi_Minh',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit'
-  });
-  const parts = Object.fromEntries(
-    fmt.formatToParts(new Date()).filter(x => x.type !== 'literal').map(x => [x.type, x.value])
-  );
-  const yr = Number(parts.year);
-  const mo = Number(parts.month);
-  const day = Number(parts.day);
-  const atVn = (y, m, d) => new Date(Date.UTC(y, m - 1, d, -7, 0, 0));
-  let from;
-  if (kind === 'today') from = atVn(yr, mo, day);
-  else if (kind === 'week') from = atVn(yr, mo, day - 6);
-  else if (kind === 'month') from = atVn(yr, mo, 1);
-  else if (kind === 'all') from = atVn(2000, 1, 1);
-  else {
-    const e = new Error('Khoảng thời gian không hợp lệ.');
-    e.status = 400;
-    throw e;
-  }
-  return { from: from.toISOString(), to: new Date(Date.now() + 1000).toISOString() };
 }
 
 async function audit(client, actor, lot, action, entity, id, before, after, note) {
