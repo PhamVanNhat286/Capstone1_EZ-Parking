@@ -185,7 +185,7 @@ export default function WithdrawPage() {
             </div>
             <div className="flex justify-between items-center text-slate-500">
               <span>Số tài khoản:</span>
-              <span className="font-mono font-bold text-slate-900 tracking-wider">
+              <span className="font-bold text-slate-900 tracking-wider">
                 {successData.accountNumber}
               </span>
             </div>
@@ -235,8 +235,7 @@ export default function WithdrawPage() {
           <ArrowLeft className="w-5 h-5" />
         </button>
         <div className="text-center">
-          <h1 className="text-sm font-bold text-slate-900">Rút tiền về ngân hàng</h1>
-          <p className="text-[10px] text-slate-400">Ví EZ-Space &rarr; Tài khoản liên kết</p>
+          <h1 className="text-sm font-bold text-slate-900">Rút tiền</h1>
         </div>
         <div className="w-9" />
       </header>
@@ -324,7 +323,7 @@ export default function WithdrawPage() {
                             </span>
                           )}
                         </div>
-                        <p className="text-xs font-mono font-bold text-slate-600 mt-0.5">
+                        <p className="text-xs font-bold text-slate-700 mt-0.5">
                           {acc.accountNumber}
                         </p>
                         <p className="text-[10px] text-slate-400 uppercase tracking-wide truncate">
@@ -432,10 +431,10 @@ export default function WithdrawPage() {
               {isSubmitting
                 ? "Đang xử lý chuyển tiền..."
                 : bankAccounts.length === 0
-                ? "Vui lòng thêm tài khoản ngân hàng"
-                : withdrawAmount > walletBalance
-                ? "Số dư ví không đủ"
-                : `Xác nhận rút ${withdrawAmount.toLocaleString("vi-VN")}đ`}
+                  ? "Vui lòng thêm tài khoản ngân hàng"
+                  : withdrawAmount > walletBalance
+                    ? "Số dư ví không đủ"
+                    : "Xác nhận rút"}
             </span>
           </button>
         </div>
