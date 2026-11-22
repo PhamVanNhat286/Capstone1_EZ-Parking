@@ -6,7 +6,9 @@ export function parseBookingTime(value?: string | null): Date | null {
 
 export function formatBookingTime(value?: string | null): string {
   const date = parseBookingTime(value);
-  return date ? date.toLocaleString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }) : "Chưa có";
+  if (!date) return "Chưa có";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 export function bookingDuration(start?: string | null, end?: string | null) {
@@ -14,7 +16,7 @@ export function bookingDuration(start?: string | null, end?: string | null) {
   const to = parseBookingTime(end);
   if (!from || !to) return null;
   const minutes = Math.round((to.getTime() - from.getTime()) / 60000);
-  if (minutes <= 0) return null;
+  if (minutes < 60) return null;
   const hours = Math.ceil(minutes / 60);
   const whole = Math.floor(minutes / 60);
   const rest = minutes % 60;

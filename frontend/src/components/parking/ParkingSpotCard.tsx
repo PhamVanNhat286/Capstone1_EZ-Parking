@@ -13,7 +13,7 @@ export type Spot = {
   rowIndex?: number;
   colIndex?: number;
   nearExit?: boolean;
-  bookedIntervals?: { startTime: string; endTime: string; status: string }[];
+  bookedIntervals?: { startTime: string; endTime: string; status: string; isMine?: boolean }[];
 };
 
 
@@ -35,8 +35,10 @@ export default function ParkingSpotCard({
   const statusLabel = free ? "Trống" : spot.status === "occupied" ? "Đã đỗ"
     : spot.status === "holding" ? "Đang giữ" : "Bảo trì";
   const typeLabel = spot.type === "ev" ? "Sạc EV" : spot.type === "suv" ? "SUV" : "Sedan";
-  const upcoming = spot.bookedIntervals?.find((item) => new Date(item.endTime).getTime() > Date.now());
-  const upcomingTime = upcoming ? `${new Date(upcoming.startTime).toLocaleString("vi-VN", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}–${new Date(upcoming.endTime).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}` : null;
+  const futureBookings = spot.bookedIntervals?.filter((item) => new Date(item.endTime).getTime() > Date.now()) || [];
+  const ownBooking = futureBookings.find((item) => item.isMine);
+  const upcoming = ownBooking || futureBookings[0];
+  const upcomingTime = upcoming ? `${new Date(upcoming.startTime).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" })} ${new Date(upcoming.startTime).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit", hour12: false })}` : null;
 
   return (
     <button
@@ -46,7 +48,7 @@ export default function ParkingSpotCard({
       disabled={!visible}
       onClick={onSelect}
       className={clsx(
-        "relative h-[94px] w-full rounded-xl border-2 p-2 flex flex-col justify-between text-left transition shadow-sm",
+        "relative h-[98px] w-full rounded-xl border-2 p-2 flex flex-col justify-between text-left transition shadow-sm min-w-0",
         free ? "bg-emerald-50 border-emerald-400" : spot.status === "occupied" ? "bg-rose-50 border-rose-300"
           : spot.status === "holding" ? "bg-amber-50 border-amber-400" : "bg-slate-200 border-slate-300",
         (!visible || (free && !compatible)) && "opacity-30 grayscale",
@@ -70,7 +72,7 @@ export default function ParkingSpotCard({
           <span className="w-5 h-1 rounded bg-slate-700/40" /><span className="w-4 h-2 rounded bg-white/60" />
         </div>}
       <div className="text-[9px] font-semibold space-y-0.5">
-        {upcomingTime && <div className="truncate text-blue-700" title={`${upcomingTime} (${spot.bookedIntervals?.length || 0} lượt)`}>Đặt: {upcomingTime}{(spot.bookedIntervals?.length || 0) > 1 ? ` +${(spot.bookedIntervals?.length || 0) - 1}` : ""}</div>}
+        {upcomingTime && <div className={clsx("truncate", ownBooking ? "text-blue-700" : "text-slate-600")} title={`${upcomingTime} (${futureBookings.length} lượt)`}>{ownBooking ? "Bạn đã đặt" : "Có lịch đặt"} · {upcomingTime}</div>}
         <div className="flex justify-between gap-1 text-slate-500">
           <span>{spot.nearExit ? "↗ Gần lối ra" : ""}</span>
           <span className="font-extrabold text-emerald-700">{pricePerHour.toLocaleString("vi-VN")}đ/giờ</span>

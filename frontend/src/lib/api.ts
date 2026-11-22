@@ -81,9 +81,12 @@ export async function getLotByIdApi(lotId: string) {
   }
 }
 
-export async function getLotSlotsApi(lotId: string) {
+export async function getLotSlotsApi(lotId: string, token?: string) {
   try {
-    const res = await fetch(`${API_BASE_URL}/lots/${lotId}/slots`, { cache: "no-store" });
+    const res = await fetch(`${API_BASE_URL}/lots/${lotId}/slots`, {
+      cache: "no-store",
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    });
     const json = await res.json().catch(() => null);
     if (!json) throw new Error(`Backend không trả dữ liệu sơ đồ hợp lệ (HTTP ${res.status}).`);
     if (!res.ok || !json.success || !Array.isArray(json.data)) {
