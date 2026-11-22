@@ -503,3 +503,66 @@ export async function clearChatHistoryApi(token: string) {
     return { success: false };
   }
 }
+
+// ================= CANCELLATION & WALLET APIS =================
+
+export async function cancelReservationApi(reservationId: string | number, token?: string) {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
+  const res = await fetch(`${API_BASE_URL}/reservations/${reservationId}/cancel`, {
+    method: "POST",
+    headers,
+  });
+  return res.json().catch(() => ({ success: false, message: "Lỗi kết nối máy chủ khi hủy đơn" }));
+}
+
+export async function getWalletApi(token: string) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/wallet`, {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    });
+    return await res.json();
+  } catch (err) {
+    console.error("Lỗi getWalletApi:", err);
+    return { success: false, data: { balance: 0, transactions: [] } };
+  }
+}
+
+export async function withdrawWalletApi(
+  token: string,
+  data: { amount: number; bank_name: string; account_number: string; account_name?: string }
+) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/wallet/withdraw`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(data),
+    });
+    return await res.json();
+  } catch (err) {
+    console.error("Lỗi withdrawWalletApi:", err);
+    return { success: false, message: "Lỗi kết nối máy chủ khi yêu cầu rút tiền" };
+  }
+}
+
+export async function topupWalletApi(token: string, amount = 50000) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/wallet/topup`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ amount }),
+    });
+    return await res.json();
+  } catch (err) {
+    console.error("Lỗi topupWalletApi:", err);
+    return { success: false, message: "Lỗi kết nối máy chủ khi nạp tiền" };
+  }
+}

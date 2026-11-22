@@ -20,7 +20,7 @@ import {
   X,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
-import { getLotByIdApi, getReservationByIdApi, getRelocationOptionsApi, releaseSpotApi, requestOccupiedSlotRefundApi, switchReservationSlotApi, type RelocationOption } from "@/lib/api";
+import { getLotByIdApi, getReservationByIdApi, getRelocationOptionsApi, releaseSpotApi, cancelReservationApi, requestOccupiedSlotRefundApi, switchReservationSlotApi, type RelocationOption } from "@/lib/api";
 import { lots } from "@/lib/mock/lots";
 import { calculateDetailedFee } from "@/lib/pricing";
 import { useStore } from "@/store";
@@ -130,6 +130,7 @@ export default function TicketPage() {
   const vehicles = useStore((s) => s.vehicles);
   const markExpired = useStore((s) => s.markExpired);
   const cancelBooking = useStore((s) => s.cancelBooking);
+  const updateWalletBalance = useStore((s) => s.updateWalletBalance);
   const addToast = useStore((s) => s.addToast);
   const isDemo = useStore((s) => s.isDemo);
 
@@ -398,13 +399,26 @@ export default function TicketPage() {
     try {
       const resId = dbBooking?.id || booking?.backendId || booking?.id;
       if (resId) {
-        await releaseSpotApi(resId, user?.token);
+        const cancelRes = await cancelReservationApi(resId, user?.token);
+        if (cancelRes && cancelRes.success) {
+          if (cancelRes.data?.refunded) {
+            const refundAmt = Number(cancelRes.data.refund_amount || 50000);
+            updateWalletBalance(refundAmt);
+            addToast(`Đã hủy vé thành công! Tiền cọc ${refundAmt.toLocaleString("vi-VN")}đ đã được hoàn vào Ví EZ-Space của bạn.`, "success");
+          } else {
+            addToast(cancelRes.message || "Đã hủy đơn đặt chỗ thành công.", "info");
+          }
+        } else {
+          await releaseSpotApi(resId, user?.token);
+          addToast("Đã hủy đơn đặt chỗ.", "info");
+        }
       }
       cancelBooking();
-      addToast("Đã hủy đơn đặt chỗ và giải phóng ô đỗ trên CSDL.", "info");
+      setShowCancel(false);
       router.replace("/lich-su");
     } catch {
       cancelBooking();
+      setShowCancel(false);
       router.replace("/lich-su");
     }
   };
@@ -781,19 +795,36 @@ export default function TicketPage() {
       )}
 
       {showCancel && (
-        <Popup title="Bạn muốn hủy đặt chỗ?" close={() => setShowCancel(false)}>
-          <p>
-            Hủy sẽ nhả ô đỗ và lưu kết quả vào lịch sử. Điều kiện hoàn cọc trong đồ án được mô phỏng theo thời gian đặt.
-          </p>
-          <div className="flex gap-3 mt-5">
-            <button className="flex-1 rounded-xl bg-slate-100 py-3 font-bold" onClick={() => setShowCancel(false)}>
-              Ở lại
+        <Popup title="Xác nhận hủy vé & Hoàn cọc" close={() => setShowCancel(false)}>
+          <div className="space-y-3 text-sm text-slate-700">
+            <p className="leading-relaxed">
+              Bạn đang yêu cầu hủy đơn đặt chỗ tại <strong>{lot.name}</strong> (Ô <strong>{booking.spotId}</strong>).
+            </p>
+            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl space-y-1">
+              <div className="flex justify-between items-center text-xs font-semibold text-emerald-800">
+                <span>Số tiền hoàn trả:</span>
+                <span className="text-base font-extrabold text-emerald-600">50.000đ</span>
+              </div>
+              <p className="text-[11px] text-emerald-700">
+                Tiền cọc sẽ được hoàn tức thì vào <strong>Ví EZ-Space</strong> của bạn. Bạn có thể rút về tài khoản ngân hàng liên kết hoặc dùng để đặt chỗ lần sau.
+              </p>
+            </div>
+            <p className="text-xs text-slate-500">
+              * Ô đỗ sẽ được giải phóng ngay lập tức trên hệ thống cho tài xế khác.
+            </p>
+          </div>
+          <div className="flex gap-2.5 mt-4">
+            <button
+              className="flex-1 rounded-xl bg-slate-100 text-slate-700 py-3 font-semibold text-xs active:scale-95 transition-transform"
+              onClick={() => setShowCancel(false)}
+            >
+              Giữ lại vé
             </button>
             <button
-              className="flex-1 rounded-xl bg-rose-600 text-white py-3 font-bold active:scale-95 transition-transform"
+              className="flex-1 rounded-xl bg-rose-600 text-white py-3 font-bold text-xs shadow-md shadow-rose-200 active:scale-95 transition-transform"
               onClick={handleCancelBooking}
             >
-              Hủy đặt
+              Xác nhận hủy & Hoàn 50k
             </button>
           </div>
         </Popup>

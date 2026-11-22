@@ -234,7 +234,7 @@ export const getMe = async (req: AuthRequest, res: Response): Promise<void> => {
 
     // Lấy thông tin người dùng
     const userSql = `
-      SELECT id, full_name, email, phone, role, status, avatar_url, created_at, updated_at
+      SELECT id, full_name, email, phone, role, status, avatar_url, COALESCE(wallet_balance, 0) AS wallet_balance, created_at, updated_at
       FROM users
       WHERE id = $1;
     `;

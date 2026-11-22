@@ -96,6 +96,23 @@ export const initDbTables = async () => {
         created_at      TIMESTAMPTZ     NOT NULL DEFAULT NOW()
       );
       CREATE INDEX IF NOT EXISTS idx_chat_messages_user_created ON chat_messages (user_id, created_at ASC);
+
+      -- Đảm bảo ví EZ-Space và lịch sử giao dịch ví tồn tại
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS wallet_balance DECIMAL(12,2) NOT NULL DEFAULT 0;
+
+      CREATE TABLE IF NOT EXISTS wallet_transactions (
+        id              BIGSERIAL       PRIMARY KEY,
+        user_id         BIGINT          NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        amount          DECIMAL(12,2)   NOT NULL,
+        type            VARCHAR(30)     NOT NULL, -- 'REFUND' | 'WITHDRAW' | 'PAYMENT' | 'TOPUP'
+        status          VARCHAR(20)     NOT NULL DEFAULT 'success',
+        description     VARCHAR(255),
+        bank_name       VARCHAR(100),
+        account_number  VARCHAR(50),
+        account_name    VARCHAR(100),
+        created_at      TIMESTAMPTZ     NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_wallet_transactions_user ON wallet_transactions (user_id, created_at DESC);
     `);
     console.log("[Database] Core tables verified successfully.");
   } catch (error) {
