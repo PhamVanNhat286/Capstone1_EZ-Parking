@@ -11,7 +11,7 @@ export type Vehicle = {
   evBodyType?: "Sedan" | "SUV"; // Dáng xe của xe điện (Sedan hoặc SUV)
 };
 
-export type BookingStatus = "holding" | "paid" | "entered" | "completed" | "forfeited" | "cancelled";
+export type BookingStatus = "holding" | "paid" | "entered" | "completed" | "forfeited" | "cancelled" | "refunded";
 
 export type Booking = {
   id: string;
@@ -490,11 +490,11 @@ export const useStore = create<StoreState>()(
         const { activeBooking, history } = get();
         if (!activeBooking) return;
         
-        const isRefundable = (Date.now() - activeBooking.createdAt) < 5 * 60 * 1000;
+        const isRefundable = activeBooking.status === "paid" || (Date.now() - activeBooking.createdAt) < 5 * 60 * 1000;
         
         set({
           activeBooking: null,
-          history: [{ ...activeBooking, status: isRefundable ? "cancelled" : "forfeited" }, ...history],
+          history: [{ ...activeBooking, status: isRefundable ? "refunded" : "forfeited" }, ...history],
         });
       },
 
