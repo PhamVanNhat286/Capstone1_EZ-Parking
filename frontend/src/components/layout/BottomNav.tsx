@@ -18,7 +18,8 @@ export default function BottomNav() {
     pathname.startsWith("/dat-cho") ||
     pathname.startsWith("/phuong-thuc-thanh-toan") ||
     pathname.startsWith("/xe-cua-toi") ||
-    pathname.startsWith("/chinh-sach")
+    pathname.startsWith("/chinh-sach") ||
+    pathname.startsWith("/rut-tien")
   ) {
     return null;
   }

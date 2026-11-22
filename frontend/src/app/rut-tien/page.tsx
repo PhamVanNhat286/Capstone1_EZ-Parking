@@ -242,29 +242,17 @@ export default function WithdrawPage() {
       </header>
 
       <form onSubmit={handleConfirmWithdraw} className="p-4 space-y-4 flex-1">
-        {/* THẺ SỐ DƯ VÍ HIỆN TẠI */}
-        <section className="bg-gradient-to-br from-blue-700 via-indigo-600 to-blue-600 rounded-3xl p-4.5 text-white shadow-xl shadow-blue-500/15 relative overflow-hidden">
-          <div className="relative z-10">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white border border-white/20">
-                  <Wallet className="w-4 h-4" />
-                </div>
-                <span className="text-xs font-semibold text-blue-100">Số dư khả dụng</span>
-              </div>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-400/20 text-emerald-300 border border-emerald-400/30">
-                Miễn phí rút
-              </span>
+        {/* SỐ DƯ VÍ HIỆN TẠI */}
+        <section className="bg-white rounded-3xl p-4 shadow-soft border border-slate-100 flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 rounded-2xl bg-blue-50 text-primary border border-blue-100 flex items-center justify-center shrink-0">
+              <Wallet className="w-5 h-5 text-primary" />
             </div>
-
-            <div className="mt-3">
-              <div className="text-3xl font-black tracking-tight text-white flex items-baseline gap-1">
-                {walletBalance.toLocaleString("vi-VN")}
-                <span className="text-base font-bold text-blue-200">đ</span>
-              </div>
-              <p className="text-[11px] text-blue-100/80 mt-1">
-                Tiền hoàn cọc tự động và các khoản dư có thể rút về ngân hàng bất kỳ lúc nào.
-              </p>
+            <div>
+              <span className="text-[11px] font-semibold text-slate-400 block">Số dư khả dụng</span>
+              <span className="text-xl font-black text-slate-900 tracking-tight">
+                {walletBalance.toLocaleString("vi-VN")}đ
+              </span>
             </div>
           </div>
         </section>
@@ -276,13 +264,6 @@ export default function WithdrawPage() {
               <Building2 className="w-4 h-4 text-primary" />
               <span>Tài khoản nhận tiền</span>
             </h2>
-            <Link
-              href="/phuong-thuc-thanh-toan"
-              className="text-xs font-bold text-primary hover:underline flex items-center gap-1 cursor-pointer"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Thêm mới</span>
-            </Link>
           </div>
 
           {bankAccounts.length === 0 ? (
@@ -381,17 +362,10 @@ export default function WithdrawPage() {
 
         {/* MỤC: NHẬP SỐ TIỀN RÚT */}
         <section className="bg-white rounded-3xl p-4 shadow-soft border border-slate-100 space-y-3">
-          <div className="flex justify-between items-center">
+          <div>
             <label className="text-xs font-bold uppercase tracking-wider text-slate-400">
-              Số tiền muốn rút (VNĐ)
+              Số tiền rút
             </label>
-            <button
-              type="button"
-              onClick={() => setAmountStr(String(walletBalance))}
-              className="text-xs font-bold text-primary hover:underline cursor-pointer"
-            >
-              Rút tất cả ({walletBalance.toLocaleString("vi-VN")}đ)
-            </button>
           </div>
 
           <div className="relative">
