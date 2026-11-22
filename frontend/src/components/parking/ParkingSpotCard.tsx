@@ -37,13 +37,11 @@ export default function ParkingSpotCard({
   const typeLabel = spot.type === "ev" ? "Sạc EV" : spot.type === "suv" ? "SUV" : "Sedan";
   const futureBookings = spot.bookedIntervals?.filter((item) => new Date(item.endTime).getTime() > Date.now()) || [];
   const ownBooking = futureBookings.find((item) => item.isMine);
-  const upcoming = ownBooking || futureBookings[0];
-  const upcomingTime = upcoming ? `${new Date(upcoming.startTime).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" })} ${new Date(upcoming.startTime).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit", hour12: false })}` : null;
 
   return (
     <button
       type="button"
-      aria-label={`Ô ${spot.id}, ${statusLabel}, loại ${typeLabel}${upcomingTime ? `, lịch đặt gần nhất ${upcomingTime}` : ""}, giá giờ vào ${pricePerHour.toLocaleString("vi-VN")} đồng mỗi giờ`}
+      aria-label={`Ô ${spot.id}, ${statusLabel}, loại ${typeLabel}${futureBookings.length ? `, ${futureBookings.length} lượt đặt${ownBooking ? ", có lịch của bạn" : ""}` : ""}, giá giờ vào ${pricePerHour.toLocaleString("vi-VN")} đồng mỗi giờ`}
       aria-pressed={selected}
       disabled={!visible}
       onClick={onSelect}
@@ -72,7 +70,7 @@ export default function ParkingSpotCard({
           <span className="w-5 h-1 rounded bg-slate-700/40" /><span className="w-4 h-2 rounded bg-white/60" />
         </div>}
       <div className="text-[9px] font-semibold space-y-0.5">
-        {upcomingTime && <div className={clsx("truncate", ownBooking ? "text-blue-700" : "text-slate-600")} title={`${upcomingTime} (${futureBookings.length} lượt)`}>{ownBooking ? "Bạn đã đặt" : "Có lịch đặt"} · {upcomingTime}</div>}
+        {futureBookings.length > 0 && <div className={clsx("truncate", ownBooking ? "text-blue-700" : "text-slate-600")}>{ownBooking ? "Bạn đã đặt" : `${futureBookings.length} lượt đã đặt`}</div>}
         <div className="flex justify-between gap-1 text-slate-500">
           <span>{spot.nearExit ? "↗ Gần lối ra" : ""}</span>
           <span className="font-extrabold text-emerald-700">{pricePerHour.toLocaleString("vi-VN")}đ/giờ</span>
