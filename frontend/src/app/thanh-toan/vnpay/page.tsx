@@ -8,6 +8,7 @@ import { useStore } from '@/store';
 import { lots } from '@/lib/mock/lots';
 import { getLotByIdApi } from '@/lib/api';
 import { formatBookingTime } from '@/lib/booking-time';
+import { calculateDetailedFee } from '@/lib/pricing';
 
 const DEPOSIT = 50_000;
 const formatDateDMY = (date: Date) =>

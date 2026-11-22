@@ -98,7 +98,7 @@ const computeParkingDuration = (
         endTotal += 24 * 60;
         isNextDay = true;
       }
-      const hours = Math.max(1, Math.min(24, Math.ceil((endTotal - startTotal) / 60)));
+      const hours = Math.max(1, Math.ceil((endTotal - startTotal) / 60));
       return { hours, isNextDay };
     }
 
@@ -108,7 +108,7 @@ const computeParkingDuration = (
       const diffMs = endDate.getTime() - startDate.getTime();
       if (diffMs > 0) {
         const totalMinutes = Math.round(diffMs / 60000);
-        const hours = Math.max(1, Math.min(24, Math.ceil(totalMinutes / 60)));
+        const hours = Math.max(1, Math.ceil(totalMinutes / 60));
         const isNextDay =
           startDate.getFullYear() !== endDate.getFullYear() ||
           startDate.getMonth() !== endDate.getMonth() ||
@@ -345,9 +345,10 @@ export default function TicketPage() {
     );
   }
 
-  const qrOpensAt = new Date(booking.startTime).getTime();
+  const qrOpensAt = new Date(booking.startTime).getTime() - 20 * 60_000;
   const beforeQrWindow = booking.status === "paid" && now < qrOpensAt;
-  const validQR = booking.status === "entered" || (booking.status === "paid" && now <= (booking.arrivalExpiresAt || 0));
+  const showQR = booking.status === "entered" || (booking.status === "paid" && now <= (booking.arrivalExpiresAt || 0));
+  const validQR = showQR && !beforeQrWindow;
   const remaining =
     booking.status === "paid" ? Math.max(0, Math.ceil(((booking.arrivalExpiresAt || 0) - now) / 1000)) : 0;
   const qrPayload =
@@ -510,7 +511,7 @@ export default function TicketPage() {
             <div className="flex gap-1.5 items-center flex-wrap">
               <span className="text-[10px] font-black bg-blue-600 text-white rounded-md px-2 py-1">{statusText}</span>
               {booking.status === "paid" && (
-                <span className="text-base font-black tabular-nums text-blue-700">{beforeQrWindow ? "Chưa đến giờ vào" : timer(remaining)}</span>
+                <span className="text-base font-black tabular-nums text-blue-700">{beforeQrWindow ? "Chưa đến giờ quét" : timer(remaining)}</span>
               )}
             </div>
             <p className="text-xs font-extrabold mt-1">
@@ -540,19 +541,19 @@ export default function TicketPage() {
               <QrCode size={17} /> MÃ QR VÀO CỔNG
             </div>
             <p className="text-[11px] text-slate-500 mt-1">
-              {beforeQrWindow ? "Vé đã có; chỉ quét được từ giờ vào đã đặt" : validQR ? "Mở mã tại thanh chắn barrier" : "Chỉ khả dụng khi vé còn hiệu lực"}
+              {beforeQrWindow ? "Mã vé đã có; quét được từ 20 phút trước giờ vào" : validQR ? "Mở mã tại thanh chắn barrier" : "Chỉ khả dụng khi vé còn hiệu lực"}
             </p>
             <button
               onClick={() => setFullscreen(true)}
               title="Phóng to mã QR"
-              disabled={!validQR}
+              disabled={!showQR}
               className={`mx-auto my-4 bg-white p-3 border-2 rounded-2xl relative ${
-                validQR ? "border-blue-600" : "border-slate-200 opacity-30"
+                validQR ? "border-blue-600" : beforeQrWindow ? "border-amber-400" : "border-slate-200 opacity-30"
               }`}
               id="ticket-qr"
             >
-              {validQR ? <QRCodeSVG value={qrPayload} size={216} marginSize={1} fgColor="#0f172a" /> : <div className="w-[216px] h-[216px] grid place-items-center text-xs text-slate-500 text-center">{beforeQrWindow ? "Chưa đến giờ mở mã QR" : "Mã QR đã hết hiệu lực"}</div>}
-              {validQR && <span className="absolute -bottom-3 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[10px] rounded-full px-3 py-1 whitespace-nowrap">Nhấn để phóng to</span>}
+              {showQR ? <QRCodeSVG value={qrPayload} size={216} marginSize={1} fgColor="#0f172a" /> : <div className="w-[216px] h-[216px] grid place-items-center text-xs text-slate-500 text-center">Mã QR đã hết hiệu lực</div>}
+              {showQR && <span className="absolute -bottom-3 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[10px] rounded-full px-3 py-1 whitespace-nowrap">Nhấn để phóng to</span>}
             </button>
             <div className="mt-6 flex justify-center gap-1.5 items-center">
               <strong className="text-lg tracking-wider font-black font-mono">{booking.id}</strong>
@@ -566,7 +567,7 @@ export default function TicketPage() {
             <div className="flex gap-2 mt-3">
               <button
                 onClick={saveQR}
-                disabled={!validQR}
+                disabled={!showQR}
                 className="flex-1 rounded-xl bg-slate-100 py-2 text-xs font-bold flex items-center justify-center gap-1 active:scale-95 transition-transform"
               >
                 <Download size={15} /> Lưu mã
@@ -763,7 +764,7 @@ export default function TicketPage() {
       {showRules && (
         <Popup title="Quy định giữ chỗ và tiền cọc" close={() => setShowRules(false)}>
           <p>
-            Thời hạn đến bãi được tính từ lúc thanh toán thành công và thể hiện trên vé. Quá hạn, ô đỗ có thể được nhả và
+            Thời hạn đến bãi được tính từ giờ vào đã đặt và thể hiện trên vé. Có thể quét sớm tối đa 20 phút nếu ô đã trống. Quá hạn, ô đỗ có thể được nhả và
             tiền cọc có thể bị mất. Tiền cọc được khấu trừ vào phí gửi xe khi thanh toán cuối cùng.
           </p>
           <p className="mt-3">Đây là quy trình mô phỏng trong đồ án, chưa phải điều khoản của một bãi xe thật.</p>

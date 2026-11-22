@@ -106,42 +106,30 @@ export const getLotById = async (req: Request, res: Response): Promise<void> => 
 export const getLotSlots = async (req: Request, res: Response): Promise<void> => {
   try {
     const lotId = resolveLotId(req.params.id);
-    const start = typeof req.query.start_time === "string" ? new Date(req.query.start_time) : new Date();
-    const end = typeof req.query.end_time === "string" ? new Date(req.query.end_time) : new Date(start.getTime() + 2 * 3600_000);
-    if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || end <= start || end.getTime() - start.getTime() > 24 * 3600_000) {
-      res.status(400).json({ success: false, message: "Khoảng ngày giờ không hợp lệ." });
-      return;
-    }
     const sql = `
       SELECT 
         s.id, s.parking_lot_id, s.code, s.row_index, s.col_index, s.slot_type,
-        CASE WHEN EXISTS (
+        CASE WHEN s.status='occupied' OR EXISTS (
           SELECT 1 FROM reservations r
           WHERE r.slot_id=s.id AND r.status='entered'
-            AND r.start_time < $3::timestamptz
-            AND r.expected_end_time > $2::timestamptz
         ) THEN 'occupied'
         WHEN EXISTS (
           SELECT 1 FROM reservations r
           WHERE r.slot_id=s.id AND r.status IN ('holding', 'paid')
-            AND r.start_time < $3::timestamptz
-            AND r.expected_end_time > $2::timestamptz
+            AND r.start_time <= NOW()
+            AND (r.expected_end_time > NOW() OR (r.status='paid' AND r.arrival_expires_at > NOW()))
             AND (r.status <> 'holding' OR r.hold_expires_at > NOW())
         ) THEN 'holding'
-        WHEN s.status='occupied' AND $2::timestamptz <= NOW() THEN 'occupied'
-        WHEN s.status IN ('holding', 'occupied') AND EXISTS (
-          SELECT 1 FROM reservations r WHERE r.slot_id=s.id
-            AND r.status IN ('holding', 'paid', 'entered')
-        ) THEN 'available' ELSE s.status END AS status,
+        WHEN s.status='holding' THEN 'available' ELSE s.status END AS status,
         COALESCE((
           SELECT json_agg(json_build_object(
             'startTime', r.start_time, 'endTime', r.expected_end_time, 'status', r.status
           ) ORDER BY r.start_time)
           FROM reservations r WHERE r.slot_id=s.id
             AND r.status IN ('holding', 'paid', 'entered')
-            AND r.expected_end_time > NOW() - INTERVAL '1 day'
-            AND r.start_time < NOW() + INTERVAL '30 days'
+            AND (r.expected_end_time > NOW() OR r.status='entered')
             AND (r.status <> 'holding' OR r.hold_expires_at > NOW())
+            AND (r.status <> 'paid' OR r.arrival_expires_at > NOW())
         ), '[]'::json) AS booked_intervals,
         s.is_active
       FROM slots s
@@ -149,7 +137,7 @@ export const getLotSlots = async (req: Request, res: Response): Promise<void> =>
       ORDER BY s.row_index ASC, s.col_index ASC;
     `;
 
-    const { rows } = await query(sql, [lotId, start, end]);
+    const { rows } = await query(sql, [lotId]);
     res.json({ success: true, data: rows });
   } catch (error) {
     console.error("Error fetching slots:", error);

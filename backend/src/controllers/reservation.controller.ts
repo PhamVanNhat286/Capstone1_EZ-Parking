@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { pool, query } from "../config/db";
 import { AuthRequest } from "../middlewares/auth.middleware";
 import { arrivalDeadline } from "../config/booking-policy";
+import { parkingHourlyRate } from "../config/parking-pricing";
 
 const SLUG_TO_ID: Record<string, number> = {
   "hai-chau-a": 1,
@@ -40,8 +41,8 @@ export const holdSpot = async (req: AuthRequest, res: Response): Promise<void> =
     if (!Number.isFinite(sTime.getTime()) || !Number.isFinite(eTime.getTime()) ||
         sTime.getTime() < Date.now() - 60_000 ||
         sTime.getTime() > Date.now() + 30 * 24 * 3600_000 ||
-        durationMs <= 0 || durationMs > 24 * 3600_000) {
-      res.status(400).json({ success: false, message: "Ngày giờ đỗ phải bắt đầu trong 30 ngày tới và kéo dài tối đa 24 giờ." });
+        durationMs <= 0) {
+      res.status(400).json({ success: false, message: "Giờ vào phải trong 30 ngày tới và giờ ra phải sau giờ vào." });
       return;
     }
     const billableHours = Math.ceil(durationMs / 3600_000);
@@ -114,7 +115,8 @@ export const holdSpot = async (req: AuthRequest, res: Response): Promise<void> =
       "SELECT hourly_rate FROM pricing_rules WHERE parking_lot_id = $1 ORDER BY id ASC LIMIT 1",
       [lotId]
     );
-    const hourlyRate = Number(priceRes.rows[0]?.hourly_rate || 20000);
+    const baseRate = Number(priceRes.rows[0]?.hourly_rate || 20000);
+    const hourlyRate = parkingHourlyRate(lotId, sTime, baseRate);
     const depositAmount = 50000; // Tiền đặt cọc chuẩn 50.000đ
 
     // Xác định vehicle_id

@@ -14,7 +14,7 @@ export function bookingDuration(start?: string | null, end?: string | null) {
   const to = parseBookingTime(end);
   if (!from || !to) return null;
   const minutes = Math.round((to.getTime() - from.getTime()) / 60000);
-  if (minutes <= 0 || minutes > 24 * 60) return null;
+  if (minutes <= 0) return null;
   const hours = Math.ceil(minutes / 60);
   const whole = Math.floor(minutes / 60);
   const rest = minutes % 60;

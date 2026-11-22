@@ -81,15 +81,14 @@ export async function getLotByIdApi(lotId: string) {
   }
 }
 
-export async function getLotSlotsApi(lotId: string, startTime?: string, endTime?: string) {
+export async function getLotSlotsApi(lotId: string) {
   try {
-    const params = new URLSearchParams();
-    if (startTime) params.set("start_time", startTime);
-    if (endTime) params.set("end_time", endTime);
-    const res = await fetch(`${API_BASE_URL}/lots/${lotId}/slots${params.size ? `?${params}` : ""}`, { cache: "no-store" });
-    if (!res.ok) return null;
-    const json = await res.json();
-    if (!json.success || !Array.isArray(json.data)) return null;
+    const res = await fetch(`${API_BASE_URL}/lots/${lotId}/slots`, { cache: "no-store" });
+    const json = await res.json().catch(() => null);
+    if (!json) throw new Error(`Backend không trả dữ liệu sơ đồ hợp lệ (HTTP ${res.status}).`);
+    if (!res.ok || !json.success || !Array.isArray(json.data)) {
+      throw new Error(json.message || `Không tải được sơ đồ ô đỗ (HTTP ${res.status}).`);
+    }
 
     return json.data.map((s: any) => ({
       id: s.code || `A${s.id}`,
@@ -103,7 +102,8 @@ export async function getLotSlotsApi(lotId: string, startTime?: string, endTime?
     }));
   } catch (error) {
     console.warn("Không thể tải ô đỗ từ Backend:", error);
-    return null;
+    if (error instanceof TypeError) throw new Error(`Không kết nối được backend tại ${API_BASE_URL}. Hãy kiểm tra máy chủ và PostgreSQL.`);
+    throw error;
   }
 }
 

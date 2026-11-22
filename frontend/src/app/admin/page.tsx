@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { confirmManualRefundApi, getPendingRefundsApi, type PendingRefund } from "@/lib/api";
 import { useStore } from "@/store";
+import Link from "next/link";
 
 export default function AdminRefundsPage() {
   const user = useStore((s) => s.user);
@@ -41,6 +42,7 @@ export default function AdminRefundsPage() {
       <h1 className="text-xl font-extrabold">Đối soát hoàn cọc</h1>
       <p className="mt-1 text-xs text-blue-100">Chỉ xác nhận sau khi tiền đã được hoàn thực tế qua ngân hàng hoặc cổng thanh toán.</p>
     </header>
+    <Link href="/cong-bai" className="inline-block rounded-xl bg-white border px-3 py-2 text-sm font-bold text-blue-700">Mở trang quét vé vào/ra →</Link>
     <button type="button" onClick={() => void reload()} className="rounded-xl bg-white border px-3 py-2 text-sm font-bold">Làm mới danh sách</button>
     {message && <p role="status" className="rounded-xl bg-amber-50 border border-amber-200 p-3 text-sm">{message}</p>}
     {items.length === 0 && <p className="rounded-xl bg-white border p-4 text-sm">Không có yêu cầu hoàn cọc đang chờ.</p>}

@@ -80,7 +80,7 @@ ${JSON.stringify(lotsSummary, null, 2)}
 
 Chính sách & Quy định EZ-Space:
 - Đặt cọc: 50.000 ₫ để giữ chỗ trong 10 phút.
-- Thời hạn đến bãi: Có 20 phút kể từ lúc thanh toán cọc thành công để đến bãi và quét QR vào cổng. Quá 20 phút sẽ tự động hủy và mất cọc.
+- Thời hạn đến bãi: Có thể quét QR từ 20 phút trước đến 20 phút sau giờ vào đã đặt, nếu ô đỗ đã sẵn sàng. Quá hạn chưa check-in sẽ bị hủy lượt đặt và mất cọc.
 - Hoàn cọc: Hoàn 100% tiền cọc nếu người dùng chủ động hủy giữ chỗ trong vòng 5 phút đầu tiên.
 - Loại xe hỗ trợ: Sedan, SUV, Xe điện (EV - có trụ sạc).
 

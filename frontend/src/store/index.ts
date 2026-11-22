@@ -459,7 +459,7 @@ export const useStore = create<StoreState>()(
         activeBooking: state.activeBooking
           ? {
               ...state.activeBooking,
-              estimatedHours: Math.max(1, Math.min(24, hours)),
+              estimatedHours: Math.max(1, Math.ceil(hours)),
               ...(startTime ? { startTime } : {}),
               ...(endTime ? { endTime } : {}),
             }

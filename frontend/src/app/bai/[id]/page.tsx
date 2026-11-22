@@ -14,7 +14,7 @@ import { clsx } from "clsx";
 import { useStore, type Vehicle } from "@/store";
 import ParkingSpotCard, { type Spot, type Kind, type Status } from "@/components/parking/ParkingSpotCard";
 import TimeInput24h from "@/components/ui/TimeInput24h";
-import { calculateDetailedFee, getCurrentLotRate } from "@/lib/pricing";
+import { calculateDetailedFee, getRateForHour } from "@/lib/pricing";
 import { bookingDuration, formatBookingTime } from "@/lib/booking-time";
 import dayjs from "dayjs";
 import "dayjs/locale/vi";
@@ -102,9 +102,11 @@ export default function ParkingMapPage() {
     return bookingDuration(startTime, endTime);
   }, [startTime, endTime]);
 
-  const currentRateInfo = useMemo(() => {
-    return getCurrentLotRate(lotId, lot.price);
-  }, [lotId, lot.price]);
+  const selectedRateInfo = useMemo(() => {
+    const selectedStart = new Date(startTime);
+    const at = Number.isFinite(selectedStart.getTime()) ? selectedStart : new Date();
+    return getRateForHour(lotId, at.getHours(), lot.price, at.getDay());
+  }, [lotId, lot.price, startTime]);
 
   const feeDetails = useMemo(() => {
     const start = new Date(startTime);
@@ -112,7 +114,6 @@ export default function ParkingMapPage() {
   }, [lotId, startTime, durationInfo?.hours, lot.price]);
 
   const [showFeeBreakdown, setShowFeeBreakdown] = useState(false);
-  const [showAllBookings, setShowAllBookings] = useState(false);
 
   function applyQuickHours(addHours: number) {
     if (!startTime) return;
@@ -141,7 +142,7 @@ export default function ParkingMapPage() {
   const refresh = useCallback(async () => {
     setIsRefreshing(true);
     try {
-      const [apiSpots, apiLot] = await Promise.all([getLotSlotsApi(lotId, startTime, endTime), getLotByIdApi(lotId)]);
+      const [apiSpots, apiLot] = await Promise.all([getLotSlotsApi(lotId), getLotByIdApi(lotId)]);
       if (apiSpots !== null) {
         setSpots(apiSpots.map(normalizeSlot));
         setLoadError(null);
@@ -159,11 +160,11 @@ export default function ParkingMapPage() {
     } catch (e) {
       console.warn("Auto refresh error:", e);
       setSpots([]);
-      setLoadError("Không tải được ô đỗ từ máy chủ. Vui lòng thử lại.");
+      setLoadError(e instanceof Error ? e.message : "Không tải được ô đỗ từ máy chủ. Vui lòng thử lại.");
     } finally {
       setIsRefreshing(false);
     }
-  }, [lotId, startTime, endTime, fallbackLot.name, fallbackLot.address, fallbackLot.price]);
+  }, [lotId, fallbackLot.name, fallbackLot.address, fallbackLot.price]);
 
   useEffect(() => {
     setSpotId(null);
@@ -185,13 +186,7 @@ export default function ParkingMapPage() {
     };
   }, [refresh]);
 
-  const displayed = useMemo(() => spots.map((spot) => {
-    if (booking?.lotId !== lotId || booking.spotId !== spot.id ||
-      !booking.startTime || !booking.endTime || !startTime || !endTime ||
-      new Date(booking.startTime) >= new Date(endTime) || new Date(booking.endTime) <= new Date(startTime) ||
-      !["holding", "paid", "entered"].includes(booking.status)) return spot;
-    return { ...spot, status: (booking.status === "entered" ? "occupied" : "holding") as Status };
-  }), [spots, booking, lotId, startTime, endTime]);
+  const displayed = spots;
 
   const selected = displayed.find((s) => s.id === spotId) || null;
   const selectedBookings = selected?.bookedIntervals || [];
@@ -247,7 +242,6 @@ export default function ParkingMapPage() {
     if (car.type === "EV" && needsCharging === null) { setDialog("charge"); return; }
     if (s.status === "disabled") { toast("Ô đang bảo trì", "error"); return; }
     if (!isSuitable(s, car, needsCharging)) { toast("Ô này không phù hợp với xe của bạn", "error"); return; }
-    setShowAllBookings(false);
     setSpotId(s.id);
   }
   function chooseBest() {
@@ -257,11 +251,12 @@ export default function ParkingMapPage() {
   }
   async function reserve() {
     if (!selected || !car || submitting || loadError || !selected.dbId) return;
-    if (selected.status !== "empty" || conflictingBookings.length) {
+    if (selected.status === "disabled" || conflictingBookings.length ||
+        (selected.status !== "empty" && new Date(startTime).getTime() <= Date.now())) {
       toast("Ô đã có người đặt trong khoảng giờ này. Hãy chọn giờ khác hoặc ô khác.", "error"); return;
     }
     if (!durationInfo || !startTime || new Date(startTime).getTime() < Date.now() - 60_000) {
-      toast("Hãy chọn ngày giờ bắt đầu trong tương lai và thời gian đỗ tối đa 24 giờ.", "error"); return;
+      toast("Hãy chọn giờ vào trong tương lai và giờ ra sau giờ vào.", "error"); return;
     }
     if (booking && ["holding", "paid", "entered"].includes(booking.status)) {
       toast("Bạn đã có một lượt đặt chỗ đang hoạt động", "error"); return;
@@ -270,27 +265,6 @@ export default function ParkingMapPage() {
     try {
       let serverReservationId: number | undefined;
       let serverHoldExpiresAt: number | undefined;
-
-      let startIso: string | undefined;
-      let endIso: string | undefined;
-      if (startTime && endTime) {
-        const [sH, sM] = startTime.split(":").map(Number);
-        const [eH, eM] = endTime.split(":").map(Number);
-        if (!isNaN(sH) && !isNaN(sM) && !isNaN(eH) && !isNaN(eM)) {
-          const sDate = new Date();
-          sDate.setHours(sH, sM, 0, 0);
-          if (sDate.getTime() < Date.now() - 12 * 60 * 60 * 1000) {
-            sDate.setDate(sDate.getDate() + 1);
-          }
-          const eDate = new Date(sDate);
-          eDate.setHours(eH, eM, 0, 0);
-          if (eDate <= sDate) {
-            eDate.setDate(eDate.getDate() + 1);
-          }
-          startIso = sDate.toISOString();
-          endIso = eDate.toISOString();
-        }
-      }
 
       // Gọi API giữ chỗ chống trùng (Atomic Update) ở Backend
       const holdRes = await holdSpotApi({
@@ -346,11 +320,11 @@ export default function ParkingMapPage() {
   }
 
   function renderSpot(s: Spot | null, side: "left" | "right") {
-    if (!s) return <div className="h-[80px]" />;
+    if (!s) return <div className="h-[94px]" />;
     const visible = filter === "all" || s.type === filter;
     return <ParkingSpotCard key={s.id} spot={s} visible={visible}
       compatible={isSuitable(s, car, needsCharging)} selected={selected?.id === s.id}
-      recommended={best?.id === s.id && !selected} pricePerHour={currentRateInfo.rate}
+      recommended={best?.id === s.id && !selected} pricePerHour={selectedRateInfo.rate}
       onSelect={() => pickSpot(s)} />;
   }
 
@@ -393,6 +367,7 @@ export default function ParkingMapPage() {
         <span className="text-emerald-700">🟢 Trống ({freeCount})</span><span className="text-rose-600">🔴 Đã đỗ ({occupiedCount})</span>
         <span className="text-amber-700">🟡 Giữ ({holdingCount})</span><span className="text-slate-500">⚪ Bảo trì</span>
       </div>
+      <p className="text-[10px] text-slate-500">Giá trên ô là giá tại giờ vào bạn chọn; tổng phí tính theo các giờ đã đặt.</p>
       <div className="flex overflow-x-auto gap-1.5">
         {([["all", "Tất cả"], ["sedan", "🚗 Sedan"], ["suv", "🚙 SUV"], ["ev", "⚡ EV"]] as const).map(([v, label]) =>
           <button key={v} onClick={() => { setFilter(v); setSpotId(null) }} className={clsx("shrink-0 rounded-full px-3 py-1.5 text-[11px] font-semibold",
@@ -446,7 +421,7 @@ export default function ParkingMapPage() {
             <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1.5 flex-wrap">
               <span>{car?.plate}</span>
               <span>·</span>
-              <span>Giá hiện tại: <strong className="text-slate-800">{money(currentRateInfo.rate)}/h</strong></span>
+              <span>Giá giờ vào: <strong className="text-slate-800">{money(selectedRateInfo.rate)}/giờ</strong></span>
             </p>
           </div><button onClick={() => setSpotId(null)}><X size={18} className="text-slate-400" /></button></div>
           <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-3">
@@ -455,7 +430,7 @@ export default function ParkingMapPage() {
                 <Clock3 size={13} className="text-blue-600" /> Thời gian đỗ xe
               </span>
               <span className="text-xs font-bold text-blue-700 bg-blue-100/70 px-2.5 py-0.5 rounded-full">
-                Thời lượng: {durationInfo?.text || "Chọn thời gian"} {durationInfo?.isNextDay && <span className="text-[10px] text-amber-600 font-semibold">(qua ngày)</span>}
+                Thời lượng: {durationInfo?.text || "Chọn thời gian"}
               </span>
             </div>
 
@@ -469,15 +444,13 @@ export default function ParkingMapPage() {
                   onChange={(value) => setEndTime(value?.isValid() ? value.toDate().toISOString() : "")}
                   format="DD/MM/YYYY HH:mm" ampm={false} minutesStep={5}
                   minDateTime={startTime ? dayjs(startTime).add(1, "minute") : dayjs()}
-                  maxDateTime={startTime ? dayjs(startTime).add(24, "hour") : undefined}
                   slotProps={{ textField: { size: "small", fullWidth: true } }} />
               </div>
             </LocalizationProvider>
-            {!durationInfo && <p className="text-xs text-rose-600">Giờ ra phải sau giờ vào và tối đa 24 giờ.</p>}
+            {!durationInfo && <p className="text-xs text-rose-600">Giờ ra phải sau giờ vào.</p>}
             {selectedBookings.length > 0 && <div className="rounded-xl border border-blue-200 bg-blue-50 p-2.5 text-xs text-slate-700">
-              {selectedBookings.length === 1 ? <p>Đã có lịch: <b>{formatBookingTime(selectedBookings[0].startTime)} → {formatBookingTime(selectedBookings[0].endTime)}</b></p>
-                : <><button type="button" onClick={() => setShowAllBookings(v => !v)} className="font-bold text-blue-700 underline">{showAllBookings ? "Ẩn lịch đặt" : `Xem ${selectedBookings.length} lượt đặt của ô này`}</button>
-                  {showAllBookings && <ul className="mt-2 space-y-1">{selectedBookings.map((item, index) => <li key={`${item.startTime}-${index}`}>• {formatBookingTime(item.startTime)} → {formatBookingTime(item.endTime)}</li>)}</ul>}</>}
+              <p className="font-bold text-blue-700">Giờ đã đặt của ô {selected.id} ({selectedBookings.length} lượt)</p>
+              <ul className="mt-1 max-h-28 overflow-y-auto space-y-1">{selectedBookings.map((item, index) => <li key={`${item.startTime}-${index}`}>• {formatBookingTime(item.startTime)} → {formatBookingTime(item.endTime)}</li>)}</ul>
             </div>}
             {conflictingBookings.length > 0 && <p role="alert" className="rounded-xl border border-rose-300 bg-rose-50 p-2.5 text-xs font-bold text-rose-700">Ô này đã có người đặt trùng khoảng giờ bạn chọn ({formatBookingTime(conflictingBookings[0].startTime)} → {formatBookingTime(conflictingBookings[0].endTime)}). Vui lòng đổi giờ hoặc chọn ô khác.</p>}
 
@@ -547,7 +520,7 @@ export default function ParkingMapPage() {
               )}
             </div>
           </div>
-          <button onClick={() => void reserve()} disabled={submitting || !!loadError || !selected.dbId || !durationInfo || !startTime || selected.status !== "empty" || conflictingBookings.length > 0 || new Date(startTime).getTime() < Date.now() - 60_000} className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-bold rounded-xl flex justify-center items-center gap-2 disabled:opacity-50">
+          <button onClick={() => void reserve()} disabled={submitting || !!loadError || !selected.dbId || !durationInfo || !startTime || selected.status === "disabled" || (selected.status !== "empty" && new Date(startTime).getTime() <= Date.now()) || conflictingBookings.length > 0 || new Date(startTime).getTime() < Date.now() - 60_000} className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-bold rounded-xl flex justify-center items-center gap-2 disabled:opacity-50">
             <Clock3 size={16} /> {submitting ? "Đang kiểm tra ô..." : "Tiếp tục đặt chỗ & thanh toán cọc"}</button>
         </div>
       </section>

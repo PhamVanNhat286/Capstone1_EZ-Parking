@@ -20,7 +20,7 @@ export default function BookingReminders() {
 
       if (booking.status === "paid" && now >= start - 20 * 60_000 && now < start) {
         reminder = "arrival";
-        message = `Còn khoảng 20 phút đến giờ vào ô ${booking.spotId}. Vé chỉ quét được từ đúng giờ vào.`;
+        message = `Còn khoảng 20 phút đến giờ vào ô ${booking.spotId}. Vé đã có thể quét nếu ô đỗ đang trống.`;
       } else if (booking.status === "entered" && now >= end - 10 * 60_000 && now < end) {
         reminder = "departure";
         message = `Sắp đến giờ ra khỏi ô ${booking.spotId}. Vui lòng chuẩn bị lấy xe.`;

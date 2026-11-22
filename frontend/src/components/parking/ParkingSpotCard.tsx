@@ -35,16 +35,18 @@ export default function ParkingSpotCard({
   const statusLabel = free ? "Trống" : spot.status === "occupied" ? "Đã đỗ"
     : spot.status === "holding" ? "Đang giữ" : "Bảo trì";
   const typeLabel = spot.type === "ev" ? "Sạc EV" : spot.type === "suv" ? "SUV" : "Sedan";
+  const upcoming = spot.bookedIntervals?.find((item) => new Date(item.endTime).getTime() > Date.now());
+  const upcomingTime = upcoming ? `${new Date(upcoming.startTime).toLocaleString("vi-VN", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}–${new Date(upcoming.endTime).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}` : null;
 
   return (
     <button
       type="button"
-      aria-label={`Ô ${spot.id}, ${statusLabel}, loại ${typeLabel}`}
+      aria-label={`Ô ${spot.id}, ${statusLabel}, loại ${typeLabel}${upcomingTime ? `, lịch đặt gần nhất ${upcomingTime}` : ""}, giá giờ vào ${pricePerHour.toLocaleString("vi-VN")} đồng mỗi giờ`}
       aria-pressed={selected}
       disabled={!visible}
       onClick={onSelect}
       className={clsx(
-        "relative h-[80px] w-full rounded-xl border-2 p-2 flex flex-col justify-between text-left transition shadow-sm",
+        "relative h-[94px] w-full rounded-xl border-2 p-2 flex flex-col justify-between text-left transition shadow-sm",
         free ? "bg-emerald-50 border-emerald-400" : spot.status === "occupied" ? "bg-rose-50 border-rose-300"
           : spot.status === "holding" ? "bg-amber-50 border-amber-400" : "bg-slate-200 border-slate-300",
         (!visible || (free && !compatible)) && "opacity-30 grayscale",
@@ -67,10 +69,12 @@ export default function ParkingSpotCard({
           spot.status === "occupied" ? "bg-rose-400 border-rose-500" : "bg-amber-400 border-amber-500")}>
           <span className="w-5 h-1 rounded bg-slate-700/40" /><span className="w-4 h-2 rounded bg-white/60" />
         </div>}
-      <div className="flex justify-between text-[9px] text-slate-500 font-semibold">
-        <span>{spot.nearExit ? "↗ Gần lối ra" : ""}</span>
-        {!!spot.bookedIntervals?.length && <span className="font-extrabold text-blue-700">{spot.bookedIntervals.length} lịch đặt</span>}
-        {free && <span className="font-extrabold text-emerald-700">{Math.round(pricePerHour / 1000)}k/h</span>}
+      <div className="text-[9px] font-semibold space-y-0.5">
+        {upcomingTime && <div className="truncate text-blue-700" title={`${upcomingTime} (${spot.bookedIntervals?.length || 0} lượt)`}>Đặt: {upcomingTime}{(spot.bookedIntervals?.length || 0) > 1 ? ` +${(spot.bookedIntervals?.length || 0) - 1}` : ""}</div>}
+        <div className="flex justify-between gap-1 text-slate-500">
+          <span>{spot.nearExit ? "↗ Gần lối ra" : ""}</span>
+          <span className="font-extrabold text-emerald-700">{pricePerHour.toLocaleString("vi-VN")}đ/giờ</span>
+        </div>
       </div>
     </button>
   );

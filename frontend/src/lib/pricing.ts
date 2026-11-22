@@ -190,15 +190,12 @@ export function calculateDetailedFee(
   fallbackBasePrice: number = 15000,
   referenceDate: Date = new Date()
 ): DetailedFeeResult {
-  const safeHours = Math.max(1, Math.min(24, billableHours || 1));
-  let startHour = referenceDate.getHours();
-
-  if (startTimeStr && startTimeStr.includes(":")) {
-    const parsedH = parseInt(startTimeStr.split(":")[0], 10);
-    if (!isNaN(parsedH)) {
-      startHour = parsedH;
-    }
-  }
+  const safeHours = Math.max(1, Math.ceil(Number.isFinite(billableHours) ? billableHours : 1));
+  const bookingDate = /^\d{1,2}:\d{2}$/.test(startTimeStr) ? null : new Date(startTimeStr);
+  const effectiveDate = bookingDate && Number.isFinite(bookingDate.getTime()) ? bookingDate : referenceDate;
+  const startHour = /^\d{1,2}:\d{2}$/.test(startTimeStr)
+    ? Number(startTimeStr.split(":")[0])
+    : effectiveDate.getHours();
 
   const breakdown: HourBreakdown[] = [];
   let totalFee = 0;
@@ -208,7 +205,7 @@ export function calculateDetailedFee(
     const curHour = (startHour + i) % 24;
     // Tính ngày trong tuần (nếu vắt qua ngày hôm sau)
     const dayOffset = Math.floor((startHour + i) / 24);
-    const dayOfWeek = (referenceDate.getDay() + dayOffset) % 7;
+    const dayOfWeek = (effectiveDate.getDay() + dayOffset) % 7;
 
     const hourRateInfo = getRateForHour(lotId, curHour, fallbackBasePrice, dayOfWeek);
     totalFee += hourRateInfo.rate;
