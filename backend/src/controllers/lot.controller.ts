@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { query } from "../config/db";
+import { AuthRequest } from "../middlewares/auth.middleware";
 
 // GET /api/lots - Lấy danh sách tất cả các bãi xe kèm số lượng ô trống
 export const getLots = async (req: Request, res: Response): Promise<void> => {
@@ -103,25 +104,42 @@ export const getLotById = async (req: Request, res: Response): Promise<void> => 
 };
 
 // GET /api/lots/:id/slots - Lấy danh sách ô đỗ & sơ đồ 2D
-export const getLotSlots = async (req: Request, res: Response): Promise<void> => {
+export const getLotSlots = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const lotId = resolveLotId(req.params.id);
     const sql = `
       SELECT 
-        id,
-        parking_lot_id,
-        code,
-        row_index,
-        col_index,
-        slot_type,
-        status,
-        is_active
-      FROM slots
-      WHERE parking_lot_id = $1 AND is_active = TRUE
-      ORDER BY row_index ASC, col_index ASC;
+        s.id, s.parking_lot_id, s.code, s.row_index, s.col_index, s.slot_type,
+        CASE WHEN s.status='occupied' OR EXISTS (
+          SELECT 1 FROM reservations r
+          WHERE r.slot_id=s.id AND r.status='entered'
+        ) THEN 'occupied'
+        WHEN EXISTS (
+          SELECT 1 FROM reservations r
+          WHERE r.slot_id=s.id AND r.status IN ('holding', 'paid')
+            AND r.start_time <= NOW()
+            AND (r.expected_end_time > NOW() OR (r.status='paid' AND r.arrival_expires_at > NOW()))
+            AND (r.status <> 'holding' OR r.hold_expires_at > NOW())
+        ) THEN 'holding'
+        WHEN s.status='holding' THEN 'available' ELSE s.status END AS status,
+        COALESCE((
+          SELECT json_agg(json_build_object(
+            'startTime', r.start_time, 'endTime', r.expected_end_time,
+            'status', r.status, 'isMine', r.user_id = $2::bigint
+          ) ORDER BY r.start_time)
+          FROM reservations r WHERE r.slot_id=s.id
+            AND r.status IN ('holding', 'paid', 'entered')
+            AND (r.expected_end_time > NOW() OR r.status='entered')
+            AND (r.status <> 'holding' OR r.hold_expires_at > NOW())
+            AND (r.status <> 'paid' OR r.arrival_expires_at > NOW())
+        ), '[]'::json) AS booked_intervals,
+        s.is_active
+      FROM slots s
+      WHERE s.parking_lot_id = $1 AND s.is_active = TRUE
+      ORDER BY s.row_index ASC, s.col_index ASC;
     `;
 
-    const { rows } = await query(sql, [lotId]);
+    const { rows } = await query(sql, [lotId, req.user?.id ?? null]);
     res.json({ success: true, data: rows });
   } catch (error) {
     console.error("Error fetching slots:", error);

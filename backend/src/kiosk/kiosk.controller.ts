@@ -1,6 +1,8 @@
 import { Request, Response } from "express";
 import { pool, query } from "../config/db";
 import { AuthRequest } from "../middlewares/auth.middleware";
+import { entryOpensAt, parkingCharge } from "../config/booking-policy";
+import { parkingFeeForHours } from "../config/parking-pricing";
 
 /**
  * Trích xuất ID đơn đặt chỗ từ chuỗi mã QR hoặc tham số đầu vào
@@ -158,7 +160,12 @@ export const scanIn = async (req: AuthRequest, res: Response): Promise<void> => 
       return;
     }
 
-    // Kiểm tra thời hạn đến bãi (arrival_expires_at - mặc định 20 phút)
+    // Cho đến sớm tối đa 20 phút; vẫn phải kiểm tra ô thực sự đã trống.
+    if (r.start_time && Date.now() < entryOpensAt(new Date(r.start_time)).getTime()) {
+      await client.query("ROLLBACK");
+      res.status(400).json({ success: false, code: "ARRIVAL_TOO_EARLY", message: "Vé chỉ dùng để vào bãi từ 20 phút trước giờ đặt." });
+      return;
+    }
     if (r.arrival_expires_at && new Date() > new Date(r.arrival_expires_at)) {
       await client.query("ROLLBACK");
       res.status(400).json({
@@ -166,6 +173,20 @@ export const scanIn = async (req: AuthRequest, res: Response): Promise<void> => 
         code: "ARRIVAL_DEADLINE_EXPIRED",
         message: `Vé đã quá thời hạn đến bãi cho phép (${new Date(r.arrival_expires_at).toLocaleTimeString("vi-VN")}).`,
       });
+      return;
+    }
+
+    const previousReservation = await client.query(`
+      SELECT 1 FROM reservations other
+      WHERE other.slot_id = $1 AND other.id <> $2
+        AND other.status IN ('holding', 'paid', 'entered')
+        AND (other.status <> 'holding' OR other.hold_expires_at > NOW())
+        AND other.start_time <= NOW() AND other.expected_end_time > NOW()
+      LIMIT 1
+    `, [r.slot_id, r.id]);
+    if (r.slot_status === "occupied" || previousReservation.rows.length > 0) {
+      await client.query("ROLLBACK");
+      res.status(409).json({ success: false, code: "SPOT_STILL_OCCUPIED", message: "Ô đỗ chưa sẵn sàng: lượt trước vẫn còn xe hoặc chưa hết giờ đặt." });
       return;
     }
 
@@ -285,6 +306,8 @@ export const scanOut = async (req: AuthRequest, res: Response): Promise<void> =>
         r.status,
         r.deposit_amount,
         r.hourly_rate,
+        r.start_time,
+        r.expected_end_time,
         s.code AS slot_code,
         l.name AS lot_name,
         v.license_plate,
@@ -329,10 +352,13 @@ export const scanOut = async (req: AuthRequest, res: Response): Promise<void> =>
     const diffMs = Math.max(0, checkOutTime.getTime() - checkInTime.getTime());
     const totalMinutes = Math.max(1, Math.ceil(diffMs / (1000 * 60)));
     
-    // Quy tắc tính giờ: làm tròn lên giờ tiếp theo (vd: 1h15p tính 2h)
-    const billableHours = Math.max(1, Math.ceil(totalMinutes / 60));
+    // Ra sớm vẫn trả đủ thời gian đã đặt; chỉ cộng giờ phát sinh sau giờ ra dự kiến.
     const hourlyRate = Number(r.hourly_rate || 20000);
-    const totalParkingFee = billableHours * hourlyRate;
+    const charge = parkingCharge(new Date(r.start_time), new Date(r.expected_end_time), checkOutTime, hourlyRate);
+    const { bookedHours, overdueHours, billableHours } = charge;
+    const bookedFee = parkingFeeForHours(Number(r.parking_lot_id), new Date(r.start_time), bookedHours, hourlyRate);
+    const overdueFee = parkingFeeForHours(Number(r.parking_lot_id), new Date(r.expected_end_time), overdueHours, hourlyRate);
+    const totalParkingFee = bookedFee + overdueFee;
     const depositPaid = Number(r.deposit_amount || 50000);
 
     // Tính phần chênh lệch với tiền cọc đã trả
@@ -396,6 +422,9 @@ export const scanOut = async (req: AuthRequest, res: Response): Promise<void> =>
         duration_minutes: totalMinutes,
         duration_text: durationText,
         billable_hours: billableHours,
+        booked_hours: bookedHours,
+        overdue_hours: overdueHours,
+        overdue_fee: overdueFee,
         hourly_rate: hourlyRate,
         deposit_amount: depositPaid,
         total_amount: totalParkingFee,

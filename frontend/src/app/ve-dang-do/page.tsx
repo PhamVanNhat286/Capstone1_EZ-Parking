@@ -106,8 +106,10 @@ function VeDangDoContent() {
       spotId: activeDbItem.slot_code,
       vehicleId: String(activeDbItem.vehicle_id || "1"),
       status: activeDbItem.status,
+      startTime: activeDbItem.start_time,
+      endTime: activeDbItem.expected_end_time,
       holdExpiresAt: activeDbItem.hold_expires_at ? new Date(activeDbItem.hold_expires_at).getTime() : Date.now() + 10 * 60 * 1000,
-      arrivalExpiresAt: activeDbItem.arrival_expires_at ? new Date(activeDbItem.arrival_expires_at).getTime() : Date.now() + 20 * 60 * 1000,
+      arrivalExpiresAt: activeDbItem.arrival_expires_at ? new Date(activeDbItem.arrival_expires_at).getTime() : 0,
       createdAt: new Date(activeDbItem.created_at || Date.now()).getTime(),
     } as Booking : null);
 
@@ -120,6 +122,8 @@ function VeDangDoContent() {
   const paidSeconds = effectiveBooking?.arrivalExpiresAt
     ? Math.max(0, Math.ceil((effectiveBooking.arrivalExpiresAt - now) / 1000))
     : 0;
+  const entryOpensAt = effectiveBooking?.startTime ? new Date(effectiveBooking.startTime).getTime() : 0;
+  const entryNotOpen = !!entryOpensAt && now < entryOpensAt;
 
   const holdSeconds = effectiveBooking?.holdExpiresAt
     ? Math.max(0, Math.ceil((effectiveBooking.holdExpiresAt - now) / 1000))
@@ -210,7 +214,7 @@ function VeDangDoContent() {
                 ) : isEntered ? (
                   <span>Đang đỗ: <strong className="text-white font-mono">{formatTime(parkedSeconds)}</strong></span>
                 ) : (
-                  <span>Hạn đến: <strong className="text-white font-mono">{formatMinSec(paidSeconds)}</strong></span>
+                  <span>{entryNotOpen ? "Giờ vào: " : "Hạn đến: "}<strong className="text-white font-mono">{entryNotOpen ? new Date(entryOpensAt).toLocaleString("vi-VN", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : formatMinSec(paidSeconds)}</strong></span>
                 )}
               </div>
             </div>

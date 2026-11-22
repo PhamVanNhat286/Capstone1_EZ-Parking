@@ -20,10 +20,11 @@ import {
   X,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
-import { getLotByIdApi, getReservationByIdApi, kioskScanInApi, kioskScanOutApi, releaseSpotApi } from "@/lib/api";
+import { getLotByIdApi, getReservationByIdApi, getRelocationOptionsApi, releaseSpotApi, cancelReservationApi, requestOccupiedSlotRefundApi, switchReservationSlotApi, type RelocationOption } from "@/lib/api";
 import { lots } from "@/lib/mock/lots";
 import { calculateDetailedFee } from "@/lib/pricing";
 import { useStore } from "@/store";
+import { formatBookingTime } from "@/lib/booking-time";
 
 const DEPOSIT = 50_000;
 const HH_MM_REGEX = /^\d{1,2}:\d{2}$/;
@@ -97,7 +98,7 @@ const computeParkingDuration = (
         endTotal += 24 * 60;
         isNextDay = true;
       }
-      const hours = Math.max(1, Math.min(24, Math.ceil((endTotal - startTotal) / 60)));
+      const hours = Math.max(1, Math.ceil((endTotal - startTotal) / 60));
       return { hours, isNextDay };
     }
 
@@ -107,7 +108,7 @@ const computeParkingDuration = (
       const diffMs = endDate.getTime() - startDate.getTime();
       if (diffMs > 0) {
         const totalMinutes = Math.round(diffMs / 60000);
-        const hours = Math.max(1, Math.min(24, Math.ceil(totalMinutes / 60)));
+        const hours = Math.max(1, Math.ceil(totalMinutes / 60));
         const isNextDay =
           startDate.getFullYear() !== endDate.getFullYear() ||
           startDate.getMonth() !== endDate.getMonth() ||
@@ -127,16 +128,16 @@ export default function TicketPage() {
   const activeBooking = useStore((s) => s.activeBooking);
   const history = useStore((s) => s.history);
   const vehicles = useStore((s) => s.vehicles);
-  const markEntered = useStore((s) => s.markEntered);
-  const markCompleted = useStore((s) => s.markCompleted);
   const markExpired = useStore((s) => s.markExpired);
   const cancelBooking = useStore((s) => s.cancelBooking);
+  const updateWalletBalance = useStore((s) => s.updateWalletBalance);
   const addToast = useStore((s) => s.addToast);
   const isDemo = useStore((s) => s.isDemo);
 
   const [dbBooking, setDbBooking] = useState<any | null>(null);
   const [isLoadingDb, setIsLoadingDb] = useState(false);
-  const [isScanning, setIsScanning] = useState(false);
+  const [relocation, setRelocation] = useState<{ originalSlot: string; options: RelocationOption[] } | null>(null);
+  const [moving, setMoving] = useState(false);
 
   // Fetch real reservation detail & QR from PostgreSQL Database
   const fetchDbReservation = async () => {
@@ -220,6 +221,54 @@ export default function TicketPage() {
   const [showCancel, setShowCancel] = useState(false);
   const [expandLate, setExpandLate] = useState(false);
 
+  const reservationKey = booking?.backendId || booking?.id;
+  const bookingStatus = booking?.status;
+  const bookingStart = booking?.startTime;
+  const arrivalExpiry = booking?.arrivalExpiresAt;
+  useEffect(() => {
+    if (bookingStatus !== "paid" || !reservationKey || !user?.token) return;
+    let cancelled = false;
+    const check = async () => {
+      if (!bookingStart || Date.now() < new Date(bookingStart).getTime() ||
+          !arrivalExpiry || Date.now() > arrivalExpiry) return;
+      try {
+        const result = await getRelocationOptionsApi(reservationKey, user.token);
+        if (!cancelled && result.success) setRelocation(result.data?.needsMove ? {
+          originalSlot: result.data.originalSlot, options: result.data.options,
+        } : null);
+      } catch { /* Thử lại khi lần làm mới tiếp theo chạy. */ }
+    };
+    void check();
+    const timerId = window.setInterval(() => void check(), 10000);
+    return () => { cancelled = true; window.clearInterval(timerId); };
+  }, [reservationKey, bookingStatus, bookingStart, arrivalExpiry, user?.token]);
+
+  const moveToSlot = async (slot: RelocationOption) => {
+    if (!reservationKey || moving) return;
+    setMoving(true);
+    try {
+      const result = await switchReservationSlotApi(reservationKey, slot.id, user?.token);
+      if (!result.success) { addToast(result.message || "Không đổi được ô", "error"); return; }
+      addToast(`Đã chuyển vé sang ô ${result.data?.slot_code || slot.code}`, "success");
+      setRelocation(null);
+      await fetchDbReservation();
+    } catch { addToast("Không kết nối được máy chủ để đổi ô", "error"); }
+    finally { setMoving(false); }
+  };
+
+  const requestRefund = async () => {
+    if (!reservationKey || moving) return;
+    setMoving(true);
+    try {
+      const result = await requestOccupiedSlotRefundApi(reservationKey, user?.token);
+      if (!result.success) { addToast(result.message || "Không gửi được yêu cầu hoàn cọc", "error"); return; }
+      addToast("Đã gửi yêu cầu hoàn cọc. Tiền chưa được chuyển tự động; nhân viên sẽ đối soát.", "info");
+      useStore.getState().releaseSpot();
+      router.replace("/lich-su");
+    } catch { addToast("Không kết nối được máy chủ để yêu cầu hoàn cọc", "error"); }
+    finally { setMoving(false); }
+  };
+
   useEffect(() => {
     if (dbBooking) {
       setLot({
@@ -297,7 +346,10 @@ export default function TicketPage() {
     );
   }
 
-  const validQR = booking.status === "paid" || booking.status === "entered";
+  const qrOpensAt = new Date(booking.startTime).getTime() - 20 * 60_000;
+  const beforeQrWindow = booking.status === "paid" && now < qrOpensAt;
+  const showQR = booking.status === "entered" || (booking.status === "paid" && now <= (booking.arrivalExpiresAt || 0));
+  const validQR = showQR && !beforeQrWindow;
   const remaining =
     booking.status === "paid" ? Math.max(0, Math.ceil(((booking.arrivalExpiresAt || 0) - now) / 1000)) : 0;
   const qrPayload =
@@ -343,72 +395,30 @@ export default function TicketPage() {
   const remainingFee = Math.max(0, total - depositAmount);
   const estimatedRefund = Math.max(0, depositAmount - total);
 
-  const handleScanIn = async () => {
-    setIsScanning(true);
-    try {
-      const resId = dbBooking?.id || booking?.backendId || booking?.id;
-      const res = await kioskScanInApi(
-        {
-          ticket_code: String(booking?.id || `EZ-${resId}`),
-          reservation_id: typeof resId === "number" ? resId : parseInt(String(resId).replace(/^[eE][zZ]-/, ""), 10),
-          parking_lot_id: dbBooking?.parking_lot_id || booking?.lotId || 1,
-        },
-        user?.token
-      );
-
-      if (res.success) {
-        addToast("Barrier đã mở! Xe check-in vào bãi thành công.", "success");
-        markEntered();
-        await fetchDbReservation();
-      } else {
-        addToast(res.message || "Quét mã vào bãi thất bại", "error");
-      }
-    } catch {
-      addToast("Lỗi kết nối máy quét barrier", "error");
-    } finally {
-      setIsScanning(false);
-    }
-  };
-
-  const handleScanOut = async () => {
-    setIsScanning(true);
-    try {
-      const resId = dbBooking?.id || booking?.backendId || booking?.id;
-      const res = await kioskScanOutApi(
-        {
-          ticket_code: String(booking?.id || `EZ-${resId}`),
-          reservation_id: typeof resId === "number" ? resId : parseInt(String(resId).replace(/^[eE][zZ]-/, ""), 10),
-          parking_lot_id: dbBooking?.parking_lot_id || booking?.lotId || 1,
-          slot_code: dbBooking?.slot_code || booking?.spotId,
-        },
-        user?.token
-      );
-
-      if (res.success) {
-        addToast("Barrier đã mở! Xe check-out ra bãi thành công. Ô đỗ đã được giải phóng.", "success");
-        markCompleted();
-        await fetchDbReservation();
-      } else {
-        addToast(res.message || "Quét mã ra bãi thất bại", "error");
-      }
-    } catch {
-      addToast("Lỗi kết nối máy quét barrier", "error");
-    } finally {
-      setIsScanning(false);
-    }
-  };
-
   const handleCancelBooking = async () => {
     try {
       const resId = dbBooking?.id || booking?.backendId || booking?.id;
       if (resId) {
-        await releaseSpotApi(resId, user?.token);
+        const cancelRes = await cancelReservationApi(resId, user?.token);
+        if (cancelRes && cancelRes.success) {
+          if (cancelRes.data?.refunded) {
+            const refundAmt = Number(cancelRes.data.refund_amount || 50000);
+            updateWalletBalance(refundAmt);
+            addToast(`Đã hủy vé thành công! Tiền cọc ${refundAmt.toLocaleString("vi-VN")}đ đã được hoàn vào Ví EZ-Space của bạn.`, "success");
+          } else {
+            addToast(cancelRes.message || "Đã hủy đơn đặt chỗ thành công.", "info");
+          }
+        } else {
+          await releaseSpotApi(resId, user?.token);
+          addToast("Đã hủy đơn đặt chỗ.", "info");
+        }
       }
       cancelBooking();
-      addToast("Đã hủy đơn đặt chỗ và giải phóng ô đỗ trên CSDL.", "info");
+      setShowCancel(false);
       router.replace("/lich-su");
     } catch {
       cancelBooking();
+      setShowCancel(false);
       router.replace("/lich-su");
     }
   };
@@ -466,6 +476,8 @@ export default function TicketPage() {
       ? "ĐÃ HOÀN THÀNH"
       : booking.status === "cancelled"
       ? "ĐÃ HỦY"
+      : booking.status === "refunded"
+      ? "ĐÃ HOÀN CỌC"
       : booking.status === "forfeited"
       ? "HẾT HẠN"
       : "CHƯA THANH TOÁN";
@@ -513,12 +525,14 @@ export default function TicketPage() {
             <div className="flex gap-1.5 items-center flex-wrap">
               <span className="text-[10px] font-black bg-blue-600 text-white rounded-md px-2 py-1">{statusText}</span>
               {booking.status === "paid" && (
-                <span className="text-base font-black tabular-nums text-blue-700">{timer(remaining)}</span>
+                <span className="text-base font-black tabular-nums text-blue-700">{beforeQrWindow ? "Chưa đến giờ quét" : timer(remaining)}</span>
               )}
             </div>
             <p className="text-xs font-extrabold mt-1">
               {booking.status === "paid"
-                ? `Đến bãi trước ${arrivalTimeFormatted || "--:--"}${arrivalDateFormatted ? `, ${arrivalDateFormatted}` : ""}`
+                ? beforeQrWindow
+                  ? `Quét vào bãi từ ${new Date(qrOpensAt).toLocaleString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}`
+                  : `Đến bãi trước ${new Date(booking.arrivalExpiresAt || 0).toLocaleString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}`
                 : booking.status === "entered"
                 ? "Xe đã được xác nhận vào bãi"
                 : "Vé không còn dùng để vào bãi"}
@@ -541,21 +555,19 @@ export default function TicketPage() {
               <QrCode size={17} /> MÃ QR VÀO CỔNG
             </div>
             <p className="text-[11px] text-slate-500 mt-1">
-              {validQR ? "Mở mã tại thanh chắn barrier" : "Chỉ khả dụng khi vé còn hiệu lực"}
+              {beforeQrWindow ? "Mã vé đã có; quét được từ 20 phút trước giờ vào" : validQR ? "Mở mã tại thanh chắn barrier" : "Chỉ khả dụng khi vé còn hiệu lực"}
             </p>
             <button
               onClick={() => setFullscreen(true)}
               title="Phóng to mã QR"
-              disabled={!validQR}
+              disabled={!showQR}
               className={`mx-auto my-4 bg-white p-3 border-2 rounded-2xl relative ${
-                validQR ? "border-blue-600" : "border-slate-200 opacity-30"
+                validQR ? "border-blue-600" : beforeQrWindow ? "border-amber-400" : "border-slate-200 opacity-30"
               }`}
               id="ticket-qr"
             >
-              <QRCodeSVG value={qrPayload} size={216} marginSize={1} fgColor="#0f172a" />
-              <span className="absolute -bottom-3 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[10px] rounded-full px-3 py-1 whitespace-nowrap">
-                Nhấn để phóng to
-              </span>
+              {showQR ? <QRCodeSVG value={qrPayload} size={216} marginSize={1} fgColor="#0f172a" /> : <div className="w-[216px] h-[216px] grid place-items-center text-xs text-slate-500 text-center">Mã QR đã hết hiệu lực</div>}
+              {showQR && <span className="absolute -bottom-3 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[10px] rounded-full px-3 py-1 whitespace-nowrap">Nhấn để phóng to</span>}
             </button>
             <div className="mt-6 flex justify-center gap-1.5 items-center">
               <strong className="text-lg tracking-wider font-black font-mono">{booking.id}</strong>
@@ -569,6 +581,7 @@ export default function TicketPage() {
             <div className="flex gap-2 mt-3">
               <button
                 onClick={saveQR}
+                disabled={!showQR}
                 className="flex-1 rounded-xl bg-slate-100 py-2 text-xs font-bold flex items-center justify-center gap-1 active:scale-95 transition-transform"
               >
                 <Download size={15} /> Lưu mã
@@ -630,9 +643,9 @@ export default function TicketPage() {
               <div>
                 <span className="text-slate-500">Thời gian đỗ</span>
                 <p className="font-bold mt-1">
-                  {startTimeFormatted && endTimeFormatted
-                    ? `${startTimeFormatted} - ${endTimeFormatted} (${billableHours} giờ)`
-                    : `${billableHours} giờ`}
+                  {booking.startTime && booking.endTime
+                    ? `${formatBookingTime(booking.startTime)} - ${formatBookingTime(booking.endTime)}`
+                    : `${booking.estimatedHours || 2} giờ`}
                 </p>
                 {parkingDateRange && (
                   <p className="text-[11px] text-slate-500 mt-0.5">{parkingDateRange}</p>
@@ -690,55 +703,18 @@ export default function TicketPage() {
           </p>
         )}
 
-        {/* Kiosk Barrier Scanner Simulator (Nối trực tiếp CSDL PostgreSQL) */}
-        {booking.status === "paid" && (
-          <div className="bg-slate-900 text-white rounded-2xl p-4 space-y-2.5">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xs font-extrabold flex items-center gap-1.5 text-white">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                Cổng Barrier Vào (Check-in Kiosk)
-              </h3>
-              <span className="text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-800/80 px-2 py-0.5 rounded-full font-mono">
-                CSDL Live
-              </span>
-            </div>
-            <p className="text-[11px] text-slate-300 leading-relaxed">
-              Mô phỏng máy quét tại barrier cổng vào: Kiểm tra mã vé trên Backend, mở barie, lưu phiên đỗ vào CSDL.
-            </p>
-            <button
-              onClick={handleScanIn}
-              disabled={isScanning}
-              className="w-full bg-emerald-600 hover:bg-emerald-700 py-3 rounded-xl text-xs font-bold active:scale-95 transition-transform flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/30 disabled:opacity-50"
-            >
-              <QrCode size={16} />
-              <span>{isScanning ? "Đang gửi tín hiệu máy quét..." : "Giả lập quét QR qua Barie vào bãi"}</span>
-            </button>
-          </div>
-        )}
-
-        {booking.status === "entered" && (
-          <div className="bg-slate-900 text-white rounded-2xl p-4 space-y-2.5">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xs font-extrabold flex items-center gap-1.5 text-white">
-                <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
-                Cổng Barrier Ra (Check-out Kiosk)
-              </h3>
-              <span className="text-[10px] bg-blue-950 text-blue-300 border border-blue-800/80 px-2 py-0.5 rounded-full font-mono">
-                CSDL Live
-              </span>
-            </div>
-            <p className="text-[11px] text-slate-300 leading-relaxed">
-              Mô phỏng quét mã tại barie ra: Tính tổng phí, kết thúc phiên đỗ, nhả ô trống về sẵn sàng trên CSDL.
-            </p>
-            <button
-              onClick={handleScanOut}
-              disabled={isScanning}
-              className="w-full bg-blue-600 hover:bg-blue-700 py-3 rounded-xl text-xs font-bold active:scale-95 transition-transform flex items-center justify-center gap-2 shadow-lg shadow-blue-900/30 disabled:opacity-50"
-            >
-              <QrCode size={16} />
-              <span>{isScanning ? "Đang xử lý kết thúc lượt đỗ..." : "Giả lập quét QR qua Barie ra bãi"}</span>
-            </button>
-          </div>
+        {booking.status === "paid" && relocation && (
+          <section role="alert" className="rounded-2xl border-2 border-rose-300 bg-rose-50 p-4 space-y-3 text-sm">
+            <p className="font-extrabold text-rose-800">Ô {relocation.originalSlot} vẫn còn xe của lượt trước</p>
+            {relocation.options.length ? <>
+              <p className="text-slate-700">Bãi có ô cùng loại và cùng mức giá. Chọn ô mới để cập nhật vé trước khi quét vào:</p>
+              <div className="flex flex-wrap gap-2">{relocation.options.map((slot) => <button key={slot.id} type="button" disabled={moving} onClick={() => void moveToSlot(slot)} className="rounded-xl bg-blue-600 px-4 py-2 text-white font-bold disabled:opacity-50">Đồng ý chuyển sang {slot.code}</button>)}</div>
+            </> : <>
+              <p className="text-slate-700">Hiện không có ô tương đương. Gửi yêu cầu hoàn cọc ngay, không cần chờ ô cũ.</p>
+              <button type="button" disabled={moving} onClick={() => void requestRefund()} className="rounded-xl bg-rose-600 px-4 py-2 text-white font-bold disabled:opacity-50">Yêu cầu hoàn cọc</button>
+              <p className="text-xs text-rose-700">Hệ thống ghi yêu cầu để nhân viên đối soát; tiền chưa được hoàn tự động.</p>
+            </>}
+          </section>
         )}
       </div>
 
@@ -802,7 +778,7 @@ export default function TicketPage() {
       {showRules && (
         <Popup title="Quy định giữ chỗ và tiền cọc" close={() => setShowRules(false)}>
           <p>
-            Thời hạn đến bãi được tính từ lúc thanh toán thành công và thể hiện trên vé. Quá hạn, ô đỗ có thể được nhả và
+            Thời hạn đến bãi được tính từ giờ vào đã đặt và thể hiện trên vé. Có thể quét sớm tối đa 20 phút nếu ô đã trống. Quá hạn, ô đỗ có thể được nhả và
             tiền cọc có thể bị mất. Tiền cọc được khấu trừ vào phí gửi xe khi thanh toán cuối cùng.
           </p>
           <p className="mt-3">Đây là quy trình mô phỏng trong đồ án, chưa phải điều khoản của một bãi xe thật.</p>
@@ -819,19 +795,36 @@ export default function TicketPage() {
       )}
 
       {showCancel && (
-        <Popup title="Bạn muốn hủy đặt chỗ?" close={() => setShowCancel(false)}>
-          <p>
-            Hủy sẽ nhả ô đỗ và lưu kết quả vào lịch sử. Điều kiện hoàn cọc trong đồ án được mô phỏng theo thời gian đặt.
-          </p>
-          <div className="flex gap-3 mt-5">
-            <button className="flex-1 rounded-xl bg-slate-100 py-3 font-bold" onClick={() => setShowCancel(false)}>
-              Ở lại
+        <Popup title="Xác nhận hủy vé & Hoàn cọc" close={() => setShowCancel(false)}>
+          <div className="space-y-3 text-sm text-slate-700">
+            <p className="leading-relaxed">
+              Bạn đang yêu cầu hủy đơn đặt chỗ tại <strong>{lot.name}</strong> (Ô <strong>{booking.spotId}</strong>).
+            </p>
+            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl space-y-1">
+              <div className="flex justify-between items-center text-xs font-semibold text-emerald-800">
+                <span>Số tiền hoàn trả:</span>
+                <span className="text-base font-extrabold text-emerald-600">50.000đ</span>
+              </div>
+              <p className="text-[11px] text-emerald-700">
+                Tiền cọc sẽ được hoàn tức thì vào <strong>Ví EZ-Space</strong> của bạn. Bạn có thể rút về tài khoản ngân hàng liên kết hoặc dùng để đặt chỗ lần sau.
+              </p>
+            </div>
+            <p className="text-xs text-slate-500">
+              * Ô đỗ sẽ được giải phóng ngay lập tức trên hệ thống cho tài xế khác.
+            </p>
+          </div>
+          <div className="flex gap-2.5 mt-4">
+            <button
+              className="flex-1 rounded-xl bg-slate-100 text-slate-700 py-3 font-semibold text-xs active:scale-95 transition-transform"
+              onClick={() => setShowCancel(false)}
+            >
+              Giữ lại vé
             </button>
             <button
-              className="flex-1 rounded-xl bg-rose-600 text-white py-3 font-bold active:scale-95 transition-transform"
+              className="flex-1 rounded-xl bg-rose-600 text-white py-3 font-bold text-xs shadow-md shadow-rose-200 active:scale-95 transition-transform"
               onClick={handleCancelBooking}
             >
-              Hủy đặt
+              Xác nhận hủy & Hoàn 50k
             </button>
           </div>
         </Popup>

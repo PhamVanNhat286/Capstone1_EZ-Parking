@@ -61,7 +61,10 @@ export const getUserChatKey = (user?: { email?: string; phone?: string } | null)
 };
 
 type StoreState = {
-  user: { id?: string | number; name: string; phone: string; email?: string; token?: string; role?: string; avatar?: string; isLoggedIn: boolean } | null;
+  user: { id?: string | number; name: string; phone: string; email?: string; token?: string; role?: string; avatar?: string; wallet_balance?: number; isLoggedIn: boolean } | null;
+  walletBalance: number;
+  setWalletBalance: (balance: number) => void;
+  updateWalletBalance: (delta: number) => void;
   vehicles: Vehicle[];
   setVehicles: (vehicles: Vehicle[]) => void;
   activeBooking: Booking | null;
@@ -124,6 +127,9 @@ export const useStore = create<StoreState>()(
   persist(
     (set, get) => ({
       user: null,
+      walletBalance: 0,
+      setWalletBalance: (balance: number) => set({ walletBalance: balance }),
+      updateWalletBalance: (delta: number) => set((s) => ({ walletBalance: Math.max(0, (s.walletBalance || 0) + delta) })),
       vehicles: [],
       activeBooking: null,
       history: [],
@@ -459,7 +465,7 @@ export const useStore = create<StoreState>()(
         activeBooking: state.activeBooking
           ? {
               ...state.activeBooking,
-              estimatedHours: Math.max(1, Math.min(24, hours)),
+              estimatedHours: Math.max(1, Math.ceil(hours)),
               ...(startTime ? { startTime } : {}),
               ...(endTime ? { endTime } : {}),
             }
@@ -475,7 +481,7 @@ export const useStore = create<StoreState>()(
             ...activeBooking,
             status: "paid",
             paymentMethod: method,
-            arrivalExpiresAt: Date.now() + 20 * 60 * 1000, // 20 minutes to arrive
+            arrivalExpiresAt: new Date(activeBooking.startTime || Date.now()).getTime() + 20 * 60 * 1000,
           },
         });
       },

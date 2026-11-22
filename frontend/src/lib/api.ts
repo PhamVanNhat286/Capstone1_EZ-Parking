@@ -81,11 +81,17 @@ export async function getLotByIdApi(lotId: string) {
   }
 }
 
-export async function getLotSlotsApi(lotId: string) {
+export async function getLotSlotsApi(lotId: string, token?: string) {
   try {
-    const res = await fetch(`${API_BASE_URL}/lots/${lotId}/slots`, { cache: "no-store" });
-    const json = await res.json();
-    if (!json.success || !Array.isArray(json.data)) return [];
+    const res = await fetch(`${API_BASE_URL}/lots/${lotId}/slots`, {
+      cache: "no-store",
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    });
+    const json = await res.json().catch(() => null);
+    if (!json) throw new Error(`Backend không trả dữ liệu sơ đồ hợp lệ (HTTP ${res.status}).`);
+    if (!res.ok || !json.success || !Array.isArray(json.data)) {
+      throw new Error(json.message || `Không tải được sơ đồ ô đỗ (HTTP ${res.status}).`);
+    }
 
     return json.data.map((s: any) => ({
       id: s.code || `A${s.id}`,
@@ -95,10 +101,12 @@ export async function getLotSlotsApi(lotId: string) {
       rowIndex: s.row_index,
       colIndex: s.col_index,
       isElevator: s.col_index === 0,
+      bookedIntervals: Array.isArray(s.booked_intervals) ? s.booked_intervals : [],
     }));
   } catch (error) {
     console.warn("Không thể tải ô đỗ từ Backend:", error);
-    return [];
+    if (error instanceof TypeError) throw new Error(`Không kết nối được backend tại ${API_BASE_URL}. Hãy kiểm tra máy chủ và PostgreSQL.`);
+    throw error;
   }
 }
 
@@ -335,6 +343,45 @@ export async function getReservationByIdApi(id: string | number, token?: string)
   return res.json().catch(() => ({ success: false, data: null }));
 }
 
+export type RelocationOption = { id: number; code: string };
+
+export async function getRelocationOptionsApi(id: string | number, token?: string) {
+  const res = await fetch(`${API_BASE_URL}/reservations/${id}/relocation-options`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {}, cache: "no-store",
+  });
+  return res.json() as Promise<{ success: boolean; message?: string; data?: { needsMove: boolean; originalSlot: string; options: RelocationOption[] } }>;
+}
+
+export async function switchReservationSlotApi(id: string | number, slotId: number, token?: string) {
+  const res = await fetch(`${API_BASE_URL}/reservations/${id}/switch-slot`, {
+    method: "POST", headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    body: JSON.stringify({ slot_id: slotId }),
+  });
+  return res.json() as Promise<{ success: boolean; message?: string; data?: { slot_id: number; slot_code: string } }>;
+}
+
+export async function requestOccupiedSlotRefundApi(id: string | number, token?: string) {
+  const res = await fetch(`${API_BASE_URL}/reservations/${id}/refund-request`, {
+    method: "POST", headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  return res.json() as Promise<{ success: boolean; message?: string; data?: { status: string } }>;
+}
+
+export type PendingRefund = { id: number; reservation_id: number; amount: number; provider: string; created_at: string; lot_name: string; slot_code: string; customer_name: string; customer_email: string };
+
+export async function getPendingRefundsApi(token: string) {
+  const res = await fetch(`${API_BASE_URL}/refunds/pending`, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
+  return res.json() as Promise<{ success: boolean; message?: string; data?: PendingRefund[] }>;
+}
+
+export async function confirmManualRefundApi(paymentId: number, transferReference: string, token: string) {
+  const res = await fetch(`${API_BASE_URL}/refunds/${paymentId}/confirm`, {
+    method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ transfer_reference: transferReference, transferred: true }),
+  });
+  return res.json() as Promise<{ success: boolean; message?: string }>;
+}
+
 // ================= KIOSK GATE APIS =================
 export async function kioskScanInApi(
   data: { ticket_code?: string; reservation_id?: string | number; parking_lot_id?: string | number },
@@ -454,5 +501,68 @@ export async function clearChatHistoryApi(token: string) {
   } catch (err) {
     console.error("Lỗi clearChatHistoryApi:", err);
     return { success: false };
+  }
+}
+
+// ================= CANCELLATION & WALLET APIS =================
+
+export async function cancelReservationApi(reservationId: string | number, token?: string) {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
+  const res = await fetch(`${API_BASE_URL}/reservations/${reservationId}/cancel`, {
+    method: "POST",
+    headers,
+  });
+  return res.json().catch(() => ({ success: false, message: "Lỗi kết nối máy chủ khi hủy đơn" }));
+}
+
+export async function getWalletApi(token: string) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/wallet`, {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    });
+    return await res.json();
+  } catch (err) {
+    console.error("Lỗi getWalletApi:", err);
+    return { success: false, data: { balance: 0, transactions: [] } };
+  }
+}
+
+export async function withdrawWalletApi(
+  token: string,
+  data: { amount: number; bank_name: string; account_number: string; account_name?: string }
+) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/wallet/withdraw`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(data),
+    });
+    return await res.json();
+  } catch (err) {
+    console.error("Lỗi withdrawWalletApi:", err);
+    return { success: false, message: "Lỗi kết nối máy chủ khi yêu cầu rút tiền" };
+  }
+}
+
+export async function topupWalletApi(token: string, amount = 50000) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/wallet/topup`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ amount }),
+    });
+    return await res.json();
+  } catch (err) {
+    console.error("Lỗi topupWalletApi:", err);
+    return { success: false, message: "Lỗi kết nối máy chủ khi nạp tiền" };
   }
 }

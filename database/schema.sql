@@ -118,6 +118,7 @@ CREATE TABLE users (
     role            user_role       NOT NULL DEFAULT 'customer',
     status          user_status     NOT NULL DEFAULT 'active',
     avatar_url      TEXT,
+    wallet_balance  DECIMAL(12,2)   NOT NULL DEFAULT 0,
     created_at      TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
     updated_at      TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
 
@@ -387,6 +388,24 @@ CREATE TABLE IF NOT EXISTS chat_messages (
 
 COMMENT ON TABLE chat_messages IS 'Luu tru toan bo lich su hoi dap voi AI cua tung user de dong bo xuyen suot moi thiet bi va trinh duyet.';
 CREATE INDEX IF NOT EXISTS idx_chat_messages_user_created ON chat_messages (user_id, created_at ASC);
+
+-- =============================================================
+-- 5.9 BẢNG LƯU TRỮ GIAO DỊCH VÍ EZ-SPACE (NẠP / HOÀN CỌC / RÚT TIỀN)
+CREATE TABLE IF NOT EXISTS wallet_transactions (
+    id              BIGSERIAL       PRIMARY KEY,
+    user_id         BIGINT          NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    amount          DECIMAL(12,2)   NOT NULL,
+    type            VARCHAR(30)     NOT NULL, -- 'REFUND' | 'WITHDRAW' | 'PAYMENT' | 'TOPUP'
+    status          VARCHAR(20)     NOT NULL DEFAULT 'success',
+    description     VARCHAR(255),
+    bank_name       VARCHAR(100),
+    account_number  VARCHAR(50),
+    account_name    VARCHAR(100),
+    created_at      TIMESTAMPTZ     NOT NULL DEFAULT NOW()
+);
+
+COMMENT ON TABLE wallet_transactions IS 'Lich su bien dong so du vi dien tu EZ-Space (Hoan coc tu dong, rut ve tai khoan ngan hang).';
+CREATE INDEX IF NOT EXISTS idx_wallet_transactions_user ON wallet_transactions (user_id, created_at DESC);
 
 -- =============================================================
 -- 6. AUTO updated_at TRIGGER

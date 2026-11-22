@@ -46,6 +46,29 @@ export const executeCleanup = async (): Promise<CleanupResult> => {
       `, [row.user_id, row.parking_lot_id, row.id]);
     }
 
+    // Ô còn xe của lượt trước lúc hết hạn: khách sau không thể vào, không được phạt mất cọc.
+    const blockedArrivalRes = await client.query(`
+      UPDATE reservations r
+      SET status='cancelled', cancel_reason='Ô vẫn còn xe khi khách đến; chờ hoàn cọc thủ công',
+          cancelled_at=NOW(), updated_at=NOW()
+      FROM slots s
+      WHERE r.slot_id=s.id AND r.status='paid' AND r.arrival_expires_at<NOW()
+        AND s.status='occupied'
+      RETURNING r.id, r.user_id, r.parking_lot_id;
+    `);
+    for (const row of blockedArrivalRes.rows) {
+      await client.query(`
+        INSERT INTO payments (reservation_id, provider, transaction_ref, payment_type, amount, status)
+        SELECT $1, p.provider, $2, 'refund', p.amount, 'pending'
+        FROM payments p WHERE p.reservation_id=$1 AND p.payment_type='deposit' AND p.status='success'
+        ORDER BY p.id DESC LIMIT 1;
+      `, [row.id, `REFUND-REQUEST-${row.id}`]);
+      await client.query(`
+        INSERT INTO audit_logs (user_id, parking_lot_id, action, entity_type, entity_id, note)
+        VALUES ($1,$2,'AUTO_REFUND_REQUEST_BLOCKED_SLOT','reservation',$3,'Ô vẫn còn xe khi hết hạn đến bãi; yêu cầu hoàn cọc chờ xử lý');
+      `, [row.user_id, row.parking_lot_id, row.id]);
+    }
+
     // 2. Quá hạn đến bãi 20 phút sau khi đã trả cọc -> Forfeit reservation (mất cọc)
     const expiredArrivalRes = await client.query(`
       UPDATE reservations
@@ -66,7 +89,7 @@ export const executeCleanup = async (): Promise<CleanupResult> => {
       `, [row.user_id, row.parking_lot_id, row.id, depositText]);
     }
 
-    // 3. Tự động trả các ô đỗ 'holding' bị hết hạn hoặc mồ côi về 'available'
+    // 3. Chỉ trả ô holding khi không còn đơn giữ chỗ hoặc vé đã trả cọc còn hiệu lực.
     const releasedHoldingSlotsRes = await client.query(`
       UPDATE slots s
       SET status = 'available', updated_at = NOW()
@@ -74,8 +97,8 @@ export const executeCleanup = async (): Promise<CleanupResult> => {
         AND NOT EXISTS (
           SELECT 1 FROM reservations r
           WHERE r.slot_id = s.id
-            AND r.status = 'holding'
-            AND r.hold_expires_at > NOW()
+            AND ((r.status = 'holding' AND r.hold_expires_at > NOW())
+              OR (r.status = 'paid' AND r.arrival_expires_at > NOW()))
         )
       RETURNING id, code, parking_lot_id;
     `);

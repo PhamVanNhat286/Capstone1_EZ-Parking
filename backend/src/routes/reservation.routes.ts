@@ -2,11 +2,13 @@ import { Router } from "express";
 import {
   holdSpot,
   releaseSpot,
+  cancelReservation,
   getActiveReservation,
   getMyReservations,
   getReservationById,
 } from "../controllers/reservation.controller";
-import { optionalAuthenticateToken } from "../middlewares/auth.middleware";
+import { authenticateToken, optionalAuthenticateToken } from "../middlewares/auth.middleware";
+import { getRelocationOptions, requestOccupiedSlotRefund, switchReservationSlot } from "../controllers/relocation.controller";
 
 const router = Router();
 
@@ -24,5 +26,12 @@ router.post("/hold", optionalAuthenticateToken, holdSpot);
 
 // Hủy giữ chỗ / giải phóng ô
 router.post("/:id/release", optionalAuthenticateToken, releaseSpot);
+
+// Hủy đặt chỗ (hoàn tiền cọc vào Ví EZ-Space nếu đã trả cọc)
+router.post("/:id/cancel", optionalAuthenticateToken, cancelReservation);
+
+router.get("/:id/relocation-options", authenticateToken, getRelocationOptions);
+router.post("/:id/switch-slot", authenticateToken, switchReservationSlot);
+router.post("/:id/refund-request", authenticateToken, requestOccupiedSlotRefund);
 
 export default router;
