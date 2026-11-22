@@ -156,51 +156,65 @@ function AIContent() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Auto GPS on mount
+  // Auto GPS on mount: Nếu đã chấp nhận ở đăng nhập thì dùng luôn (không hỏi lại), nếu bị từ chối thì mới hỏi lại ở đây
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const storedDenial = sessionStorage.getItem("ezspace_gps_denied") === "true";
-      if (storedDenial) setGpsDenied(true);
+      // 1. Kiểm tra nếu ở trang đăng nhập (hoặc các màn hình trước) đã chấp nhận GPS
+      const savedGps = sessionStorage.getItem("ez_gps_coords") || localStorage.getItem("ez_gps_coords");
+      const gpsStatus = sessionStorage.getItem("ez_gps_status") || localStorage.getItem("ez_gps_status");
 
-      if (navigator.permissions && navigator.permissions.query) {
-        navigator.permissions
-          .query({ name: "geolocation" as PermissionName })
-          .then((p) => {
-            if (p.state === "denied") {
-              setGpsDenied(true);
-              sessionStorage.setItem("ezspace_gps_denied", "true");
-            } else if (p.state === "granted") {
-              setGpsDenied(false);
-              sessionStorage.removeItem("ezspace_gps_denied");
-            }
-            p.onchange = () => {
-              if (p.state === "denied") {
-                setGpsDenied(true);
-                sessionStorage.setItem("ezspace_gps_denied", "true");
-              } else if (p.state === "granted") {
-                setGpsDenied(false);
-                sessionStorage.removeItem("ezspace_gps_denied");
-              }
-            };
-          })
-          .catch(() => { });
-      }
-
-      if (navigator.geolocation && !userLocation) {
-        navigator.geolocation.getCurrentPosition(
-          (pos) => {
+      if (savedGps && gpsStatus === "active") {
+        try {
+          const coords = JSON.parse(savedGps);
+          if (coords?.lat && coords?.lng) {
             setUserLocation({
-              latitude: pos.coords.latitude,
-              longitude: pos.coords.longitude,
+              latitude: coords.lat,
+              longitude: coords.lng,
               label: "GPS của bạn",
             });
             setGpsDenied(false);
             sessionStorage.removeItem("ezspace_gps_denied");
+            // Đã chấp nhận ở trang đăng nhập -> Dùng luôn, KHÔNG hỏi lại trình duyệt!
+            return;
+          }
+        } catch {}
+      }
+
+      // 2. Chỉ khi ở trang đăng nhập bị từ chối (hoặc chưa cấp quyền):
+      // Khi vào trang chatbox mới kích hoạt hỏi quyền vị trí từ trình duyệt
+      const storedDenial = sessionStorage.getItem("ezspace_gps_denied") === "true" || gpsStatus === "denied";
+      if (storedDenial) setGpsDenied(true);
+
+      if (navigator.geolocation && !userLocation) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            const latitude = pos.coords.latitude;
+            const longitude = pos.coords.longitude;
+            setUserLocation({
+              latitude,
+              longitude,
+              label: "GPS của bạn",
+            });
+            setGpsDenied(false);
+            try {
+              const coordsStr = JSON.stringify({ lat: latitude, lng: longitude });
+              sessionStorage.setItem("ez_gps_coords", coordsStr);
+              sessionStorage.setItem("ez_gps_status", "active");
+              localStorage.setItem("ez_gps_coords", coordsStr);
+              localStorage.setItem("ez_gps_status", "active");
+              sessionStorage.removeItem("ezspace_gps_denied");
+            } catch {}
           },
           (err) => {
             if (err.code === err.PERMISSION_DENIED) {
               setGpsDenied(true);
-              sessionStorage.setItem("ezspace_gps_denied", "true");
+              try {
+                sessionStorage.setItem("ez_gps_status", "denied");
+                sessionStorage.removeItem("ez_gps_coords");
+                localStorage.setItem("ez_gps_status", "denied");
+                localStorage.removeItem("ez_gps_coords");
+                sessionStorage.setItem("ezspace_gps_denied", "true");
+              } catch {}
             }
           },
           { enableHighAccuracy: true, timeout: 5000 }
@@ -304,13 +318,24 @@ function AIContent() {
     setIsLocating(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
+        const latitude = pos.coords.latitude;
+        const longitude = pos.coords.longitude;
         setUserLocation({
-          latitude: pos.coords.latitude,
-          longitude: pos.coords.longitude,
+          latitude,
+          longitude,
           label: "GPS hiện tại",
         });
         setIsLocating(false);
         setShowLocationPicker(false);
+        setGpsDenied(false);
+        try {
+          const coordsStr = JSON.stringify({ lat: latitude, lng: longitude });
+          sessionStorage.setItem("ez_gps_coords", coordsStr);
+          sessionStorage.setItem("ez_gps_status", "active");
+          localStorage.setItem("ez_gps_coords", coordsStr);
+          localStorage.setItem("ez_gps_status", "active");
+          sessionStorage.removeItem("ezspace_gps_denied");
+        } catch {}
         addToast("Đã cập nhật vị trí GPS của bạn!", "success");
       },
       (err) => {
@@ -340,18 +365,33 @@ function AIContent() {
       if (!gpsDenied && typeof window !== "undefined" && navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
           (pos) => {
+            const latitude = pos.coords.latitude;
+            const longitude = pos.coords.longitude;
             setUserLocation({
-              latitude: pos.coords.latitude,
-              longitude: pos.coords.longitude,
+              latitude,
+              longitude,
               label: "GPS của bạn",
             });
             setGpsDenied(false);
-            sessionStorage.removeItem("ezspace_gps_denied");
+            try {
+              const coordsStr = JSON.stringify({ lat: latitude, lng: longitude });
+              sessionStorage.setItem("ez_gps_coords", coordsStr);
+              sessionStorage.setItem("ez_gps_status", "active");
+              localStorage.setItem("ez_gps_coords", coordsStr);
+              localStorage.setItem("ez_gps_status", "active");
+              sessionStorage.removeItem("ezspace_gps_denied");
+            } catch {}
           },
           (err) => {
             if (err.code === err.PERMISSION_DENIED) {
               setGpsDenied(true);
-              sessionStorage.setItem("ezspace_gps_denied", "true");
+              try {
+                sessionStorage.setItem("ez_gps_status", "denied");
+                sessionStorage.removeItem("ez_gps_coords");
+                localStorage.setItem("ez_gps_status", "denied");
+                localStorage.removeItem("ez_gps_coords");
+                sessionStorage.setItem("ezspace_gps_denied", "true");
+              } catch {}
             }
           },
           { enableHighAccuracy: true, timeout: 4000 }
