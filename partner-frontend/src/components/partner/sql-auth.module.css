@@ -1,0 +1,9 @@
+.page { min-height:100dvh; display:grid; place-items:center; padding:28px 16px; background:radial-gradient(ellipse at top,#dbeafe,#f6f9fe 70%); color:#172f50; }
+.card { width:100%; max-width:440px; background:white; border:1px solid #e0e9f6; border-radius:20px; padding:32px; box-shadow:0 20px 70px #17478b0d; }
+.brand { display:flex; align-items:center; gap:11px; margin-bottom:32px; }.brand>span { display:grid; place-items:center; width:43px; height:43px; border-radius:12px; color:white; background:#2563eb; font-size:27px; font-weight:800; }.brand b { font-size:21px; font-weight:750; }.brand small { display:block; font-size:9px; letter-spacing:1px; color:#2563eb; margin-top:2px; }
+.icon { width:50px; height:50px; border-radius:14px; color:#2563eb; background:#eff6ff; display:grid; place-items:center; margin-bottom:16px; }
+.card h1 { font-size:23px; font-weight:800; letter-spacing:-.5px; }.card>p { color:#64748b; font-size:12px; line-height:1.8; margin:10px 0 24px; }
+.card form { display:grid; gap:17px; }.card label { display:grid; gap:8px; color:#53627b; font-size:12px; font-weight:600; }.card input { width:100%; padding:12px; border:1px solid #d4dfed; border-radius:9px; background:#fff; color:#172f50; font-size:13px; }.card input:focus-visible { outline:2px solid #93c5fd; outline-offset:2px; }
+.card form>button { display:flex; justify-content:center; align-items:center; gap:9px; min-height:44px; border-radius:9px; background:#2563eb; color:white; font-weight:700; font-size:13px; }.card button:disabled { opacity:.6; }.card button:focus-visible { outline:3px solid #93c5fd; outline-offset:3px; }
+.error { color:#b91c1c; background:#fff1f2; border:1px solid #fecdd3; border-radius:8px; padding:12px; font-size:12px; line-height:1.7; }.card footer { margin-top:22px; color:#94a3b8; font-size:10px; text-align:center; line-height:1.8; }
+@media(max-width:480px) { .card { padding:24px; }.card h1 { font-size:21px; } }

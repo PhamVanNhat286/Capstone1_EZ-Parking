@@ -6,6 +6,11 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "test:api": "tsx src/test-all-apis.ts",
+    "test:partner": "tsx --test src/partner/partner.integration.test.ts",
+    "test:partner:unit": "tsx --test src/partner/partner.service.test.ts",
+    "db:partner:check": "node scripts/partner-database.mjs check",
+    "db:partner:init": "node scripts/partner-database.mjs init",
+    "db:partner:sync": "node scripts/partner-database.mjs sync",
     "build": "tsc",
     "start": "node dist/server.js"
   },

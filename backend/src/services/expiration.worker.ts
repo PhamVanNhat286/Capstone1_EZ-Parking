@@ -74,8 +74,7 @@ export const executeCleanup = async (): Promise<CleanupResult> => {
         AND NOT EXISTS (
           SELECT 1 FROM reservations r
           WHERE r.slot_id = s.id
-            AND r.status = 'holding'
-            AND r.hold_expires_at > NOW()
+            AND r.status IN ('holding', 'paid', 'entered')
         )
       RETURNING id, code, parking_lot_id;
     `);
@@ -88,6 +87,10 @@ export const executeCleanup = async (): Promise<CleanupResult> => {
         UPDATE slots
         SET status = 'available', updated_at = NOW()
         WHERE id = ANY($1::bigint[]) AND status IN ('holding', 'available')
+          AND NOT EXISTS (
+            SELECT 1 FROM reservations r
+            WHERE r.slot_id=slots.id AND r.status IN ('holding','paid','entered')
+          )
         RETURNING id, code, parking_lot_id;
       `, [arrivalSlotIds]);
       releasedForfeitedSlots = res.rows;
