@@ -45,6 +45,10 @@ export const holdSpot = async (req: AuthRequest, res: Response): Promise<void> =
       res.status(400).json({ success: false, message: "Giờ vào phải trong 30 ngày tới và giờ ra phải sau giờ vào." });
       return;
     }
+    if (durationMs < 3600_000) {
+      res.status(400).json({ success: false, message: "Thời gian đặt tối thiểu 1 giờ." });
+      return;
+    }
     const billableHours = Math.ceil(durationMs / 3600_000);
 
     // Xác định slot ID chính xác (cho phép truyền cả id dạng số hoặc code ví dụ "A-01")

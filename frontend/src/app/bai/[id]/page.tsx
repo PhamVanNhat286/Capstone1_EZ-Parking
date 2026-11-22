@@ -97,6 +97,8 @@ export default function ParkingMapPage() {
   const [zoom, setZoom] = useState(1);
   const [submitting, setSubmitting] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showLotSchedule, setShowLotSchedule] = useState(false);
+  const [scheduleSpotId, setScheduleSpotId] = useState<string | null>(null);
 
   const durationInfo = useMemo(() => {
     return bookingDuration(startTime, endTime);
@@ -142,7 +144,7 @@ export default function ParkingMapPage() {
   const refresh = useCallback(async () => {
     setIsRefreshing(true);
     try {
-      const [apiSpots, apiLot] = await Promise.all([getLotSlotsApi(lotId), getLotByIdApi(lotId)]);
+      const [apiSpots, apiLot] = await Promise.all([getLotSlotsApi(lotId, user?.token), getLotByIdApi(lotId)]);
       if (apiSpots !== null) {
         setSpots(apiSpots.map(normalizeSlot));
         setLoadError(null);
@@ -164,7 +166,7 @@ export default function ParkingMapPage() {
     } finally {
       setIsRefreshing(false);
     }
-  }, [lotId, fallbackLot.name, fallbackLot.address, fallbackLot.price]);
+  }, [lotId, fallbackLot.name, fallbackLot.address, fallbackLot.price, user?.token]);
 
   useEffect(() => {
     setSpotId(null);
@@ -190,6 +192,10 @@ export default function ParkingMapPage() {
 
   const selected = displayed.find((s) => s.id === spotId) || null;
   const selectedBookings = selected?.bookedIntervals || [];
+  const ownBookings = selectedBookings.filter((item) => item.isMine);
+  const lotSchedule = spots.flatMap((spot) => (spot.bookedIntervals || []).map((item) => ({ ...item, spotId: spot.id })))
+    .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+  const visibleSchedule = scheduleSpotId ? lotSchedule.filter((item) => item.spotId === scheduleSpotId) : lotSchedule;
   const conflictingBookings = selectedBookings.filter((item) => {
     const bookedStart = new Date(item.startTime).getTime();
     const requestedStart = new Date(startTime).getTime();
@@ -256,7 +262,7 @@ export default function ParkingMapPage() {
       toast("Ô đã có người đặt trong khoảng giờ này. Hãy chọn giờ khác hoặc ô khác.", "error"); return;
     }
     if (!durationInfo || !startTime || new Date(startTime).getTime() < Date.now() - 60_000) {
-      toast("Hãy chọn giờ vào trong tương lai và giờ ra sau giờ vào.", "error"); return;
+      toast(!durationInfo && startTime && endTime ? "Thời gian đặt tối thiểu 1 giờ." : "Hãy chọn giờ vào trong tương lai.", "error"); return;
     }
     if (booking && ["holding", "paid", "entered"].includes(booking.status)) {
       toast("Bạn đã có một lượt đặt chỗ đang hoạt động", "error"); return;
@@ -320,7 +326,7 @@ export default function ParkingMapPage() {
   }
 
   function renderSpot(s: Spot | null, side: "left" | "right") {
-    if (!s) return <div className="h-[94px]" />;
+    if (!s) return <div className="h-[98px]" />;
     const visible = filter === "all" || s.type === filter;
     return <ParkingSpotCard key={s.id} spot={s} visible={visible}
       compatible={isSuitable(s, car, needsCharging)} selected={selected?.id === s.id}
@@ -328,7 +334,7 @@ export default function ParkingMapPage() {
       onSelect={() => pickSpot(s)} />;
   }
 
-  return <div className="h-full min-h-[530px] flex flex-col bg-slate-100 text-slate-800 overflow-hidden">
+  return <div className="relative h-full min-h-[530px] flex flex-col bg-slate-100 text-slate-800 overflow-hidden">
     <style>{`@keyframes ez-drive { 0% {top:30px;opacity:0} 10% {opacity:1} 85% {opacity:1} 100% {top:calc(100% - 45px);opacity:0} }`}</style>
     <header className="shrink-0 bg-white px-4 pt-3 pb-2 shadow-sm z-20">
       <div className="flex justify-between gap-2 items-center">
@@ -387,7 +393,7 @@ export default function ParkingMapPage() {
     <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto bg-slate-100 px-3 pt-3 pb-3">
       <div className="flex justify-between items-center gap-2 mb-2 text-[10px] font-semibold">
         <span className="bg-white border border-slate-200 rounded-lg px-2 py-1.5">↕ Lối đi · Thang máy</span>
-        <span className="rounded-lg px-2 py-1.5 border bg-white text-slate-600 border-slate-200">Sơ đồ ô đỗ</span>
+        <button type="button" onClick={() => { setScheduleSpotId(null); setShowLotSchedule(true); }} className="rounded-lg px-2.5 py-1.5 border bg-white text-blue-700 border-slate-200 hover:bg-blue-50">Xem lịch cả bãi</button>
       </div>
       <div className="relative bg-slate-200 rounded-2xl border border-slate-300 p-2.5 overflow-hidden shadow-inner">
         <div className="absolute left-1/2 top-0 bottom-0 w-12 -translate-x-1/2 bg-slate-300 border-x-2 border-dashed border-white flex flex-col items-center justify-between py-4 pointer-events-none">
@@ -413,7 +419,7 @@ export default function ParkingMapPage() {
     </div>
 
     {selected && (
-      <section className="shrink-0 z-20 bg-white rounded-t-3xl border-t border-slate-200 shadow-xl px-5 pt-4 pb-[calc(14px+env(safe-area-inset-bottom))]">
+      <section className="shrink-0 z-20 max-h-[72dvh] overflow-y-auto bg-white rounded-t-3xl border-t border-slate-200 shadow-xl px-4 pt-4 pb-[calc(14px+env(safe-area-inset-bottom))]">
         <div className="space-y-3">
           <div className="flex justify-between items-start"><div>
             <p className="flex gap-2 items-center"><b className="text-xl">{selected.id}</b><span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-lg font-bold">{nameOf(selected.type)}</span>
@@ -443,15 +449,21 @@ export default function ParkingMapPage() {
                 <DateTimePicker label="Giờ ra" value={endTime ? dayjs(endTime) : null}
                   onChange={(value) => setEndTime(value?.isValid() ? value.toDate().toISOString() : "")}
                   format="DD/MM/YYYY HH:mm" ampm={false} minutesStep={5}
-                  minDateTime={startTime ? dayjs(startTime).add(1, "minute") : dayjs()}
+                  minDateTime={startTime ? dayjs(startTime).add(1, "hour") : dayjs()}
                   slotProps={{ textField: { size: "small", fullWidth: true } }} />
               </div>
             </LocalizationProvider>
-            {!durationInfo && <p className="text-xs text-rose-600">Giờ ra phải sau giờ vào.</p>}
-            {selectedBookings.length > 0 && <div className="rounded-xl border border-blue-200 bg-blue-50 p-2.5 text-xs text-slate-700">
-              <p className="font-bold text-blue-700">Giờ đã đặt của ô {selected.id} ({selectedBookings.length} lượt)</p>
-              <ul className="mt-1 max-h-28 overflow-y-auto space-y-1">{selectedBookings.map((item, index) => <li key={`${item.startTime}-${index}`}>• {formatBookingTime(item.startTime)} → {formatBookingTime(item.endTime)}</li>)}</ul>
-            </div>}
+            {!durationInfo && startTime && endTime && <p role="alert" className="text-xs font-semibold text-rose-600">Thời gian đặt tối thiểu 1 giờ.</p>}
+            <div className="rounded-xl border border-slate-200 bg-white p-2.5 text-xs text-slate-700">
+              <div className="flex items-center justify-between gap-2">
+                <p className="font-bold">Lịch đặt ô {selected.id}</p>
+                {selectedBookings.length > 0 && <button type="button" onClick={() => { setScheduleSpotId(selected.id); setShowLotSchedule(true); }} className="shrink-0 font-semibold text-blue-700 underline underline-offset-2">Xem chi tiết</button>}
+              </div>
+              {selectedBookings.length === 0 ? <p className="mt-1 text-emerald-700">Trống · Chưa có giờ nào được đặt</p> : <>
+                <p className="mt-1 text-slate-500">{selectedBookings.length} lượt đã đặt{ownBookings.length > 0 ? ` · ${ownBookings.length} lượt của bạn` : ""}</p>
+                {ownBookings.map((item, index) => <p key={`mine-${item.startTime}-${index}`} className="mt-1 leading-5 text-blue-700"><b>Bạn đã đặt:</b> {formatBookingTime(item.startTime)} → {formatBookingTime(item.endTime)}</p>)}
+              </>}
+            </div>
             {conflictingBookings.length > 0 && <p role="alert" className="rounded-xl border border-rose-300 bg-rose-50 p-2.5 text-xs font-bold text-rose-700">Ô này đã có người đặt trùng khoảng giờ bạn chọn ({formatBookingTime(conflictingBookings[0].startTime)} → {formatBookingTime(conflictingBookings[0].endTime)}). Vui lòng đổi giờ hoặc chọn ô khác.</p>}
 
             {/* Nút chọn nhanh */}
@@ -525,6 +537,24 @@ export default function ParkingMapPage() {
         </div>
       </section>
     )}
+
+    {showLotSchedule && <div className="fixed inset-0 z-50 bg-slate-950/60 flex items-end sm:items-center justify-center sm:p-4" role="dialog" aria-modal="true" aria-label={scheduleSpotId ? `Lịch đặt ô ${scheduleSpotId}` : "Lịch đặt cả bãi"}>
+      <div className="w-full max-w-[430px] max-h-[85dvh] flex flex-col rounded-t-[24px] sm:rounded-[24px] bg-white shadow-2xl overflow-hidden">
+        <div className="flex items-start justify-between gap-3 px-4 py-4 border-b border-slate-100">
+          <div className="min-w-0"><h2 className="text-base font-bold text-slate-900">{scheduleSpotId ? `Lịch đặt ô ${scheduleSpotId}` : "Lịch đặt cả bãi"}</h2>
+            <p className="text-xs text-slate-500 mt-0.5">{lot.name} · {visibleSchedule.length} lượt đặt sắp tới</p></div>
+          <button type="button" onClick={() => setShowLotSchedule(false)} aria-label="Đóng lịch đặt" className="shrink-0 p-1.5 rounded-full bg-slate-100 text-slate-600"><X size={17} /></button>
+        </div>
+        <div className="overflow-y-auto px-4 py-3 space-y-2">
+          {visibleSchedule.length === 0 ? <p className="py-10 text-center text-sm text-slate-500">Chưa có lịch đặt sắp tới.</p> : visibleSchedule.map((item, index) =>
+            <div key={`${item.spotId}-${item.startTime}-${index}`} className={clsx("rounded-xl border p-3", item.isMine ? "border-blue-200 bg-blue-50" : "border-slate-200 bg-white")}>
+              <div className="flex items-center justify-between gap-2 text-xs"><b className="text-slate-900">Ô {item.spotId}</b>
+                <span className={clsx("font-semibold", item.isMine ? "text-blue-700" : "text-slate-500")}>{item.isMine ? "Bạn đã đặt" : "Đã đặt"}</span></div>
+              <p className="mt-1 text-xs leading-5 text-slate-700 break-words">{formatBookingTime(item.startTime)}<span className="mx-1 text-slate-400">→</span>{formatBookingTime(item.endTime)}</p>
+            </div>)}
+        </div>
+      </div>
+    </div>}
 
     {dialog && <div className="fixed inset-0 z-50 bg-slate-950/65 flex items-end sm:items-center justify-center sm:p-4">
       <div className="bg-white rounded-t-[28px] sm:rounded-[28px] w-full max-w-[430px] max-h-[88dvh] overflow-y-auto p-5 pb-6 shadow-2xl">
