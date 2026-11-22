@@ -452,14 +452,14 @@ export default function ParkingMapPage() {
               </div>
             </LocalizationProvider>
             {!durationInfo && startTime && endTime && <p role="alert" className="text-xs font-semibold text-rose-600">Thời gian đặt tối thiểu 1 giờ.</p>}
-            {ownBookings.length > 0 && <div className="rounded-xl border border-blue-200 bg-blue-50 p-2.5 text-xs text-blue-950">
-              <p className="font-bold text-blue-700">Bạn đã đặt ô {selected.id}</p>
-              {ownBookings.map((item, index) => <p key={`${item.startTime}-${index}`} className="mt-1 leading-5">{formatBookingTime(item.startTime)} → {formatBookingTime(item.endTime)}</p>)}
-            </div>}
-            {selectedBookings.length > ownBookings.length && <div className="rounded-xl border border-slate-200 bg-white p-2.5 text-xs text-slate-700">
-              <p className="font-bold">Lịch đã đặt của ô {selected.id}</p>
-              <div className="mt-1 max-h-24 overflow-y-auto space-y-1">{selectedBookings.filter((item) => !item.isMine).map((item, index) => <p key={`${item.startTime}-${index}`} className="leading-5">{formatBookingTime(item.startTime)} → {formatBookingTime(item.endTime)}</p>)}</div>
-            </div>}
+            <div className="rounded-xl border border-slate-200 bg-white p-2.5 text-xs text-slate-700">
+              <p className="font-bold">Lịch đặt ô {selected.id}</p>
+              {selectedBookings.length === 0 ? <p className="mt-1 text-emerald-700">Trống · Chưa có giờ nào được đặt</p> :
+                <div className="mt-1 max-h-28 overflow-y-auto space-y-1.5">
+                  {ownBookings.map((item, index) => <p key={`mine-${item.startTime}-${index}`} className="rounded-lg bg-blue-50 px-2 py-1 text-blue-800"><b className="block">Bạn đã đặt</b>{formatBookingTime(item.startTime)} → {formatBookingTime(item.endTime)}</p>)}
+                  {selectedBookings.filter((item) => !item.isMine).map((item, index) => <p key={`other-${item.startTime}-${index}`} className="leading-5"><b className="mr-1">Đã đặt:</b>{formatBookingTime(item.startTime)} → {formatBookingTime(item.endTime)}</p>)}
+                </div>}
+            </div>
             {conflictingBookings.length > 0 && <p role="alert" className="rounded-xl border border-rose-300 bg-rose-50 p-2.5 text-xs font-bold text-rose-700">Ô này đã có người đặt trùng khoảng giờ bạn chọn ({formatBookingTime(conflictingBookings[0].startTime)} → {formatBookingTime(conflictingBookings[0].endTime)}). Vui lòng đổi giờ hoặc chọn ô khác.</p>}
 
             {/* Nút chọn nhanh */}
