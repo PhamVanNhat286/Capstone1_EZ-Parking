@@ -1,18 +1,19 @@
 {
   "name": "ez-space-admin",
-  "version": "3.0.0",
+  "version": "4.0.0",
   "private": true,
-  "description": "Hệ thống quản trị nền tảng EZ-Space Smart Parking (đồng bộ schema.sql & seed.sql)",
+  "description": "EZ-Space Smart Parking Admin Portal (Node.js + Express & Next.js)",
   "scripts": {
-    "dev": "node server/index.cjs",
-    "start": "node server/index.cjs",
-    "check-db": "node scripts/check-db.cjs",
-    "test": "node tests/verify.cjs && node --test tests/revenue.cjs tests/date-range.cjs"
+    "install:all": "npm --prefix backend install && npm --prefix frontend install",
+    "dev": "node scripts/run-all.cjs dev",
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "build": "npm --prefix backend run build && npm --prefix frontend run build",
+    "start": "node scripts/run-all.cjs start",
+    "typecheck": "npm --prefix backend run typecheck && npm --prefix frontend run typecheck",
+    "test": "npm --prefix backend test"
   },
   "engines": {
     "node": ">=18"
-  },
-  "dependencies": {
-    "pg": "^8.23.1"
   }
 }
