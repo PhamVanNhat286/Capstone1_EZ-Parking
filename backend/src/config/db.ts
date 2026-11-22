@@ -113,6 +113,24 @@ export const initDbTables = async () => {
         created_at      TIMESTAMPTZ     NOT NULL DEFAULT NOW()
       );
       CREATE INDEX IF NOT EXISTS idx_wallet_transactions_user ON wallet_transactions (user_id, created_at DESC);
+
+      -- Đảm bảo bảng user_bank_accounts tồn tại: không cho phép trùng cặp (bank_name + account_number) trên toàn hệ thống
+      CREATE TABLE IF NOT EXISTS user_bank_accounts (
+        id              BIGSERIAL       PRIMARY KEY,
+        user_id         BIGINT          NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        type            VARCHAR(20)     NOT NULL DEFAULT 'banking',
+        bank_name       VARCHAR(100)    NOT NULL,
+        account_number  VARCHAR(50)     NOT NULL,
+        account_name    VARCHAR(100)    NOT NULL,
+        branch          VARCHAR(100),
+        is_default      BOOLEAN         NOT NULL DEFAULT FALSE,
+        created_at      TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
+        updated_at      TIMESTAMPTZ     NOT NULL DEFAULT NOW()
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_user_bank_unique_bank_stk 
+        ON user_bank_accounts (LOWER(TRIM(bank_name)), LOWER(TRIM(account_number)));
+      CREATE INDEX IF NOT EXISTS idx_user_bank_accounts_user 
+        ON user_bank_accounts (user_id);
     `);
     console.log("[Database] Core tables verified successfully.");
   } catch (error) {

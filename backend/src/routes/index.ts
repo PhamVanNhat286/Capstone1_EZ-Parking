@@ -8,6 +8,7 @@ import cronRoutes from "./cron.routes";
 import chatRoutes from "./chat.routes";
 import refundRoutes from "./refund.routes";
 import walletRoutes from "./wallet.routes";
+import bankAccountRoutes from "./bank-account.routes";
 
 const router = Router();
 
@@ -24,5 +25,6 @@ router.use("/cron", cronRoutes);
 router.use("/chat", chatRoutes);
 router.use("/refunds", refundRoutes);
 router.use("/wallet", walletRoutes);
+router.use("/bank-accounts", bankAccountRoutes);
 
 export default router;

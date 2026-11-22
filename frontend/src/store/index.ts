@@ -94,6 +94,7 @@ type StoreState = {
 
   userPaymentAccounts?: Record<string, SavedPaymentAccount[]>;
   savedPaymentAccounts: SavedPaymentAccount[];
+  setSavedPaymentAccounts: (accounts: SavedPaymentAccount[]) => void;
   addSavedPaymentAccount: (account: SavedPaymentAccount) => void;
   updateSavedPaymentAccount: (id: string, updates: Partial<SavedPaymentAccount>) => void;
   deleteSavedPaymentAccount: (id: string) => void;
@@ -141,11 +142,54 @@ export const useStore = create<StoreState>()(
       userPaymentAccounts: {},
       savedPaymentAccounts: [],
 
+      setSavedPaymentAccounts: (accounts) =>
+        set((state) => {
+          const key = getUserChatKey(state.user);
+          const allMap = state.userPaymentAccounts || {};
+          if (typeof window !== "undefined") {
+            try {
+              localStorage.setItem(`ez_payments_${key}`, JSON.stringify(accounts));
+            } catch {}
+          }
+          return {
+            savedPaymentAccounts: accounts,
+            userPaymentAccounts: {
+              ...allMap,
+              [key]: accounts,
+            },
+          };
+        }),
+
       addSavedPaymentAccount: (account) =>
         set((state) => {
           const key = getUserChatKey(state.user);
           const allMap = state.userPaymentAccounts || {};
           const currentList = allMap[key] || state.savedPaymentAccounts || [];
+
+          // RÀNG BUỘC NGHIỆP VỤ: Không được trùng cặp (ngân hàng + STK) trên toàn hệ thống
+          const cleanBank = (account.bankName || "").trim().toLowerCase();
+          const cleanNumber = account.accountNumber.trim().replace(/\s+/g, "").toLowerCase();
+
+          for (const [userKey, list] of Object.entries(allMap)) {
+            const dup = (list || []).find(
+              (a) =>
+                (a.bankName || "").trim().toLowerCase() === cleanBank &&
+                a.accountNumber.trim().replace(/\s+/g, "").toLowerCase() === cleanNumber
+            );
+            if (dup) {
+              if (userKey !== key) {
+                state.addToast(
+                  `Tài khoản ngân hàng ${account.bankName} (STK: ${account.accountNumber}) đã được liên kết với một tài khoản khác trong hệ thống.`,
+                  "error"
+                );
+                return state;
+              } else {
+                state.addToast(`Bạn đã liên kết tài khoản ngân hàng này rồi.`, "error");
+                return state;
+              }
+            }
+          }
+
           const isFirst = currentList.length === 0;
           const newAccount = { ...account, isDefault: account.isDefault ?? isFirst };
           const list = newAccount.isDefault
@@ -174,6 +218,34 @@ export const useStore = create<StoreState>()(
           const key = getUserChatKey(state.user);
           const allMap = state.userPaymentAccounts || {};
           const currentList = allMap[key] || state.savedPaymentAccounts || [];
+
+          // Kiểm tra trùng nếu sửa bankName hoặc accountNumber
+          if (updates.bankName && updates.accountNumber) {
+            const cleanBank = updates.bankName.trim().toLowerCase();
+            const cleanNumber = updates.accountNumber.trim().replace(/\s+/g, "").toLowerCase();
+
+            for (const [userKey, list] of Object.entries(allMap)) {
+              const dup = (list || []).find(
+                (a) =>
+                  a.id !== id &&
+                  (a.bankName || "").trim().toLowerCase() === cleanBank &&
+                  a.accountNumber.trim().replace(/\s+/g, "").toLowerCase() === cleanNumber
+              );
+              if (dup) {
+                if (userKey !== key) {
+                  state.addToast(
+                    `Tài khoản ngân hàng ${updates.bankName} (STK: ${updates.accountNumber}) đã được liên kết với một tài khoản khác trong hệ thống.`,
+                    "error"
+                  );
+                  return state;
+                } else {
+                  state.addToast(`Bạn đã có tài khoản ngân hàng này rồi.`, "error");
+                  return state;
+                }
+              }
+            }
+          }
+
           const updated = currentList.map((a) => (a.id === id ? { ...a, ...updates } : a));
 
           if (typeof window !== "undefined") {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -18,7 +18,14 @@ import {
   X,
 } from "lucide-react";
 import { clsx } from "clsx";
-import { useStore, type SavedPaymentAccount } from "@/store";
+import { useStore, type SavedPaymentAccount, getUserChatKey } from "@/store";
+import {
+  getBankAccountsApi,
+  addBankAccountApi,
+  updateBankAccountApi,
+  deleteBankAccountApi,
+  setDefaultBankAccountApi,
+} from "@/lib/api";
 
 // Danh sách các ngân hàng phổ biến tại Việt Nam
 const POPULAR_BANKS = [
@@ -43,6 +50,7 @@ export default function PaymentMethodsPage() {
   const {
     user,
     savedPaymentAccounts,
+    setSavedPaymentAccounts,
     addSavedPaymentAccount,
     updateSavedPaymentAccount,
     deleteSavedPaymentAccount,
@@ -51,6 +59,26 @@ export default function PaymentMethodsPage() {
   } = useStore();
   const visiblePaymentAccounts = savedPaymentAccounts.filter((account) => account.type !== "momo");
 
+  // Đồng bộ danh sách tài khoản ngân hàng từ backend DB khi tải trang
+  useEffect(() => {
+    if (user?.token) {
+      getBankAccountsApi(user.token).then((res) => {
+        if (res.success && Array.isArray(res.data)) {
+          const mapped: SavedPaymentAccount[] = res.data.map((item: any) => ({
+            id: String(item.id),
+            type: item.type || "banking",
+            accountName: item.account_name,
+            accountNumber: item.account_number,
+            bankName: item.bank_name,
+            isDefault: Boolean(item.is_default),
+            createdAt: new Date(item.created_at).getTime(),
+          }));
+          setSavedPaymentAccounts(mapped);
+        }
+      });
+    }
+  }, [user?.token, setSavedPaymentAccounts]);
+
   // Form State
   const [selectedType, setSelectedType] = useState<PaymentType>("banking");
   const [accountName, setAccountName] = useState("");
@@ -58,6 +86,7 @@ export default function PaymentMethodsPage() {
   const [selectedBank, setSelectedBank] = useState("MB Bank");
   const [branch, setBranch] = useState("");
   const [isDefault, setIsDefault] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Edit Mode state
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -130,52 +159,144 @@ export default function PaymentMethodsPage() {
       errs.bankName = "Vui lòng chọn ngân hàng";
     }
 
+    // RÀNG BUỘC NGHIỆP VỤ: Không được trùng cặp (Ngân hàng + STK) trên toàn hệ thống (tên chủ thẻ được phép trùng)
+    if (!errs.accountNumber && (selectedType === "banking" || selectedType === "vnpay")) {
+      const checkBank = selectedBank.trim().toLowerCase();
+      const checkNum = cleanNum.toLowerCase();
+
+      const allMap = useStore.getState().userPaymentAccounts || {};
+      const currentKey = getUserChatKey(user);
+
+      for (const [k, list] of Object.entries(allMap)) {
+        const dup = (list || []).find(
+          (a) =>
+            a.id !== editingId &&
+            (a.bankName || "").trim().toLowerCase() === checkBank &&
+            a.accountNumber.trim().replace(/\s+/g, "").toLowerCase() === checkNum
+        );
+        if (dup) {
+          if (k !== currentKey) {
+            errs.accountNumber = `Tài khoản ngân hàng ${selectedBank} (STK: ${cleanNum}) đã được liên kết với một tài khoản khác trong hệ thống.`;
+          } else {
+            errs.accountNumber = `Bạn đã có tài khoản ngân hàng ${selectedBank} (STK: ${cleanNum}) trong danh sách rồi.`;
+          }
+          break;
+        }
+      }
+    }
+
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
 
   // Submit Form (Add or Edit)
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateForm()) return;
 
     const formattedName = accountName.trim().toUpperCase();
     const formattedNumber = accountNumber.trim().replace(/\s+/g, "");
+    setIsSubmitting(true);
 
-    if (editingId) {
-      // Update existing account
-      updateSavedPaymentAccount(editingId, {
-        type: selectedType,
-        accountName: formattedName,
-        accountNumber: formattedNumber,
-        bankName: selectedType === "banking" || selectedType === "vnpay" ? selectedBank : undefined,
-        isDefault,
-      });
-      if (isDefault) {
-        setDefaultPaymentAccount(editingId);
+    try {
+      if (user?.token) {
+        if (editingId) {
+          const res = await updateBankAccountApi(user.token, editingId, {
+            type: selectedType,
+            bank_name: selectedType === "banking" || selectedType === "vnpay" ? selectedBank : "Ngân hàng",
+            account_number: formattedNumber,
+            account_name: formattedName,
+            branch: branch ? branch.trim() : undefined,
+            is_default: isDefault,
+          });
+
+          if (!res.success) {
+            addToast(res.message || "Cập nhật tài khoản ngân hàng thất bại", "error");
+            setErrors((prev) => ({ ...prev, accountNumber: res.message }));
+            return;
+          }
+
+          updateSavedPaymentAccount(editingId, {
+            type: selectedType,
+            accountName: formattedName,
+            accountNumber: formattedNumber,
+            bankName: selectedType === "banking" || selectedType === "vnpay" ? selectedBank : undefined,
+            isDefault,
+          });
+          if (isDefault) {
+            setDefaultPaymentAccount(editingId);
+          }
+          addToast("Đã cập nhật thông tin thanh toán thành công!", "success");
+          resetForm();
+        } else {
+          const res = await addBankAccountApi(user.token, {
+            type: selectedType,
+            bank_name: selectedType === "banking" || selectedType === "vnpay" ? selectedBank : "Ngân hàng",
+            account_number: formattedNumber,
+            account_name: formattedName,
+            branch: branch ? branch.trim() : undefined,
+            is_default: isDefault,
+          });
+
+          if (!res.success) {
+            addToast(res.message || "Không thể liên kết tài khoản ngân hàng", "error");
+            setErrors((prev) => ({ ...prev, accountNumber: res.message }));
+            return;
+          }
+
+          const newAccount: SavedPaymentAccount = {
+            id: String(res.data?.id || `pay_${Date.now()}`),
+            type: selectedType,
+            accountName: formattedName,
+            accountNumber: formattedNumber,
+            bankName: selectedType === "banking" || selectedType === "vnpay" ? selectedBank : undefined,
+            isDefault: res.data?.is_default ?? isDefault,
+            createdAt: Date.now(),
+          };
+          addSavedPaymentAccount(newAccount);
+          addToast("Đã liên kết phương thức thanh toán thành công!", "success");
+          resetForm();
+        }
+      } else {
+        // Fallback local / demo mode
+        if (editingId) {
+          updateSavedPaymentAccount(editingId, {
+            type: selectedType,
+            accountName: formattedName,
+            accountNumber: formattedNumber,
+            bankName: selectedType === "banking" || selectedType === "vnpay" ? selectedBank : undefined,
+            isDefault,
+          });
+          if (isDefault) setDefaultPaymentAccount(editingId);
+          addToast("Đã cập nhật thông tin thanh toán thành công!", "success");
+          resetForm();
+        } else {
+          const newAccount: SavedPaymentAccount = {
+            id: "pay_" + Date.now().toString(),
+            type: selectedType,
+            accountName: formattedName,
+            accountNumber: formattedNumber,
+            bankName: selectedType === "banking" || selectedType === "vnpay" ? selectedBank : undefined,
+            isDefault,
+            createdAt: Date.now(),
+          };
+          addSavedPaymentAccount(newAccount);
+          addToast("Đã lưu phương thức thanh toán thành công!", "success");
+          resetForm();
+        }
       }
-      addToast("Đã cập nhật thông tin thanh toán thành công!", "success");
-      resetForm();
-    } else {
-      // Create new account
-      const newAccount: SavedPaymentAccount = {
-        id: "pay_" + Date.now().toString(),
-        type: selectedType,
-        accountName: formattedName,
-        accountNumber: formattedNumber,
-        bankName: selectedType === "banking" || selectedType === "vnpay" ? selectedBank : undefined,
-        isDefault,
-        createdAt: Date.now(),
-      };
-      addSavedPaymentAccount(newAccount);
-      addToast("Đã lưu phương thức thanh toán thành công!", "success");
-      resetForm();
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   // Confirm delete
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = async () => {
     if (!deleteTarget) return;
+
+    if (user?.token) {
+      await deleteBankAccountApi(user.token, deleteTarget.id);
+    }
     deleteSavedPaymentAccount(deleteTarget.id);
     addToast("Đã xoá phương thức thanh toán", "info");
     if (editingId === deleteTarget.id) resetForm();
@@ -311,7 +432,10 @@ export default function PaymentMethodsPage() {
                       {!account.isDefault ? (
                         <button
                           type="button"
-                          onClick={() => {
+                          onClick={async () => {
+                            if (user?.token) {
+                              await setDefaultBankAccountApi(user.token, account.id);
+                            }
                             setDefaultPaymentAccount(account.id);
                             addToast("Đã đặt làm phương thức thanh toán mặc định", "success");
                           }}
@@ -540,10 +664,17 @@ export default function PaymentMethodsPage() {
               )}
               <button
                 type="submit"
-                className="flex-1 bg-primary text-white font-extrabold text-xs py-3.5 rounded-xl shadow-md shadow-primary/20 hover:bg-primary-dark active:scale-[0.99] transition flex items-center justify-center gap-1.5 cursor-pointer"
+                disabled={isSubmitting}
+                className="flex-1 bg-primary text-white font-extrabold text-xs py-3.5 rounded-xl shadow-md shadow-primary/20 hover:bg-primary-dark active:scale-[0.99] transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
               >
                 <Check size={16} strokeWidth={2.5} />
-                <span>{editingId ? "Cập nhật thay đổi" : "Lưu phương thức thanh toán"}</span>
+                <span>
+                  {isSubmitting
+                    ? "Đang lưu..."
+                    : editingId
+                    ? "Cập nhật thay đổi"
+                    : "Lưu phương thức thanh toán"}
+                </span>
               </button>
             </div>
           </form>

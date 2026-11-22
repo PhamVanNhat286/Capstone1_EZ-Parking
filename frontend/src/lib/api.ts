@@ -566,3 +566,98 @@ export async function topupWalletApi(token: string, amount = 50000) {
     return { success: false, message: "Lỗi kết nối máy chủ khi nạp tiền" };
   }
 }
+
+// ================= BANK ACCOUNTS APIS =================
+export async function getBankAccountsApi(token: string) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/bank-accounts`, {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    });
+    return await res.json();
+  } catch (err) {
+    console.error("Lỗi getBankAccountsApi:", err);
+    return { success: false, data: [] };
+  }
+}
+
+export async function addBankAccountApi(
+  token: string,
+  data: {
+    type?: string;
+    bank_name: string;
+    account_number: string;
+    account_name: string;
+    branch?: string;
+    is_default?: boolean;
+  }
+) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/bank-accounts`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(data),
+    });
+    return await res.json();
+  } catch (err) {
+    console.error("Lỗi addBankAccountApi:", err);
+    return { success: false, message: "Lỗi kết nối máy chủ khi thêm tài khoản ngân hàng" };
+  }
+}
+
+export async function updateBankAccountApi(
+  token: string,
+  id: string | number,
+  data: {
+    type?: string;
+    bank_name?: string;
+    account_number?: string;
+    account_name?: string;
+    branch?: string;
+    is_default?: boolean;
+  }
+) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/bank-accounts/${id}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(data),
+    });
+    return await res.json();
+  } catch (err) {
+    console.error("Lỗi updateBankAccountApi:", err);
+    return { success: false, message: "Lỗi kết nối máy chủ khi sửa tài khoản ngân hàng" };
+  }
+}
+
+export async function deleteBankAccountApi(token: string, id: string | number) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/bank-accounts/${id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return await res.json();
+  } catch (err) {
+    console.error("Lỗi deleteBankAccountApi:", err);
+    return { success: false, message: "Lỗi kết nối máy chủ khi xóa tài khoản ngân hàng" };
+  }
+}
+
+export async function setDefaultBankAccountApi(token: string, id: string | number) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/bank-accounts/${id}/default`, {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return await res.json();
+  } catch (err) {
+    console.error("Lỗi setDefaultBankAccountApi:", err);
+    return { success: false, message: "Lỗi kết nối máy chủ khi đặt tài khoản mặc định" };
+  }
+}

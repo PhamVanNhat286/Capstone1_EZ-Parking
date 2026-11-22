@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { clsx } from "clsx";
 import { useStore, type SavedPaymentAccount } from "@/store";
-import { withdrawWalletApi, getWalletApi } from "@/lib/api";
+import { withdrawWalletApi, getWalletApi, getBankAccountsApi } from "@/lib/api";
 
 const QUICK_AMOUNTS = [20000, 50000, 100000, 200000];
 
@@ -31,6 +31,7 @@ export default function WithdrawPage() {
     setWalletBalance,
     updateWalletBalance,
     savedPaymentAccounts,
+    setSavedPaymentAccounts,
     addToast,
   } = useStore();
 
@@ -52,7 +53,7 @@ export default function WithdrawPage() {
     }
   }, [bankAccounts, selectedAccountId]);
 
-  // Cập nhật số dư ví thực tế từ backend khi vào trang
+  // Cập nhật số dư ví thực tế và tài khoản ngân hàng từ backend khi vào trang
   useEffect(() => {
     if (user?.token) {
       getWalletApi(user.token).then((res) => {
@@ -60,8 +61,22 @@ export default function WithdrawPage() {
           setWalletBalance(Number(res.data.balance));
         }
       });
+      getBankAccountsApi(user.token).then((res) => {
+        if (res.success && Array.isArray(res.data)) {
+          const mapped: SavedPaymentAccount[] = res.data.map((item: any) => ({
+            id: String(item.id),
+            type: item.type || "banking",
+            accountName: item.account_name,
+            accountNumber: item.account_number,
+            bankName: item.bank_name,
+            isDefault: Boolean(item.is_default),
+            createdAt: new Date(item.created_at).getTime(),
+          }));
+          setSavedPaymentAccounts(mapped);
+        }
+      });
     }
-  }, [user?.token, setWalletBalance]);
+  }, [user?.token, setWalletBalance, setSavedPaymentAccounts]);
 
   // Số tiền muốn rút
   const [amountStr, setAmountStr] = useState<string>(
