@@ -25,6 +25,7 @@ import {
   ShieldCheck,
   CreditCard,
   Plus,
+  AlertCircle,
 } from "lucide-react";
 import { clsx } from "clsx";
 import { useStore, AIMessage, getUserChatKey } from "@/store";
@@ -144,6 +145,7 @@ function AIContent() {
   const [isLocating, setIsLocating] = useState(false);
   const [showLocationPicker, setShowLocationPicker] = useState(false);
   const [gpsDenied, setGpsDenied] = useState(false);
+  const [showGpsHelpModal, setShowGpsHelpModal] = useState(false);
 
   // Booking confirmation modal
   const [bookingModal, setBookingModal] = useState<{
@@ -156,71 +158,120 @@ function AIContent() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Auto GPS on mount: Nếu đã chấp nhận ở đăng nhập thì dùng luôn (không hỏi lại), nếu bị từ chối thì mới hỏi lại ở đây
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      // 1. Kiểm tra nếu ở trang đăng nhập (hoặc các màn hình trước) đã chấp nhận GPS
-      const savedGps = sessionStorage.getItem("ez_gps_coords") || localStorage.getItem("ez_gps_coords");
-      const gpsStatus = sessionStorage.getItem("ez_gps_status") || localStorage.getItem("ez_gps_status");
-
-      if (savedGps && gpsStatus === "active") {
+  // Hàm lấy toạ độ thực tế từ browser
+  const fetchRealPosition = (isInteractive = false) => {
+    if (!navigator.geolocation) {
+      if (isInteractive) addToast("Trình duyệt không hỗ trợ định vị GPS", "error");
+      return;
+    }
+    setIsLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setIsLocating(false);
+        const latitude = pos.coords.latitude;
+        const longitude = pos.coords.longitude;
+        setUserLocation({
+          latitude,
+          longitude,
+          label: "GPS của bạn",
+        });
+        setGpsDenied(false);
         try {
-          const coords = JSON.parse(savedGps);
-          if (coords?.lat && coords?.lng) {
-            setUserLocation({
-              latitude: coords.lat,
-              longitude: coords.lng,
-              label: "GPS của bạn",
-            });
-            setGpsDenied(false);
-            sessionStorage.removeItem("ezspace_gps_denied");
-            // Đã chấp nhận ở trang đăng nhập -> Dùng luôn, KHÔNG hỏi lại trình duyệt!
-            return;
-          }
+          const coordsStr = JSON.stringify({ lat: latitude, lng: longitude });
+          sessionStorage.setItem("ez_gps_coords", coordsStr);
+          sessionStorage.setItem("ez_gps_status", "active");
+          localStorage.setItem("ez_gps_coords", coordsStr);
+          localStorage.setItem("ez_gps_status", "active");
+          sessionStorage.removeItem("ezspace_gps_denied");
         } catch {}
-      }
+        if (isInteractive) {
+          addToast("Đã định vị thành công!", "success");
+        }
+      },
+      (err) => {
+        setIsLocating(false);
+        if (err.code === err.PERMISSION_DENIED) {
+          setGpsDenied(true);
+          setUserLocation(null);
+          try {
+            sessionStorage.setItem("ez_gps_status", "denied");
+            sessionStorage.removeItem("ez_gps_coords");
+            localStorage.setItem("ez_gps_status", "denied");
+            localStorage.removeItem("ez_gps_coords");
+            sessionStorage.setItem("ezspace_gps_denied", "true");
+          } catch {}
+          if (isInteractive) {
+            setShowGpsHelpModal(true);
+          }
+        } else {
+          if (isInteractive) {
+            addToast("Không thể lấy toạ độ GPS, bạn có thể chọn điểm bên dưới", "info");
+            setShowLocationPicker(true);
+          }
+        }
+      },
+      { enableHighAccuracy: true, timeout: 8000 }
+    );
+  };
 
-      // 2. Chỉ khi ở trang đăng nhập bị từ chối (hoặc chưa cấp quyền):
-      // Khi vào trang chatbox mới kích hoạt hỏi quyền vị trí từ trình duyệt
-      const storedDenial = sessionStorage.getItem("ezspace_gps_denied") === "true" || gpsStatus === "denied";
-      if (storedDenial) setGpsDenied(true);
+  // Kiểm tra quyền GPS thực tế từ browser
+  const checkAndRequestGps = (userAction = false) => {
+    if (typeof window === "undefined" || !navigator.geolocation) {
+      if (userAction) addToast("Trình duyệt không hỗ trợ định vị GPS", "error");
+      return;
+    }
 
-      if (navigator.geolocation && !userLocation) {
-        navigator.geolocation.getCurrentPosition(
-          (pos) => {
-            const latitude = pos.coords.latitude;
-            const longitude = pos.coords.longitude;
-            setUserLocation({
-              latitude,
-              longitude,
-              label: "GPS của bạn",
-            });
-            setGpsDenied(false);
-            try {
-              const coordsStr = JSON.stringify({ lat: latitude, lng: longitude });
-              sessionStorage.setItem("ez_gps_coords", coordsStr);
-              sessionStorage.setItem("ez_gps_status", "active");
-              localStorage.setItem("ez_gps_coords", coordsStr);
-              localStorage.setItem("ez_gps_status", "active");
-              sessionStorage.removeItem("ezspace_gps_denied");
-            } catch {}
-          },
-          (err) => {
-            if (err.code === err.PERMISSION_DENIED) {
+    if (navigator.permissions && navigator.permissions.query) {
+      navigator.permissions
+        .query({ name: "geolocation" as any })
+        .then((permissionStatus) => {
+          // Lắng nghe thay đổi quyền khi user bật/tắt trong cài đặt trình duyệt
+          permissionStatus.onchange = () => {
+            if (permissionStatus.state === "granted") {
+              fetchRealPosition(false);
+            } else if (permissionStatus.state === "denied") {
+              setUserLocation(null);
               setGpsDenied(true);
               try {
-                sessionStorage.setItem("ez_gps_status", "denied");
+                localStorage.removeItem("ez_gps_coords");
                 sessionStorage.removeItem("ez_gps_coords");
                 localStorage.setItem("ez_gps_status", "denied");
-                localStorage.removeItem("ez_gps_coords");
-                sessionStorage.setItem("ezspace_gps_denied", "true");
+                sessionStorage.setItem("ez_gps_status", "denied");
               } catch {}
             }
-          },
-          { enableHighAccuracy: true, timeout: 5000 }
-        );
-      }
+          };
+
+          if (permissionStatus.state === "granted") {
+            fetchRealPosition(false);
+          } else if (permissionStatus.state === "prompt") {
+            // Trình duyệt đang chờ hỏi quyền -> Kích hoạt hỏi quyền
+            fetchRealPosition(userAction);
+          } else if (permissionStatus.state === "denied") {
+            // Đang bị tắt / chặn trên trình duyệt
+            setUserLocation(null);
+            setGpsDenied(true);
+            try {
+              localStorage.removeItem("ez_gps_coords");
+              sessionStorage.removeItem("ez_gps_coords");
+              localStorage.setItem("ez_gps_status", "denied");
+              sessionStorage.setItem("ez_gps_status", "denied");
+            } catch {}
+            if (userAction) {
+              setShowGpsHelpModal(true);
+            }
+          }
+        })
+        .catch(() => {
+          fetchRealPosition(userAction);
+        });
+    } else {
+      fetchRealPosition(userAction);
     }
+  };
+
+  // Khởi động kiểm tra GPS khi vào trang
+  useEffect(() => {
+    checkAndRequestGps(false);
   }, []);
 
   // Auto scroll to bottom
@@ -311,40 +362,7 @@ function AIContent() {
   };
 
   const handleGetLocation = () => {
-    if (!navigator.geolocation) {
-      addToast("Trình duyệt không hỗ trợ định vị GPS", "error");
-      return;
-    }
-    setIsLocating(true);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const latitude = pos.coords.latitude;
-        const longitude = pos.coords.longitude;
-        setUserLocation({
-          latitude,
-          longitude,
-          label: "GPS hiện tại",
-        });
-        setIsLocating(false);
-        setShowLocationPicker(false);
-        setGpsDenied(false);
-        try {
-          const coordsStr = JSON.stringify({ lat: latitude, lng: longitude });
-          sessionStorage.setItem("ez_gps_coords", coordsStr);
-          sessionStorage.setItem("ez_gps_status", "active");
-          localStorage.setItem("ez_gps_coords", coordsStr);
-          localStorage.setItem("ez_gps_status", "active");
-          sessionStorage.removeItem("ezspace_gps_denied");
-        } catch {}
-        addToast("Đã cập nhật vị trí GPS của bạn!", "success");
-      },
-      (err) => {
-        setIsLocating(false);
-        setShowLocationPicker(true);
-        addToast("Không lấy được GPS, bạn có thể chọn điểm mẫu bên dưới", "info");
-      },
-      { enableHighAccuracy: true, timeout: 8000 }
-    );
+    checkAndRequestGps(true);
   };
 
   // Pipeline simulation states
@@ -567,6 +585,47 @@ function AIContent() {
         </div>
       </div>
 
+      {/* THÔNG BÁO BẬT GPS NGAY DƯỚI HEADER NẾU ĐANG TẮT GPS */}
+      {(!userLocation || gpsDenied) && (
+        <div className="mx-3 mt-2 p-2.5 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/90 rounded-2xl flex items-center justify-between gap-2 shadow-xs z-20 animate-in fade-in slide-in-from-top-1 duration-200">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-7 h-7 rounded-lg bg-amber-500 text-white flex items-center justify-center shrink-0">
+              <MapPin size={15} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-amber-900 truncate">Bạn đang tắt định vị GPS</p>
+              <p className="text-[10px] text-amber-700 truncate">Bật GPS để AI tìm bãi đỗ xe gần bạn nhất</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => checkAndRequestGps(true)}
+            className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 active:scale-95 text-white rounded-xl text-xs font-bold shrink-0 transition cursor-pointer shadow-xs"
+          >
+            Bật GPS
+          </button>
+        </div>
+      )}
+
+      {/* NẾU ĐÃ BẬT GPS THÌ HIỆN CHIP VỊ TRÍ GỌN GÀNG */}
+      {userLocation && (
+        <div className="mx-3 mt-2 px-3 py-1.5 bg-blue-50/80 border border-blue-200/70 rounded-xl flex items-center justify-between text-xs text-blue-800 z-20">
+          <div className="flex items-center gap-1.5 truncate">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+            <span className="font-semibold text-[11px] truncate">
+              📍 Vị trí: {userLocation.label || `${userLocation.latitude.toFixed(4)}, ${userLocation.longitude.toFixed(4)}`}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowLocationPicker(true)}
+            className="text-[10px] font-bold text-blue-600 hover:underline shrink-0 ml-2 cursor-pointer"
+          >
+            Đổi
+          </button>
+        </div>
+      )}
+
       {/* Location Picker Popover */}
       <AnimatePresence>
         {showLocationPicker && (
@@ -746,25 +805,6 @@ function AIContent() {
             <span className="px-2.5 py-0.5 bg-slate-200/70 text-slate-500 rounded-full text-[10px] font-semibold tracking-wider">
               HÔM NAY
             </span>
-          </div>
-        )}
-
-        {/* GPS Permission Warning Banner */}
-        {gpsDenied && (
-          <div className="p-2.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-center justify-between shadow-xs">
-            <div className="flex items-center gap-2">
-              <span className="text-sm">📍</span>
-              <span className="font-semibold text-[11px] leading-tight">
-                Cần bật GPS để xác định vị trí hiện tại của bạn
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={handleGetLocation}
-              className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 active:scale-95 text-white rounded-xl text-[10px] font-bold shrink-0 transition cursor-pointer"
-            >
-              Bật GPS
-            </button>
           </div>
         )}
 
@@ -1010,6 +1050,31 @@ function AIContent() {
             />
           </div>
 
+          {/* Nút Định vị 📍 trên thanh chat */}
+          <button
+            type="button"
+            onClick={() => {
+              if (userLocation) {
+                setShowLocationPicker(true);
+              } else {
+                checkAndRequestGps(true);
+              }
+            }}
+            title={
+              userLocation
+                ? `Đang dùng GPS (${userLocation.label || "Vị trí của bạn"}) - Bấm để xem/đổi`
+                : "Bấm để bật định vị GPS"
+            }
+            className={clsx(
+              "w-11 h-11 rounded-[14px] flex items-center justify-center transition-all shrink-0 active:scale-95 cursor-pointer border",
+              userLocation
+                ? "bg-blue-50 text-blue-600 border-blue-200 shadow-xs"
+                : "bg-amber-50 text-amber-600 border-amber-300 animate-pulse"
+            )}
+          >
+            <MapPin size={18} />
+          </button>
+
           {/* Send Button */}
           <button
             type="submit"
@@ -1107,6 +1172,61 @@ function AIContent() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* MODAL HƯỚNG DẪN BẬT GPS KHI TRÌNH DUYỆT BỊ CHẶN */}
+      {showGpsHelpModal && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"
+          onClick={() => setShowGpsHelpModal(false)}
+        >
+          <div
+            className="bg-white rounded-3xl p-5 max-w-sm w-full shadow-2xl space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center mx-auto">
+              <MapPin size={24} />
+            </div>
+            <div className="text-center space-y-1">
+              <h3 className="text-base font-extrabold text-slate-900">Cách bật lại định vị GPS</h3>
+              <p className="text-xs text-slate-500">
+                Quyền vị trí hiện đang bị tắt trên trình duyệt. Hãy làm theo 3 bước sau để AI tìm bãi gần bạn:
+              </p>
+            </div>
+
+            <div className="bg-slate-50 rounded-2xl p-3.5 space-y-2.5 text-xs text-slate-700 border border-slate-100">
+              <div className="flex items-start gap-2">
+                <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 font-bold flex items-center justify-center shrink-0 text-[10px]">1</span>
+                <span>Bấm vào biểu tượng <strong>Cài đặt trang web</strong> (hoặc ổ khóa 🔒 / 🎛️) ở đầu thanh địa chỉ trình duyệt.</span>
+              </div>
+              <div className="flex items-start gap-2">
+                <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 font-bold flex items-center justify-center shrink-0 text-[10px]">2</span>
+                <span>Chuyển quyền <strong>Vị trí (Location)</strong> sang <strong>Cho phép (Allow)</strong>.</span>
+              </div>
+              <div className="flex items-start gap-2">
+                <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 font-bold flex items-center justify-center shrink-0 text-[10px]">3</span>
+                <span>Bấm <strong>Tải lại trang</strong> bên dưới để hoàn tất.</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setShowGpsHelpModal(false)}
+                className="py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
+              >
+                Để sau
+              </button>
+              <button
+                type="button"
+                onClick={() => window.location.reload()}
+                className="py-2.5 rounded-xl bg-blue-600 text-xs font-bold text-white hover:bg-blue-700 shadow-sm cursor-pointer"
+              >
+                Tải lại trang
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
