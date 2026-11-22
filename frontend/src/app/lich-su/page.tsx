@@ -126,8 +126,10 @@ function HistoryContent() {
       spotId: activeDbItem.slot_code,
       vehicleId: String(activeDbItem.vehicle_id || "1"),
       status: activeDbItem.status,
+      startTime: activeDbItem.start_time,
+      endTime: activeDbItem.expected_end_time,
       holdExpiresAt: activeDbItem.hold_expires_at ? new Date(activeDbItem.hold_expires_at).getTime() : Date.now() + 10 * 60 * 1000,
-      arrivalExpiresAt: activeDbItem.arrival_expires_at ? new Date(activeDbItem.arrival_expires_at).getTime() : Date.now() + 20 * 60 * 1000,
+      arrivalExpiresAt: activeDbItem.arrival_expires_at ? new Date(activeDbItem.arrival_expires_at).getTime() : 0,
       createdAt: new Date(activeDbItem.created_at).getTime(),
     } as Booking : null);
 
@@ -176,7 +178,8 @@ function HistoryContent() {
         const totalAmount = Number(r.total_amount) || deposit;
         const isCompleted = r.status === "completed";
         const isForfeited = r.status === "forfeited";
-        const isCancelled = r.status === "cancelled";
+        const isRefunded = r.status === "refunded" || (r.status === "cancelled" && (r.cancel_reason?.includes("hoàn") || r.cancel_reason?.includes("Ví") || (r.arrival_expires_at && !r.cancel_reason?.includes("mất"))));
+        const isCancelled = r.status === "cancelled" && !isRefunded;
 
         return {
           id: `EZ-${r.id}`,
@@ -187,10 +190,12 @@ function HistoryContent() {
           spotId: r.slot_code,
           vehiclePlate: r.license_plate || activeVehicle.plate,
           vehicleType: r.vehicle_type || activeVehicle.type,
-          status: r.status,
-          amount: isCancelled ? 0 : isForfeited ? -deposit : isCompleted ? totalAmount : deposit,
+          status: isRefunded ? "refunded" : r.status,
+          isRefunded: isRefunded,
+          amount: isRefunded ? deposit : isForfeited ? -deposit : isCompleted ? -totalAmount : 0,
           deposit: deposit,
-          durationText: r.check_in_at && r.check_out_at ? "Hoàn thành" : isForfeited ? "Quá hạn" : isCancelled ? "Đã hủy" : "Cọc giữ chỗ",
+          durationText: r.refund_pending ? "Chờ hoàn cọc" : isRefunded ? "Hoàn vào ví" : r.check_in_at && r.check_out_at ? "Hoàn thành" : isForfeited ? "Quá hạn 20p" : isCancelled ? "Chưa cọc" : "Cọc giữ chỗ",
+          refundPending: Boolean(r.refund_pending),
           paymentMethod: "vnpay",
           createdAt: new Date(r.created_at).getTime(),
           checkInTime: r.check_in_at ? new Date(r.check_in_at).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }) : "14:15",
@@ -213,6 +218,12 @@ function HistoryContent() {
           address: "Đà Nẵng",
         };
         const veh = vehicles.find((v) => v.id === b.vehicleId) || activeVehicle;
+        const isCompleted = b.status === "completed";
+        const isForfeited = b.status === "forfeited";
+        const isRefunded = b.status === "refunded" || (b.status === "cancelled" && (b.paymentMethod || b.arrivalExpiresAt));
+        const isCancelled = b.status === "cancelled" && !isRefunded;
+        const parkingFee = b.estimatedHours ? b.estimatedHours * 15000 : DEPOSIT;
+
         return {
           id: b.id,
           dbId: b.backendId,
@@ -222,10 +233,11 @@ function HistoryContent() {
           spotId: b.spotId,
           vehiclePlate: veh.plate,
           vehicleType: veh.type,
-          status: b.status,
-          amount: b.status === "cancelled" ? 0 : b.status === "forfeited" ? -DEPOSIT : (b.estimatedHours ? b.estimatedHours * 15000 : DEPOSIT),
+          status: isRefunded ? "refunded" : b.status,
+          isRefunded: isRefunded,
+          amount: isRefunded ? DEPOSIT : isForfeited ? -DEPOSIT : isCompleted ? -parkingFee : 0,
           deposit: DEPOSIT,
-          durationText: b.status === "completed" ? "2 giờ" : "Cọc giữ chỗ",
+          durationText: isRefunded ? "Hoàn vào ví" : isForfeited ? "Quá hạn 20p" : isCompleted ? "2 giờ" : "Chưa cọc",
           paymentMethod: b.paymentMethod || "vnpay",
           createdAt: b.createdAt,
           checkInTime: "14:15",
@@ -241,7 +253,7 @@ function HistoryContent() {
     if (historyFilter === "completed") {
       result = result.filter((item) => item.status === "completed");
     } else if (historyFilter === "cancelled") {
-      result = result.filter((item) => item.status === "cancelled" || item.status === "forfeited");
+      result = result.filter((item) => item.status === "cancelled" || item.status === "forfeited" || item.status === "refunded");
     
     }
 
@@ -422,7 +434,8 @@ function HistoryContent() {
           {displayHistory.map((item, idx) => {
             const isCompleted = item.status === "completed";
             const isForfeited = item.status === "forfeited";
-            const isCancelled = item.status === "cancelled";
+            const isRefunded = item.isRefunded || item.status === "refunded";
+            const isCancelled = item.status === "cancelled" && !isRefunded;
 
             const lotInfo = LOT_NAMES[String(item.lotId).toLowerCase()] || {
               name: item.lotName || "Bãi đỗ xe EZ-Space",
@@ -441,10 +454,12 @@ function HistoryContent() {
                 }
                 className={clsx(
                   "bg-white rounded-2xl p-3.5 border shadow-sm flex items-center justify-between transition active:scale-[0.98] cursor-pointer",
-                  isCompleted
+                  isRefunded
+                    ? "border-emerald-200/90 hover:border-emerald-300"
+                    : isCompleted
                     ? "border-slate-200/90 hover:border-blue-200"
                     : isForfeited
-                    ? "border-slate-200/90 hover:border-rose-200"
+                    ? "border-rose-200/90 hover:border-rose-300"
                     : "border-slate-200/90 hover:border-slate-300"
                 )}
               >
@@ -452,11 +467,13 @@ function HistoryContent() {
                   <div
                     className={clsx(
                       "w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm shrink-0 border",
-                      isCompleted && "bg-emerald-50 text-emerald-600 border-emerald-100",
+                      isRefunded && "bg-emerald-50 text-emerald-600 border-emerald-100",
+                      isCompleted && "bg-blue-50 text-blue-600 border-blue-100",
                       isForfeited && "bg-rose-50 text-rose-600 border-rose-100",
-                      isCancelled && "bg-slate-100 text-slate-600 border-slate-200"
+                      isCancelled && "bg-slate-100 text-slate-400 border-slate-200"
                     )}
                   >
+                    {isRefunded && <RotateCcw size={18} />}
                     {isCompleted && <Check size={18} />}
                     {isForfeited && <AlertCircle size={18} />}
                     {isCancelled && <XCircle size={18} />}
@@ -470,13 +487,14 @@ function HistoryContent() {
                     <div className="mt-1 flex items-center gap-1.5">
                       <span
                         className={clsx(
-                          "px-2 py-0.2 rounded-md text-[10px] font-semibold",
-                          isCompleted && "bg-emerald-50 text-emerald-700",
-                          isForfeited && "bg-rose-50 text-rose-700",
-                          isCancelled && "bg-slate-100 text-slate-600"
+                          "px-2 py-0.5 rounded-md text-[10px] font-semibold border",
+                          isRefunded && "bg-emerald-50 text-emerald-700 border-emerald-200",
+                          isCompleted && "bg-blue-50 text-blue-700 border-blue-200",
+                          isForfeited && "bg-rose-50 text-rose-700 border-rose-200",
+                          isCancelled && "bg-slate-100 text-slate-600 border-slate-200"
                         )}
                       >
-                        {isCompleted ? "Đã hoàn thành" : isForfeited ? "Mất cọc" : "Đã hủy"}
+                        {item.refundPending ? "Chờ hoàn cọc" : isRefunded ? "Đã hoàn cọc" : isCompleted ? "Đã hoàn tất" : isForfeited ? "Mất cọc" : "Đã hủy"}
                       </span>
                       <span className="text-[10px] text-slate-400 font-mono">{item.vehiclePlate}</span>
                     </div>
@@ -486,18 +504,20 @@ function HistoryContent() {
                 <div className="text-right">
                   <div
                     className={clsx(
-                      "text-sm font-black",
-                      isForfeited ? "text-rose-600" : "text-slate-900"
+                      "text-sm font-black tracking-tight",
+                      isRefunded ? "text-emerald-600" : isForfeited ? "text-rose-600" : isCompleted ? "text-slate-900" : "text-slate-400"
                     )}
                   >
-                    {isCompleted
-                      ? `${item.amount.toLocaleString("vi-VN")}đ`
+                    {isRefunded
+                      ? `+${item.deposit.toLocaleString("vi-VN")}đ`
                       : isForfeited
+                      ? `-${Math.abs(item.deposit).toLocaleString("vi-VN")}đ`
+                      : isCompleted
                       ? `-${Math.abs(item.amount).toLocaleString("vi-VN")}đ`
                       : "0đ"}
                   </div>
                   <span className="text-[10px] text-slate-400">
-                    {isForfeited ? "Quá hạn 20p" : item.durationText || "2.5 giờ"}
+                    {isRefunded ? "Hoàn vào ví" : isForfeited ? "Quá hạn 20p" : isCompleted ? (item.durationText || "2.5 giờ") : "Chưa cọc"}
                   </span>
                 </div>
               </div>
@@ -562,7 +582,11 @@ function HistoryContent() {
                         : "bg-blue-100 text-blue-800"
                     )}
                   >
-                    {selectedItem.status === "completed" ? (
+                    {selectedItem.refundPending ? (
+                      <><ShieldCheck size={14} className="text-amber-600" /><span>Chờ hoàn cọc</span></>
+                    ) : selectedItem.status === "refunded" ? (
+                      <><ShieldCheck size={14} className="text-emerald-600" /><span>Đã hoàn cọc</span></>
+                    ) : selectedItem.status === "completed" ? (
                       <>
                         <CheckCircle size={14} className="text-emerald-600" />
                         <span>Hoàn thành đỗ xe</span>
@@ -587,6 +611,8 @@ function HistoryContent() {
                   <X size={16} />
                 </button>
               </div>
+
+              {selectedItem.refundPending && <p className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">Bãi đã ghi nhận yêu cầu hoàn cọc vì ô còn xe và không có ô thay thế. Nhân viên đang đối soát; tiền chưa được hoàn tự động.</p>}
 
               {/* Lot & Reservation Info */}
               <div>
@@ -640,35 +666,62 @@ function HistoryContent() {
               {/* Invoice Receipt Cutout */}
               <div className="mt-4 p-4 rounded-2xl bg-slate-50 border border-slate-200/90 text-xs space-y-2">
                 <div className="flex items-center justify-between font-semibold pb-2 border-b border-dashed border-slate-300">
-                  <span className="text-slate-600">Chi tiết thanh toán</span>
-                  <span className="text-blue-600 font-mono text-[11px]">VNP14077831</span>
+                  <span className="text-slate-600">Chi tiết thanh toán & dòng tiền</span>
+                  <span className="text-blue-600 font-mono text-[11px]">{selectedItem.id}</span>
                 </div>
 
-                <div className="flex justify-between text-slate-600">
-                  <span>Tiền cọc ban đầu (VNPay)</span>
-                  <span className="font-medium">50.000đ</span>
-                </div>
-                <div className="flex justify-between text-slate-600">
-                  <span>Phí đỗ thực tế</span>
-                  <span className="font-medium">50.000đ</span>
-                </div>
-                <div className="flex justify-between text-emerald-600">
-                  <span>Khấu trừ tiền cọc</span>
-                  <span className="font-medium">-50.000đ</span>
-                </div>
-                <div className="flex justify-between text-slate-600">
-                  <span>Ưu đãi thành viên (nếu có)</span>
-                  <span className="font-medium text-emerald-600">0đ</span>
-                </div>
-
-                <div className="pt-2 border-t border-slate-300 flex justify-between items-center text-sm font-bold text-slate-900">
-                  <span>Tổng thanh toán:</span>
-                  <span className="text-base text-blue-600 font-black">
-                    {selectedItem.status === "forfeited"
-                      ? `-${DEPOSIT.toLocaleString("vi-VN")}đ`
-                      : `${(selectedItem.amount || DEPOSIT).toLocaleString("vi-VN")}đ`}
-                  </span>
-                </div>
+                {selectedItem.isRefunded || selectedItem.status === "refunded" ? (
+                  <>
+                    <div className="flex justify-between text-slate-600">
+                      <span>Tiền cọc ban đầu</span>
+                      <span className="font-medium">50.000đ</span>
+                    </div>
+                    <div className="flex justify-between text-emerald-600 font-semibold">
+                      <span>Hoàn trả vào Ví EZ-Space</span>
+                      <span>+50.000đ</span>
+                    </div>
+                    <div className="pt-2 border-t border-slate-300 flex justify-between items-center text-sm font-bold text-slate-900">
+                      <span>Biến động số dư:</span>
+                      <span className="text-base text-emerald-600 font-black">+50.000đ</span>
+                    </div>
+                  </>
+                ) : selectedItem.status === "forfeited" ? (
+                  <>
+                    <div className="flex justify-between text-slate-600">
+                      <span>Tiền cọc ban đầu</span>
+                      <span className="font-medium">50.000đ</span>
+                    </div>
+                    <div className="flex justify-between text-rose-600 font-semibold">
+                      <span>Khấu trừ do quá hạn đến bãi</span>
+                      <span>-50.000đ</span>
+                    </div>
+                    <div className="pt-2 border-t border-slate-300 flex justify-between items-center text-sm font-bold text-slate-900">
+                      <span>Mất cọc:</span>
+                      <span className="text-base text-rose-600 font-black">-50.000đ</span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex justify-between text-slate-600">
+                      <span>Tiền cọc ban đầu</span>
+                      <span className="font-medium">50.000đ</span>
+                    </div>
+                    <div className="flex justify-between text-slate-600">
+                      <span>Phí đỗ thực tế</span>
+                      <span className="font-medium">{Math.abs(selectedItem.amount || DEPOSIT).toLocaleString("vi-VN")}đ</span>
+                    </div>
+                    <div className="flex justify-between text-emerald-600">
+                      <span>Khấu trừ tiền cọc</span>
+                      <span className="font-medium">-50.000đ</span>
+                    </div>
+                    <div className="pt-2 border-t border-slate-300 flex justify-between items-center text-sm font-bold text-slate-900">
+                      <span>Tổng chi phí:</span>
+                      <span className="text-base text-slate-900 font-black">
+                        -{Math.abs(selectedItem.amount || DEPOSIT).toLocaleString("vi-VN")}đ
+                      </span>
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Actions CTAs */}

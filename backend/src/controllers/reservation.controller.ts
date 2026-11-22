@@ -1,6 +1,8 @@
 import { Request, Response } from "express";
 import { pool, query } from "../config/db";
 import { AuthRequest } from "../middlewares/auth.middleware";
+import { arrivalDeadline } from "../config/booking-policy";
+import { parkingHourlyRate } from "../config/parking-pricing";
 
 const SLUG_TO_ID: Record<string, number> = {
   "hai-chau-a": 1,
@@ -31,6 +33,23 @@ export const holdSpot = async (req: AuthRequest, res: Response): Promise<void> =
 
     const lotId = resolveLotId(parking_lot_id);
     const userId = req.user?.id || req.body.user_id || 3; // Fallback user 3 (Nguyen Van A)
+    const sTime = start_time ? new Date(start_time) : new Date();
+    const eTime = expected_end_time
+      ? new Date(expected_end_time)
+      : new Date(sTime.getTime() + Number(estimated_hours) * 3600_000);
+    const durationMs = eTime.getTime() - sTime.getTime();
+    if (!Number.isFinite(sTime.getTime()) || !Number.isFinite(eTime.getTime()) ||
+        sTime.getTime() < Date.now() - 60_000 ||
+        sTime.getTime() > Date.now() + 30 * 24 * 3600_000 ||
+        durationMs <= 0) {
+      res.status(400).json({ success: false, message: "Giờ vào phải trong 30 ngày tới và giờ ra phải sau giờ vào." });
+      return;
+    }
+    if (durationMs < 3600_000) {
+      res.status(400).json({ success: false, message: "Thời gian đặt tối thiểu 1 giờ." });
+      return;
+    }
+    const billableHours = Math.ceil(durationMs / 3600_000);
 
     // Xác định slot ID chính xác (cho phép truyền cả id dạng số hoặc code ví dụ "A-01")
     let targetSlotId: number | null = null;
@@ -61,45 +80,47 @@ export const holdSpot = async (req: AuthRequest, res: Response): Promise<void> =
     // Bắt đầu Database Transaction
     await client.query("BEGIN");
 
-    // 🔒 ATOMIC CONDITIONAL UPDATE:
-    // Chỉ cập nhật trạng thái 'holding' NẾU VÀ CHỈ NẾU status hiện tại là 'available'.
-    // Cơ chế row-level lock của PostgreSQL đảm bảo chỉ 1 request duy nhất thắng tranh chấp!
-    const updateSlotSql = `
-      UPDATE slots
-      SET status = 'holding', updated_at = NOW()
-      WHERE id = $1 AND parking_lot_id = $2 AND status = 'available' AND is_active = TRUE
-      RETURNING id, code, slot_type;
-    `;
-    const slotUpdateRes = await client.query(updateSlotSql, [targetSlotId, lotId]);
-
-    // Nếu rowCount === 0 -> Ô đỗ đã bị người khác giữ hoặc không khả dụng
-    if (slotUpdateRes.rowCount === 0) {
+    // Khóa dòng ô đỗ trước khi kiểm tra khoảng thời gian để hai khách không thể đặt trùng.
+    const slotRes = await client.query(
+      "SELECT id, code, slot_type, status FROM slots WHERE id=$1 AND parking_lot_id=$2 AND is_active=TRUE FOR UPDATE",
+      [targetSlotId, lotId]
+    );
+    const slot = slotRes.rows[0];
+    const overlap = slot ? await client.query(`
+      SELECT id FROM reservations
+      WHERE slot_id=$1 AND status IN ('holding', 'paid', 'entered')
+        AND start_time < $3::timestamptz
+        AND expected_end_time > $2::timestamptz
+        AND (status <> 'holding' OR hold_expires_at > NOW())
+      LIMIT 1
+    `, [targetSlotId, sTime, eTime]) : null;
+    const activePhysicalReservation = slot && slot.status !== 'available' ? await client.query(`
+      SELECT id FROM reservations WHERE slot_id=$1 AND status IN ('holding', 'paid', 'entered')
+        AND (status <> 'holding' OR hold_expires_at > NOW()) LIMIT 1
+    `, [targetSlotId]) : null;
+    if (!slot || overlap?.rowCount || (slot.status !== 'available' && !activePhysicalReservation?.rowCount)) {
       await client.query("ROLLBACK");
-
-      const checkCurrent = await client.query(
-        "SELECT code, status FROM slots WHERE id = $1 AND parking_lot_id = $2",
-        [targetSlotId, lotId]
-      );
-      const currentStatus = checkCurrent.rows[0]?.status || "unknown";
-      const code = checkCurrent.rows[0]?.code || slot_id;
-
       res.status(409).json({
         success: false,
         code: "SPOT_ALREADY_TAKEN",
-        message: `Ô ${code} vừa có người khác giữ chỗ hoặc đã có xe đỗ (Trạng thái hiện tại: ${currentStatus}). Vui lòng chọn ô khác!`,
-        data: { slot_id: targetSlotId, code, currentStatus },
+        message: `Ô ${slot?.code || slot_id} không còn trống trong khoảng ngày giờ đã chọn. Vui lòng chọn ô khác!`,
+        data: { slot_id: targetSlotId, code: slot?.code || slot_id, currentStatus: slot?.status || "unknown" },
       });
       return;
     }
-
-    const updatedSlot = slotUpdateRes.rows[0];
+    // Giữ trạng thái vật lý chỉ khi ô hiện trống; không ghi đè xe của lượt trước đang đỗ.
+    if (sTime.getTime() <= Date.now() && slot.status === 'available') {
+      await client.query("UPDATE slots SET status='holding', updated_at=NOW() WHERE id=$1 AND status='available'", [targetSlotId]);
+    }
+    const updatedSlot = slot;
 
     // Lấy giá theo giờ của bãi xe
     const priceRes = await client.query(
       "SELECT hourly_rate FROM pricing_rules WHERE parking_lot_id = $1 ORDER BY id ASC LIMIT 1",
       [lotId]
     );
-    const hourlyRate = Number(priceRes.rows[0]?.hourly_rate || 20000);
+    const baseRate = Number(priceRes.rows[0]?.hourly_rate || 20000);
+    const hourlyRate = parkingHourlyRate(lotId, sTime, baseRate);
     const depositAmount = 50000; // Tiền đặt cọc chuẩn 50.000đ
 
     // Xác định vehicle_id
@@ -115,11 +136,6 @@ export const holdSpot = async (req: AuthRequest, res: Response): Promise<void> =
     // Tính thời gian hết hạn giữ chỗ (hold_expires_at)
     const holdSeconds = Math.max(10, Math.round(Number(hold_duration_minutes) * 60));
     const holdExpiresAt = new Date(Date.now() + holdSeconds * 1000);
-
-    const sTime = start_time ? new Date(start_time) : new Date();
-    const eTime = expected_end_time
-      ? new Date(expected_end_time)
-      : new Date(sTime.getTime() + Number(estimated_hours) * 3600 * 1000);
 
     // Hủy bỏ các đơn 'holding' cũ của chính user này trên cùng slot (nếu có)
     await client.query(
@@ -174,7 +190,7 @@ export const holdSpot = async (req: AuthRequest, res: Response): Promise<void> =
         hold_expires_at: insertRes.rows[0].hold_expires_at,
         deposit_amount: Number(insertRes.rows[0].deposit_amount),
         hourly_rate: hourlyRate,
-        estimated_hours: Number(estimated_hours),
+        estimated_hours: billableHours,
         start_time: insertRes.rows[0].start_time,
         expected_end_time: insertRes.rows[0].expected_end_time,
       },
@@ -191,8 +207,8 @@ export const holdSpot = async (req: AuthRequest, res: Response): Promise<void> =
   }
 };
 
-// POST /api/reservations/:id/release - Khách hàng hủy giữ ô hoặc rời khỏi thanh toán
-export const releaseSpot = async (req: AuthRequest, res: Response): Promise<void> => {
+// POST /api/reservations/:id/cancel - Hủy đặt chỗ (Nếu đã trả cọc thì hoàn cọc 100% vào Ví EZ-Space)
+export const cancelReservation = async (req: AuthRequest, res: Response): Promise<void> => {
   const client = await pool.connect();
   try {
     const rawId = String(req.params.id).replace(/^[eE][zZ]-/, "");
@@ -201,11 +217,16 @@ export const releaseSpot = async (req: AuthRequest, res: Response): Promise<void
       res.status(404).json({ success: false, message: "Mã đơn đặt chỗ không hợp lệ" });
       return;
     }
+    const userId = req.user?.id || req.body?.user_id;
+
     await client.query("BEGIN");
 
-    // Lấy thông tin đơn đặt chỗ
     const resRes = await client.query(
-      "SELECT id, slot_id, status FROM reservations WHERE id = $1 FOR UPDATE",
+      `SELECT r.*, s.code AS slot_code, l.name AS lot_name 
+       FROM reservations r
+       JOIN slots s ON s.id = r.slot_id
+       JOIN parking_lots l ON l.id = r.parking_lot_id
+       WHERE r.id = $1 FOR UPDATE OF r`,
       [reservationId]
     );
 
@@ -216,28 +237,124 @@ export const releaseSpot = async (req: AuthRequest, res: Response): Promise<void
     }
 
     const reservation = resRes.rows[0];
+
+    // Chỉ chủ đơn hoặc admin mới được hủy (nếu có userId)
+    if (userId && reservation.user_id && Number(userId) !== Number(reservation.user_id) && req.user?.role !== "admin") {
+      await client.query("ROLLBACK");
+      res.status(403).json({ success: false, message: "Bạn không có quyền hủy đơn đặt chỗ này" });
+      return;
+    }
+
+    // Nếu xe đã vào bãi (entered) hoặc đã hoàn thành (completed) -> Không thể hủy
+    if (reservation.status === "entered" || reservation.status === "completed") {
+      await client.query("ROLLBACK");
+      res.status(400).json({ success: false, message: "Xe đã vào bãi hoặc đã hoàn thành lượt đỗ, không thể hủy đơn." });
+      return;
+    }
+
+    if (reservation.status === "cancelled" || reservation.status === "forfeited" || reservation.status === "refunded") {
+      await client.query("ROLLBACK");
+      res.status(400).json({ success: false, message: `Đơn đặt chỗ đã ở trạng thái '${reservation.status}', không thể hủy lại.` });
+      return;
+    }
+
+    const now = new Date();
+    const startTime = new Date(reservation.start_time);
+    const depositAmount = Number(reservation.deposit_amount || 50000);
+
+    // TRƯỜNG HỢP 1: Đang giữ chỗ (chưa trả cọc)
     if (reservation.status === "holding") {
-      // Hủy reservation
       await client.query(
-        "UPDATE reservations SET status = 'cancelled', cancel_reason = 'Người dùng chủ động hủy', cancelled_at = NOW() WHERE id = $1",
+        "UPDATE reservations SET status = 'cancelled', cancel_reason = 'Khách hủy trước khi thanh toán cọc', cancelled_at = NOW(), updated_at = NOW() WHERE id = $1",
         [reservationId]
       );
-      // Trả lại trạng thái ô đỗ về available
       await client.query(
         "UPDATE slots SET status = 'available', updated_at = NOW() WHERE id = $1 AND status = 'holding'",
         [reservation.slot_id]
       );
+      await client.query("COMMIT");
+      res.json({
+        success: true,
+        message: "Đã hủy giữ chỗ thành công.",
+        data: { reservation_id: reservationId, refunded: false },
+      });
+      return;
     }
 
-    await client.query("COMMIT");
-    res.json({ success: true, message: "Đã hủy giữ chỗ và trả lại ô đỗ thành công" });
+    // TRƯỜNG HỢP 2: Đã thanh toán cọc (status === 'paid')
+    if (reservation.status === "paid") {
+      // 1. Cập nhật reservation sang 'refunded'
+      await client.query(
+        "UPDATE reservations SET status = 'refunded', cancel_reason = 'Khách hủy hợp lệ; đã hoàn cọc vào Ví EZ-Space', cancelled_at = NOW(), updated_at = NOW() WHERE id = $1",
+        [reservationId]
+      );
+
+      // 2. Giải phóng ô đỗ về 'available'
+      await client.query(
+        "UPDATE slots SET status = 'available', updated_at = NOW() WHERE id = $1",
+        [reservation.slot_id]
+      );
+
+      // 3. Cộng tiền cọc vào Ví EZ-Space của user
+      const userUpdateRes = await client.query(
+        "UPDATE users SET wallet_balance = wallet_balance + $1, updated_at = NOW() WHERE id = $2 RETURNING wallet_balance",
+        [depositAmount, reservation.user_id]
+      );
+      const newWalletBalance = Number(userUpdateRes.rows[0]?.wallet_balance || depositAmount);
+
+      // 4. Ghi nhận giao dịch ví (type: 'REFUND')
+      const desc = `Hoàn tiền cọc đơn #${reservationId} (${reservation.lot_name} - Ô ${reservation.slot_code})`;
+      await client.query(
+        `INSERT INTO wallet_transactions (user_id, amount, type, status, description)
+         VALUES ($1, $2, 'REFUND', 'success', $3)`,
+        [reservation.user_id, depositAmount, desc]
+      );
+
+      // 5. Ghi nhận bản ghi thanh toán hoàn tiền
+      await client.query(
+        `INSERT INTO payments (reservation_id, provider, transaction_ref, payment_type, amount, status, paid_at)
+         VALUES ($1, 'bank', $2, 'refund', $3, 'success', NOW())`,
+        [reservationId, `REFUND-WALLET-${reservationId}`, depositAmount]
+      );
+
+      // 6. Ghi audit log
+      await client.query(
+        `INSERT INTO audit_logs (user_id, parking_lot_id, action, entity_type, entity_id, note)
+         VALUES ($1, $2, 'REFUND_DEPOSIT_TO_WALLET', 'reservation', $3, $4)`,
+        [reservation.user_id, reservation.parking_lot_id, reservationId, `Hoàn ${depositAmount.toLocaleString("vi-VN")}đ vào Ví EZ-Space`]
+      );
+
+      await client.query("COMMIT");
+
+      res.json({
+        success: true,
+        message: `Đã hủy vé thành công! Tiền cọc ${depositAmount.toLocaleString("vi-VN")}đ đã được hoàn vào Ví EZ-Space của bạn.`,
+        data: {
+          reservation_id: reservationId,
+          refunded: true,
+          refund_amount: depositAmount,
+          wallet_balance: newWalletBalance,
+          status: "refunded",
+        },
+      });
+      return;
+    }
+
+    await client.query("ROLLBACK");
+    res.status(400).json({ success: false, message: "Không thể xử lý yêu cầu hủy đơn." });
   } catch (error) {
     await client.query("ROLLBACK");
-    console.error("Lỗi khi giải phóng ô đỗ:", error);
-    res.status(500).json({ success: false, message: "Lỗi máy chủ khi hủy giữ chỗ" });
+    console.error("Lỗi khi hủy đơn đặt chỗ:", error);
+    res.status(500).json({ success: false, message: "Lỗi máy chủ khi hủy đơn" });
   } finally {
     client.release();
   }
+};
+
+// POST /api/reservations/:id/release - Khách hàng hủy giữ ô hoặc rời khỏi thanh toán
+export const releaseSpot = async (req: AuthRequest, res: Response): Promise<void> => {
+  // Chuyển tiếp xử lý sang cancelReservation để hỗ trợ cả holding và paid hoàn cọc
+  return cancelReservation(req, res);
 };
 
 // POST /api/reservations/:id/pay-deposit - Xác nhận thanh toán cọc thành công
@@ -255,7 +372,7 @@ export const payDeposit = async (req: AuthRequest, res: Response): Promise<void>
     await client.query("BEGIN");
 
     const resRes = await client.query(
-      "SELECT id, slot_id, status, deposit_amount FROM reservations WHERE id = $1 FOR UPDATE",
+      "SELECT id, user_id, slot_id, status, deposit_amount, start_time, hold_expires_at FROM reservations WHERE id = $1 FOR UPDATE",
       [reservationId]
     );
 
@@ -266,17 +383,43 @@ export const payDeposit = async (req: AuthRequest, res: Response): Promise<void>
     }
 
     const reservation = resRes.rows[0];
-    if (reservation.status !== "holding") {
+    if (reservation.status !== "holding" || new Date(reservation.hold_expires_at).getTime() <= Date.now()) {
       await client.query("ROLLBACK");
       res.status(400).json({
         success: false,
-        message: `Đơn đặt chỗ không ở trạng thái chờ thanh toán (Hiện tại: ${reservation.status})`,
+        message: "Lượt giữ chỗ đã hết hạn hoặc không còn chờ thanh toán.",
       });
       return;
     }
 
-    // Thời gian cho phép đến bãi: 20 phút
-    const arrivalExpiresAt = new Date(Date.now() + 20 * 60 * 1000);
+    const depositAmount = Number(reservation.deposit_amount || 50000);
+
+    // Nếu thanh toán bằng Ví EZ-Space
+    if (provider === "wallet") {
+      const userRes = await client.query("SELECT wallet_balance FROM users WHERE id = $1 FOR UPDATE", [reservation.user_id]);
+      const currentBalance = Number(userRes.rows[0]?.wallet_balance || 0);
+
+      if (currentBalance < depositAmount) {
+        await client.query("ROLLBACK");
+        res.status(400).json({
+          success: false,
+          message: `Số dư ví không đủ (Hiện có: ${currentBalance.toLocaleString("vi-VN")}đ, Cần: ${depositAmount.toLocaleString("vi-VN")}đ). Vui lòng nạp thêm hoặc chọn phương thức khác.`,
+        });
+        return;
+      }
+
+      // Trừ số dư ví
+      await client.query("UPDATE users SET wallet_balance = wallet_balance - $1, updated_at = NOW() WHERE id = $2", [depositAmount, reservation.user_id]);
+
+      // Ghi nhận biến động số dư ví
+      await client.query(
+        `INSERT INTO wallet_transactions (user_id, amount, type, status, description)
+         VALUES ($1, $2, 'PAYMENT', 'success', $3)`,
+        [reservation.user_id, -depositAmount, `Thanh toán cọc đặt chỗ đơn #${reservationId}`]
+      );
+    }
+
+    const arrivalExpiresAt = arrivalDeadline(new Date(reservation.start_time));
 
     // Cập nhật reservation sang trạng thái 'paid'
     await client.query(`
@@ -289,7 +432,7 @@ export const payDeposit = async (req: AuthRequest, res: Response): Promise<void>
     await client.query(`
       INSERT INTO payments (reservation_id, provider, transaction_ref, payment_type, amount, status, paid_at)
       VALUES ($1, $2, $3, 'deposit', $4, 'success', NOW())
-    `, [reservationId, provider, transaction_ref, reservation.deposit_amount]);
+    `, [reservationId, provider, transaction_ref, depositAmount]);
 
     await client.query("COMMIT");
 
@@ -330,6 +473,8 @@ export const getActiveReservation = async (req: AuthRequest, res: Response): Pro
         r.start_time,
         r.expected_end_time,
         r.status,
+        r.cancel_reason,
+        EXISTS (SELECT 1 FROM payments p WHERE p.reservation_id=r.id AND p.payment_type='refund' AND p.status='pending') AS refund_pending,
         r.hold_expires_at,
         r.arrival_expires_at,
         r.deposit_amount,
@@ -387,6 +532,8 @@ export const getMyReservations = async (req: AuthRequest, res: Response): Promis
         r.start_time,
         r.expected_end_time,
         r.status,
+        r.cancel_reason,
+        EXISTS (SELECT 1 FROM payments p WHERE p.reservation_id=r.id AND p.payment_type='refund' AND p.status='pending') AS refund_pending,
         r.hold_expires_at,
         r.arrival_expires_at,
         r.deposit_amount,
@@ -396,7 +543,9 @@ export const getMyReservations = async (req: AuthRequest, res: Response): Promis
         ps.check_in_at,
         ps.check_out_at,
         CASE 
+          WHEN r.status::text = 'cancelled' AND EXISTS (SELECT 1 FROM payments p WHERE p.reservation_id=r.id AND p.payment_type='refund' AND p.status='pending') THEN 'Chờ hoàn cọc'
           WHEN r.status::text = 'cancelled' THEN 'Đã hủy'
+          WHEN r.status::text = 'refunded' THEN 'Đã hoàn cọc'
           WHEN r.status::text = 'forfeited' THEN 'Mất cọc (Quá hạn)'
           WHEN r.status::text = 'completed' THEN 'Hoàn thành'
           WHEN r.status::text = 'entered' THEN 'Đang đỗ'
@@ -457,6 +606,8 @@ export const getReservationById = async (req: AuthRequest, res: Response): Promi
         r.start_time,
         r.expected_end_time,
         r.status,
+        r.cancel_reason,
+        EXISTS (SELECT 1 FROM payments p WHERE p.reservation_id=r.id AND p.payment_type='refund' AND p.status='pending') AS refund_pending,
         r.hold_expires_at,
         r.arrival_expires_at,
         r.deposit_amount,

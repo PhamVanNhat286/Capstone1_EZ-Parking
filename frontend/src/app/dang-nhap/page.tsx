@@ -270,17 +270,19 @@ export default function AuthPage() {
             navigator.geolocation.getCurrentPosition(
               (pos) => {
                 try {
-                  sessionStorage.setItem(
-                    "ez_gps_coords",
-                    JSON.stringify({ lat: pos.coords.latitude, lng: pos.coords.longitude })
-                  );
+                  const coordsStr = JSON.stringify({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+                  sessionStorage.setItem("ez_gps_coords", coordsStr);
                   sessionStorage.setItem("ez_gps_status", "active");
+                  localStorage.setItem("ez_gps_coords", coordsStr);
+                  localStorage.setItem("ez_gps_status", "active");
                 } catch {}
               },
               () => {
                 try {
                   sessionStorage.setItem("ez_gps_status", "denied");
                   sessionStorage.removeItem("ez_gps_coords");
+                  localStorage.setItem("ez_gps_status", "denied");
+                  localStorage.removeItem("ez_gps_coords");
                 } catch {}
               },
               { enableHighAccuracy: false, timeout: 6000, maximumAge: 60000 }

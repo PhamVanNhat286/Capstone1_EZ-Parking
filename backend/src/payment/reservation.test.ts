@@ -3,23 +3,26 @@ import { test } from 'node:test';
 import type { PoolClient } from 'pg';
 import { confirmDeposit } from './reservation';
 
-function fakeClient(status: string, amount = 50_000, expires = Date.now() + 60_000) {
+function fakeClient(status: string, amount = 50_000, expires = Date.now() + 60_000, start = new Date(Date.now() + 24 * 3600_000)) {
   const statements: string[] = [];
+  const argumentsList: unknown[][] = [];
   const client = {
-    query: async (sql: string) => {
+    query: async (sql: string, args: unknown[] = []) => {
       statements.push(sql);
-      if (sql.startsWith('SELECT')) return { rows: [{ id: 42, status, hold_expires_at: new Date(expires), deposit_amount: amount }] };
+      argumentsList.push(args);
+      if (sql.startsWith('SELECT')) return { rows: [{ id: 42, status, hold_expires_at: new Date(expires), deposit_amount: amount, start_time: start }] };
       return { rows: [] };
     },
   } as unknown as PoolClient;
-  return { client, statements };
+  return { client, statements, argumentsList, start };
 }
 
 test('giao dich hop le cap nhat don va ghi thanh toan', async () => {
-  const { client, statements } = fakeClient('holding');
+  const { client, statements, argumentsList, start } = fakeClient('holding');
   assert.equal(await confirmDeposit(client, 42, 'vnpay', 'reference', 50_000), 'success');
   assert.equal(statements.length, 3);
   assert.match(statements[1], /UPDATE reservations/);
+  assert.equal((argumentsList[1][1] as Date).getTime(), start.getTime() + 20 * 60_000);
   assert.match(statements[2], /INSERT INTO payments/);
 });
 

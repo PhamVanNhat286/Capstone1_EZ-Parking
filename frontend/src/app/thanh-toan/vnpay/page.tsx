@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { useStore } from '@/store';
 import { lots } from '@/lib/mock/lots';
 import { getLotByIdApi } from '@/lib/api';
+import { formatBookingTime } from '@/lib/booking-time';
 import { calculateDetailedFee } from '@/lib/pricing';
 
 const DEPOSIT = 50_000;
@@ -32,43 +33,8 @@ export default function VNPayPage() {
   );
   const estimatedTotal = Math.max(0, Math.round(feeDetails.totalFee));
   const vehicle = vehicles.find((item) => item.id === booking?.vehicleId);
-  const timeRange = (() => {
-    if (!booking) return { startTime: 'Chưa có', endTime: 'Chưa có', startDate: '', endDate: '' };
-    const baseMs = booking.createdAt || Date.now();
-    const startDateObj = new Date(baseMs);
-    let startTime = startDateObj.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false });
-    if (booking.startTime && booking.startTime.includes(':')) {
-      const [sH, sM] = booking.startTime.split(':').map(Number);
-      if (!isNaN(sH) && !isNaN(sM)) {
-        startDateObj.setHours(sH, sM, 0, 0);
-        if (startDateObj.getTime() < baseMs - 12 * 3600000) {
-          startDateObj.setDate(startDateObj.getDate() + 1);
-        }
-        startTime = `${String(sH).padStart(2, '0')}:${String(sM).padStart(2, '0')}`;
-      }
-    }
-
-    const endDateObj = new Date(startDateObj.getTime() + hours * 3600000);
-    let endTime = endDateObj.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false });
-    if (booking.endTime && booking.endTime.includes(':')) {
-      const [eH, eM] = booking.endTime.split(':').map(Number);
-      if (!isNaN(eH) && !isNaN(eM)) {
-        endDateObj.setTime(startDateObj.getTime());
-        endDateObj.setHours(eH, eM, 0, 0);
-        if (endDateObj.getTime() <= startDateObj.getTime()) {
-          endDateObj.setDate(endDateObj.getDate() + 1);
-        }
-        endTime = `${String(eH).padStart(2, '0')}:${String(eM).padStart(2, '0')}`;
-      }
-    }
-
-    return {
-      startTime,
-      endTime,
-      startDate: formatDateDMY(startDateObj),
-      endDate: formatDateDMY(endDateObj),
-    };
-  })();
+  const startTime = formatBookingTime(booking?.startTime);
+  const endTime = formatBookingTime(booking?.endTime);
 
   useEffect(() => {
     if (!booking?.lotId) return;
@@ -127,16 +93,8 @@ export default function VNPayPage() {
             <div className="flex justify-between gap-3"><span className="text-slate-500">Ô đỗ</span><strong>{booking?.spotId || 'Chưa có'}</strong></div>
             <div className="flex justify-between gap-3"><span className="text-slate-500">Biển số</span><strong className="text-right">{vehicle?.plate || 'Chưa có'}</strong></div>
             <div className="grid grid-cols-2 gap-2 border-t border-slate-100 pt-3">
-              <div className="rounded-xl bg-slate-50 p-3">
-                <span className="text-xs text-slate-500">Giờ vào dự kiến</span>
-                <strong className="mt-1 block">{timeRange.startTime}</strong>
-                {timeRange.startDate && <span className="mt-0.5 block text-[11px] text-slate-500">{timeRange.startDate}</span>}
-              </div>
-              <div className="rounded-xl bg-slate-50 p-3">
-                <span className="text-xs text-slate-500">Giờ ra dự kiến</span>
-                <strong className="mt-1 block">{timeRange.endTime}</strong>
-                {timeRange.endDate && <span className="mt-0.5 block text-[11px] text-slate-500">{timeRange.endDate}</span>}
-              </div>
+              <div className="rounded-xl bg-slate-50 p-3"><span className="text-xs text-slate-500">Ngày giờ vào dự kiến</span><strong className="mt-1 block">{startTime}</strong></div>
+              <div className="rounded-xl bg-slate-50 p-3"><span className="text-xs text-slate-500">Ngày giờ ra dự kiến</span><strong className="mt-1 block">{endTime}</strong></div>
             </div>
             <div className="flex justify-between gap-3"><span className="text-slate-500">Thời lượng dự kiến</span><strong>{hours} giờ</strong></div>
             <div className="flex justify-between gap-3"><span className="text-slate-500">Giá đỗ dự kiến</span><strong>{estimatedTotal.toLocaleString('vi-VN')} đ</strong></div>

@@ -36,12 +36,40 @@ import {
   RotateCcw,
   RefreshCw,
   Check,
+  History,
+  ArrowDownLeft,
+  ArrowUpRight,
 } from "lucide-react";
 import { clsx } from "clsx";
 import { useStore, Vehicle } from "@/store";
 import { lots, Lot } from "@/lib/mock/lots";
-import { updateProfileApi, changePasswordApi, getMeApi, getLotsApi, addVehicleApi, updateVehicleApi, deleteVehicleApi } from "@/lib/api";
+import {
+  updateProfileApi,
+  changePasswordApi,
+  getMeApi,
+  getLotsApi,
+  addVehicleApi,
+  updateVehicleApi,
+  deleteVehicleApi,
+  getWalletApi,
+  withdrawWalletApi,
+  topupWalletApi,
+} from "@/lib/api";
 import { Sedan4SeatsIcon, Suv7SeatsIcon, EvCarIcon } from "@/components/ui/VehicleIcons";
+
+const POPULAR_BANKS = [
+  { code: "MB", name: "MB Bank", fullName: "Ngân hàng Quân Đội" },
+  { code: "VCB", name: "Vietcombank", fullName: "Ngân hàng Ngoại Thương" },
+  { code: "TCB", name: "Techcombank", fullName: "Ngân hàng Kỹ Thương" },
+  { code: "BIDV", name: "BIDV", fullName: "Ngân hàng Đầu tư & Phát triển" },
+  { code: "CTG", name: "VietinBank", fullName: "Ngân hàng Công Thương" },
+  { code: "ACB", name: "ACB", fullName: "Ngân hàng Á Châu" },
+  { code: "VPB", name: "VPBank", fullName: "Ngân hàng Việt Nam Thịnh Vượng" },
+  { code: "TPB", name: "TPBank", fullName: "Ngân hàng Tiên Phong" },
+  { code: "STB", name: "Sacombank", fullName: "Ngân hàng Sài Gòn Thương Tín" },
+  { code: "AGR", name: "Agribank", fullName: "Ngân hàng Nông Nghiệp & PTNT" },
+  { code: "VIB", name: "VIB", fullName: "Ngân hàng Quốc Tế" },
+];
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -63,6 +91,11 @@ export default function ProfilePage() {
   const history = useStore((s) => s.history);
   const favoriteLots = useStore((s) => s.favoriteLots || []);
   const toggleFavoriteLot = useStore((s) => s.toggleFavoriteLot);
+  const walletBalance = useStore((s) => s.walletBalance);
+  const setWalletBalance = useStore((s) => s.setWalletBalance);
+  const updateWalletBalance = useStore((s) => s.updateWalletBalance);
+  const savedPaymentAccounts = useStore((s) => s.savedPaymentAccounts || []);
+  const addToast = useStore((s) => s.addToast);
 
   // Fallback demo user if not logged in
   const currentUser = user || {
@@ -108,6 +141,17 @@ export default function ProfilePage() {
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isSavingPassword, setIsSavingPassword] = useState(false);
 
+  // Ví EZ-Space & Rút tiền state
+  const [walletTransactions, setWalletTransactions] = useState<any[]>([]);
+  const [isWithdrawOpen, setIsWithdrawOpen] = useState(false);
+  const [isWalletHistoryOpen, setIsWalletHistoryOpen] = useState(false);
+  const [withdrawAmount, setWithdrawAmount] = useState("50000");
+  const [withdrawBank, setWithdrawBank] = useState("MB Bank");
+  const [withdrawAccountNo, setWithdrawAccountNo] = useState("");
+  const [withdrawAccountName, setWithdrawAccountName] = useState(currentUser.name);
+  const [isWithdrawing, setIsWithdrawing] = useState(false);
+  const [isTopupLoading, setIsTopupLoading] = useState(false);
+
   // Open edit profile sheet when navigated with ?edit=1 (e.g. from Quick Access)
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -132,6 +176,9 @@ export default function ProfilePage() {
               phone: res.data.user.phone,
               avatar: res.data.user.avatar_url || "",
             });
+            if (res.data.user.wallet_balance !== undefined) {
+              setWalletBalance(Number(res.data.user.wallet_balance));
+            }
             if (Array.isArray(res.data.vehicles)) {
               setVehicles(
                 res.data.vehicles.map((v: any) => ({
@@ -144,9 +191,110 @@ export default function ProfilePage() {
             }
           }
         })
-        .catch(() => {});
+        .catch(() => { });
     }
   }, []);
+
+  // Load wallet data from backend
+  const loadWalletData = async () => {
+    const token = user?.token || (typeof window !== "undefined" ? localStorage.getItem("ezspace_token") : null);
+    if (!token) return;
+    try {
+      const res = await getWalletApi(token);
+      if (res && res.success && res.data) {
+        setWalletBalance(Number(res.data.balance || 0));
+        setWalletTransactions(res.data.transactions || []);
+      }
+    } catch { }
+  };
+
+  useEffect(() => {
+    loadWalletData();
+  }, [user?.token]);
+
+  // Tự động điền tài khoản ngân hàng mặc định từ Phương thức thanh toán
+  useEffect(() => {
+    if (savedPaymentAccounts.length > 0) {
+      const def = savedPaymentAccounts.find((a) => a.isDefault) || savedPaymentAccounts[0];
+      if (def) {
+        if (def.bankName) setWithdrawBank(def.bankName);
+        if (def.accountNumber) setWithdrawAccountNo(def.accountNumber);
+        if (def.accountName) setWithdrawAccountName(def.accountName);
+      }
+    }
+  }, [savedPaymentAccounts]);
+
+  const handleWithdrawSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const token = user?.token || (typeof window !== "undefined" ? localStorage.getItem("ezspace_token") : null);
+    if (!token) {
+      showToast("Vui lòng đăng nhập để rút tiền");
+      return;
+    }
+    const amt = Number(withdrawAmount);
+    if (isNaN(amt) || amt <= 0) {
+      showToast("Số tiền rút không hợp lệ");
+      return;
+    }
+    if (amt > walletBalance) {
+      showToast(`Số dư ví không đủ (Hiện có: ${walletBalance.toLocaleString("vi-VN")}đ)`);
+      return;
+    }
+    if (!withdrawAccountNo.trim()) {
+      showToast("Vui lòng nhập số tài khoản ngân hàng nhận tiền");
+      return;
+    }
+
+    setIsWithdrawing(true);
+    try {
+      const res = await withdrawWalletApi(token, {
+        amount: amt,
+        bank_name: withdrawBank,
+        account_number: withdrawAccountNo.trim(),
+        account_name: withdrawAccountName.trim() || currentUser.name,
+      });
+
+      if (res && res.success) {
+        const remaining = res.data?.remaining_balance ?? Math.max(0, walletBalance - amt);
+        setWalletBalance(remaining);
+        showToast(res.message || `Đã rút thành công ${amt.toLocaleString("vi-VN")}đ về ${withdrawBank}!`);
+        setIsWithdrawOpen(false);
+        await loadWalletData();
+      } else {
+        showToast(res?.message || "Rút tiền thất bại, vui lòng thử lại");
+      }
+    } catch {
+      showToast("Lỗi kết nối máy chủ khi rút tiền");
+    } finally {
+      setIsWithdrawing(false);
+    }
+  };
+
+  const handleDemoTopup = async (amt = 50000) => {
+    const token = user?.token || (typeof window !== "undefined" ? localStorage.getItem("ezspace_token") : null);
+    if (!token) {
+      updateWalletBalance(amt);
+      showToast(`Đã nạp demo +${amt.toLocaleString("vi-VN")}đ vào ví!`);
+      return;
+    }
+    setIsTopupLoading(true);
+    try {
+      const res = await topupWalletApi(token, amt);
+      if (res && res.success) {
+        setWalletBalance(res.data?.balance ?? (walletBalance + amt));
+        showToast(res.message || `Đã nạp thành công +${amt.toLocaleString("vi-VN")}đ vào ví!`);
+        await loadWalletData();
+      } else {
+        updateWalletBalance(amt);
+        showToast(`Đã nạp demo +${amt.toLocaleString("vi-VN")}đ vào ví!`);
+      }
+    } catch {
+      updateWalletBalance(amt);
+      showToast(`Đã nạp demo +${amt.toLocaleString("vi-VN")}đ vào ví!`);
+    } finally {
+      setIsTopupLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (user) {
@@ -219,12 +367,12 @@ export default function ProfilePage() {
   // Avatar initials
   const initials = currentUser.name
     ? currentUser.name
-        .trim()
-        .split(" ")
-        .map((w) => w[0])
-        .slice(-2)
-        .join("")
-        .toUpperCase()
+      .trim()
+      .split(" ")
+      .map((w) => w[0])
+      .slice(-2)
+      .join("")
+      .toUpperCase()
     : "PM";
 
   // Helper xử lý ảnh thành avatar vuông 400x400 sắc nét và nén nhẹ
@@ -324,7 +472,7 @@ export default function ProfilePage() {
       setIsCameraLoading(false);
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        videoRef.current.play().catch(() => {});
+        videoRef.current.play().catch(() => { });
       }
     } catch (err: any) {
       console.warn("Camera error:", err);
@@ -397,7 +545,7 @@ export default function ProfilePage() {
   useEffect(() => {
     if (isCameraModalOpen && cameraStream && videoRef.current) {
       videoRef.current.srcObject = cameraStream;
-      videoRef.current.play().catch(() => {});
+      videoRef.current.play().catch(() => { });
     }
   }, [isCameraModalOpen, cameraStream]);
 
@@ -705,9 +853,36 @@ export default function ProfilePage() {
 
         {/* Vùng Nội Dung Các Section Chi Tiết */}
         <div className="px-4 mt-5 space-y-5">
+          {/* Ô SỐ DƯ TÀI KHOẢN (VÍ TIỀN TỆ & HOÀN CỌC) */}
+          <section className="bg-white rounded-2xl p-3.5 shadow-soft border border-slate-100 flex items-center justify-between gap-3">
+            <div className="flex items-center space-x-3 min-w-0">
+              {/* 1. Hình ví */}
+              <div className="w-10 h-10 rounded-xl bg-blue-50 text-primary border border-blue-100/80 flex items-center justify-center shrink-0 shadow-xs">
+                <Wallet className="w-5 h-5 text-primary" />
+              </div>
+              {/* 2. Số dư tài khoản & 3. Số tiền hiện có */}
+              <div className="min-w-0">
+                <span className="text-[11px] font-semibold text-slate-500 block truncate">Số dư tài khoản</span>
+                <span className="text-base font-extrabold text-slate-900 tracking-tight">
+                  {walletBalance.toLocaleString("vi-VN")}đ
+                </span>
+              </div>
+            </div>
+
+            {/* 4. Rút tiền - Chuyển sang trang rút tiền riêng */}
+            <button
+              type="button"
+              onClick={() => router.push("/rut-tien")}
+              className="px-3.5 py-2 bg-primary hover:bg-primary-dark text-white rounded-xl text-xs font-bold shadow-sm active:scale-95 transition-all flex items-center space-x-1.5 shrink-0 cursor-pointer"
+            >
+              <CreditCard className="w-3.5 h-3.5" />
+              <span>Rút tiền</span>
+            </button>
+          </section>
+
           {/* 4.2 Mục "XE CỦA TÔI" (FR-02) */}
           <section>
-                        <div className="mb-2.5">
+            <div className="mb-2.5">
               <h2 className="text-[15px] font-bold text-slate-900 flex items-center space-x-1.5">
                 <Car className="w-4 h-4 text-primary" />
                 <span>Xe của tôi</span>
@@ -749,8 +924,8 @@ export default function ProfilePage() {
                                 isEv
                                   ? "bg-emerald-50 text-emerald-600 border-emerald-100"
                                   : isSuv
-                                  ? "bg-orange-50 text-orange-600 border-orange-100"
-                                  : "bg-blue-50 text-primary border-blue-100"
+                                    ? "bg-orange-50 text-orange-600 border-orange-100"
+                                    : "bg-blue-50 text-primary border-blue-100"
                               )}
                             >
                               {isEv ? (
@@ -771,8 +946,8 @@ export default function ProfilePage() {
                               isEv
                                 ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
                                 : isSuv
-                                ? "bg-orange-50 text-orange-700 border border-orange-200"
-                                : "bg-blue-50 text-blue-700 border border-blue-200"
+                                  ? "bg-orange-50 text-orange-700 border border-orange-200"
+                                  : "bg-blue-50 text-blue-700 border border-blue-200"
                             )}
                           >
                             {isEv ? (v.evBodyType ? `EV • ${v.evBodyType}` : "EV") : v.type}
@@ -845,56 +1020,56 @@ export default function ProfilePage() {
                 <p className="text-[11px] text-slate-400 mt-1 max-w-[260px] mx-auto">
                   Bạn chưa lưu bãi đỗ nào. Khám phá các bãi đỗ gần bạn và bấm biểu tượng trái tim để lưu lại nhé!
                 </p>
-                
+
               </div>
             ) : (
               <div className="space-y-2.5">
                 {displayFavLots.map((lot: Lot, idx: number) => {
-                    const isLotFav = isFav(lot.id);
-                    const quenSpot = idx === 0 ? "A-07" : "C-12";
-                    const floorLabel = idx === 0 ? "Tầng B2" : "Mặt đất";
+                  const isLotFav = isFav(lot.id);
+                  const quenSpot = idx === 0 ? "A-07" : "C-12";
+                  const floorLabel = idx === 0 ? "Tầng B2" : "Mặt đất";
 
-                    return (
-                      <div
-                        key={lot.id}
-                        className="bg-white rounded-2xl p-3.5 border border-slate-100 shadow-sm flex items-center justify-between hover:border-blue-200 transition-colors"
+                  return (
+                    <div
+                      key={lot.id}
+                      className="bg-white rounded-2xl p-3.5 border border-slate-100 shadow-sm flex items-center justify-between hover:border-blue-200 transition-colors"
+                    >
+                      <Link href={`/bai/${lot.id}`} className="flex items-start space-x-3 flex-1">
+                        <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-primary font-bold text-base shrink-0">
+                          P
+                        </div>
+                        <div>
+                          <div className="flex items-center space-x-1.5">
+                            <h3 className="text-sm font-bold text-slate-900">{lot.name}</h3>
+                            <span className="px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-semibold">
+                              {floorLabel}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">{lot.address}</p>
+                          <div className="flex items-center space-x-3 mt-1.5">
+                            <span className="inline-flex items-center space-x-1 text-[11px] font-semibold text-emerald-600">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                              <span>Còn {lot.available.total} chỗ</span>
+                            </span>
+                            <span className="text-[11px] text-blue-600 font-medium">Ô quen: {quenSpot}</span>
+                          </div>
+                        </div>
+                      </Link>
+                      <button
+                        onClick={() => toggleFavorite(lot.id, lot.name)}
+                        className="p-2 rounded-full text-rose-500 hover:bg-rose-50 active:scale-90 transition-transform shrink-0 ml-2"
+                        aria-label="Yêu thích"
                       >
-                        <Link href={`/bai/${lot.id}`} className="flex items-start space-x-3 flex-1">
-                          <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-primary font-bold text-base shrink-0">
-                            P
-                          </div>
-                          <div>
-                            <div className="flex items-center space-x-1.5">
-                              <h3 className="text-sm font-bold text-slate-900">{lot.name}</h3>
-                              <span className="px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-semibold">
-                                {floorLabel}
-                              </span>
-                            </div>
-                            <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">{lot.address}</p>
-                            <div className="flex items-center space-x-3 mt-1.5">
-                              <span className="inline-flex items-center space-x-1 text-[11px] font-semibold text-emerald-600">
-                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                                <span>Còn {lot.available.total} chỗ</span>
-                              </span>
-                              <span className="text-[11px] text-blue-600 font-medium">Ô quen: {quenSpot}</span>
-                            </div>
-                          </div>
-                        </Link>
-                        <button
-                          onClick={() => toggleFavorite(lot.id, lot.name)}
-                          className="p-2 rounded-full text-rose-500 hover:bg-rose-50 active:scale-90 transition-transform shrink-0 ml-2"
-                          aria-label="Yêu thích"
-                        >
-                          <Heart
-                            className={clsx(
-                              "w-4 h-4 transition-colors",
-                              isLotFav ? "text-rose-500 fill-rose-500" : "text-slate-300"
-                            )}
-                          />
-                        </button>
-                      </div>
-                    );
-                  })}
+                        <Heart
+                          className={clsx(
+                            "w-4 h-4 transition-colors",
+                            isLotFav ? "text-rose-500 fill-rose-500" : "text-slate-300"
+                          )}
+                        />
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </section>
@@ -922,6 +1097,23 @@ export default function ProfilePage() {
                 </div>
                 <ChevronRight className="w-4 h-4 text-slate-400" />
               </Link>
+
+              {/* Chi tiết quỹ tiền */}
+              <button
+                type="button"
+                onClick={() => setIsWalletHistoryOpen(true)}
+                className="w-full py-2.5 flex items-center justify-between text-left hover:bg-slate-50 active:bg-slate-100 rounded-lg px-1 transition-colors cursor-pointer"
+              >
+                <div className="flex items-center space-x-3">
+                  <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                    <History className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="font-bold text-slate-800 text-xs">Chi tiết quỹ tiền</div>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-slate-400" />
+              </button>
 
               {/* Ưu đãi & voucher */}
               <Link
@@ -1513,17 +1705,17 @@ export default function ProfilePage() {
 
       {/* SHEET: CHỌN ẢNH ĐẠI DIỆN */}
       {isAvatarSheetOpen && (
-        <div 
+        <div
           onClick={() => setIsAvatarSheetOpen(false)}
           className="fixed inset-0 z-50 bg-slate-950/40 backdrop-blur-sm flex flex-col justify-end"
         >
-          <div 
+          <div
             onClick={(e) => e.stopPropagation()}
             className="bg-white rounded-t-[32px] p-5 shadow-2xl sheet-transition space-y-2.5 text-xs font-semibold max-w-[430px] w-full mx-auto animate-in slide-in-from-bottom duration-300"
           >
             <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-3" />
             <h4 className="text-center font-bold text-slate-900 mb-3 text-sm">Ảnh đại diện</h4>
-            
+
             <button
               onClick={() => {
                 setIsAvatarSheetOpen(false);
@@ -1537,7 +1729,7 @@ export default function ProfilePage() {
               </div>
               <span className="font-semibold text-slate-800 text-[13px]">Chụp ảnh mới</span>
             </button>
-            
+
             <button
               onClick={() => {
                 fileInputRef.current?.click();
@@ -1728,6 +1920,112 @@ export default function ProfilePage() {
         </div>
       )}
 
+
+
+      {/* SHEET: CHI TIẾT QUỸ TIỀN & BIẾN ĐỘNG SỐ DƯ */}
+      {isWalletHistoryOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/40 backdrop-blur-sm flex flex-col justify-end">
+          <div className="bg-white rounded-t-[32px] p-5 shadow-2xl sheet-transition max-h-[85%] overflow-y-auto max-w-[430px] w-full mx-auto animate-in slide-in-from-bottom duration-300">
+            <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-4" />
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center space-x-2">
+                <div className="w-8 h-8 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                  <History className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">Chi tiết quỹ tiền</h3>
+                  <p className="text-[10px] text-slate-400">Lịch sử hoàn cọc & biến động số dư</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsWalletHistoryOpen(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Thẻ tóm tắt số dư hiện tại & thao tác tiện lợi */}
+            <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100 mb-4 flex items-center justify-between">
+              <div>
+                <span className="text-[11px] font-semibold text-slate-500 block">Số dư tài khoản</span>
+                <span className="text-lg font-black text-slate-900">{walletBalance.toLocaleString("vi-VN")}đ</span>
+              </div>
+              <div>
+                <button
+                  type="button"
+                  onClick={() => handleDemoTopup(50000)}
+                  disabled={isTopupLoading}
+                  className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 rounded-xl text-xs font-semibold border border-slate-200 active:scale-95 transition-all cursor-pointer disabled:opacity-60 flex items-center space-x-1"
+                  title="Nạp tiền thử nghiệm 50k"
+                >
+                  <Plus className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>+50k Demo</span>
+                </button>
+              </div>
+            </div>
+
+            {walletTransactions.length === 0 ? (
+              <div className="py-10 text-center text-slate-400">
+                <Wallet className="w-10 h-10 mx-auto text-slate-300 mb-2" />
+                <p className="text-xs font-semibold text-slate-600">Chưa có giao dịch biến động ví nào</p>
+                <p className="text-[10px] text-slate-400 mt-1">Khi bạn hủy vé hợp lệ, tiền cọc sẽ được hoàn tự động vào đây</p>
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                {walletTransactions.map((tx: any) => {
+                  const isPlus = Number(tx.amount) > 0;
+                  return (
+                    <div
+                      key={tx.id}
+                      className="p-3 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between"
+                    >
+                      <div className="flex items-center space-x-2.5">
+                        <div
+                          className={clsx(
+                            "w-8 h-8 rounded-xl flex items-center justify-center shrink-0",
+                            isPlus
+                              ? "bg-emerald-100 text-emerald-700"
+                              : "bg-amber-100 text-amber-700"
+                          )}
+                        >
+                          {isPlus ? <ArrowDownLeft className="w-4 h-4" /> : <ArrowUpRight className="w-4 h-4" />}
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-slate-900">{tx.description || tx.type}</p>
+                          <p className="text-[10px] text-slate-400 mt-0.5">
+                            {new Date(tx.created_at).toLocaleString("vi-VN", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                              day: "2-digit",
+                              month: "2-digit",
+                              year: "numeric",
+                            })}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <span
+                          className={clsx(
+                            "text-xs font-extrabold block",
+                            isPlus ? "text-emerald-600" : "text-slate-800"
+                          )}
+                        >
+                          {isPlus ? `+${Number(tx.amount).toLocaleString("vi-VN")}đ` : `${Number(tx.amount).toLocaleString("vi-VN")}đ`}
+                        </span>
+                        <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          Thành công
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* DIALOG: XÁC NHẬN ĐĂNG XUẤT */}
       {isLogoutModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-6">
@@ -1757,6 +2055,6 @@ export default function ProfilePage() {
         </div>
       )}
 
-          </div>
+    </div>
   );
 }

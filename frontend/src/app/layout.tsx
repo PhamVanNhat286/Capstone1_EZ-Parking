@@ -4,6 +4,7 @@ import BottomNav from "../components/layout/BottomNav";
 import ToastContainer from "../components/ui/Toast";
 import AuthGuard from "../components/layout/AuthGuard";
 import DynamicIsland from "../components/layout/DynamicIsland";
+import BookingReminders from "../components/BookingReminders";
 
 export const metadata: Metadata = {
   title: "EZ-Space Smart Parking",
@@ -22,6 +23,7 @@ export default function RootLayout({
     <html lang="vi">
       <body className="h-screen bg-slate-50 font-sans flex items-start justify-center overflow-hidden">
         <ToastContainer />
+        <BookingReminders />
         <AuthGuard>
           <main className="w-full max-w-[430px] h-screen flex flex-col bg-white shadow-xl overflow-hidden relative">
             {/* Dynamic Island xuất hiện ở đỉnh trên tất cả các trang, không có giờ, pin hay sóng */}

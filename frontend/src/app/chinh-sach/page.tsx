@@ -98,13 +98,13 @@ export default function PolicyPage() {
           </div>
           <div className="text-[11px] text-slate-600 leading-relaxed pl-1 space-y-1.5 pt-1">
             <p>
-              • Bạn có tối đa <strong className="text-slate-900 font-bold">20 phút</strong> kể từ khi đặt cọc thành công để di chuyển đến bãi và thực hiện check-in.
+              • Vé có thể quét sớm tối đa <strong className="text-slate-900 font-bold">20 phút trước giờ vào đã đặt</strong> nếu ô đỗ đã sẵn sàng. Hạn đến trễ là 20 phút sau giờ vào đã đặt.
             </p>
             <p>
               • Khi đến cổng bãi đỗ, camera nhận diện biển số tự động hoặc bạn quét mã QR vé đỗ tại trụ barie để mở cổng vào bãi.
             </p>
             <p>
-              • Quá 20 phút nếu bạn không check-in, hệ thống sẽ tự động giải phóng vị trí để tối ưu hóa không gian cho các phương tiện khác.
+              • Quá hạn đến trễ mà chưa check-in, hệ thống hủy lượt đặt và xử lý cọc theo quy định.
             </p>
           </div>
         </div>
