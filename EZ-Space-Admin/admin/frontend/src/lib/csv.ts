@@ -14,3 +14,12 @@ export function downloadCsv(rows: Array<Array<unknown>>, filename: string): void
   setTimeout(() => URL.revokeObjectURL(url), 500);
 }
 
+export function downloadJson(data: unknown, filename: string): void {
+  const jsonString = JSON.stringify(data, null, 2);
+  const url = URL.createObjectURL(new Blob([jsonString], { type: 'application/json;charset=utf-8;' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 500);
+}

@@ -58,6 +58,7 @@ export interface SummaryResponse {
     user_msgs: number;
     ai_msgs: number;
   };
+  platform_config?: PlatformConfig;
   server_time: string;
 }
 
@@ -68,6 +69,11 @@ export interface DateRangeDisplay {
 
 export interface DashboardResponse {
   range: DateRangeDisplay;
+  commission?: {
+    rate: number;
+    percent: number;
+    owner_percent: number;
+  };
   books: {
     total: number;
     holding: number;
@@ -363,25 +369,52 @@ export interface LogsResponse {
   manager_history: Array<Record<string, unknown>>;
 }
 
-export interface RecordsResponse {
-  reservations: Array<Record<string, unknown>>;
-  vehicles: Array<Record<string, unknown>>;
-  slots: Array<Record<string, unknown>>;
-  payments: Array<Record<string, unknown>>;
-  tickets: Array<Record<string, unknown>>;
-  sessions: Array<Record<string, unknown>>;
-  pricing: Array<Record<string, unknown>>;
-  chat_messages: Array<Record<string, unknown>>;
-  otps: Array<Record<string, unknown>>;
-  otp_stats: {
-    total: number;
-    used: number;
-    expired: number;
-  };
-  [key: string]: unknown;
+export interface PlatformConfig {
+  hold_timeout_minutes: number;
+  arrival_timeout_minutes: number;
+  deposit_amount: number;
+  commission_rate: number;
+  vnpay_tmn_code: string;
+  ipn_webhook_url: string;
+  maintenance_mode: boolean;
 }
 
 export interface SettingsResponse {
+  config: PlatformConfig;
+  defaults: PlatformConfig;
+  db_info: {
+    database_name: string;
+    db_user: string;
+    pg_version: string;
+  };
+  enums: {
+    payment_providers: string[];
+    vehicle_types: string[];
+    slot_types: string[];
+  };
+  gateway_stats: Array<{
+    provider: string;
+    total_transactions: number;
+    success_transactions: number;
+    ipn_records: number;
+    total_amount: number;
+    last_paid_at: string | null;
+  }>;
+  latest_ipn: {
+    id: number;
+    reservation_id: number;
+    provider: string;
+    transaction_ref: string | null;
+    response_code: string | null;
+    raw_ipn_payload: unknown;
+    ipn_received_at: string | null;
+    paid_at: string | null;
+  } | null;
+  deposit_stats: {
+    total_reservations: number;
+    min_deposit: number | null;
+    max_deposit: number | null;
+  };
   pricing: PricingRule[];
   managers: Array<{
     id: number;

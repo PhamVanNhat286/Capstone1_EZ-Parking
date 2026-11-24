@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAdmin } from '@/context/AdminContext';
 import { api } from '@/lib/api';
 
-export function useAdminPageData<T>(action: string, errorFallback: string) {
+export function useAdminPageData<T>(endpoint: string, errorFallback: string) {
   const { authReady, refreshSummary, refreshTick, setRefreshing, setErrorBanner, modal } =
     useAdmin();
 
@@ -18,7 +18,7 @@ export function useAdminPageData<T>(action: string, errorFallback: string) {
       const id = ++reqIdRef.current;
       setRefreshing(true);
       try {
-        const [, res] = await Promise.all([refreshSummary(), api<T>(action)]);
+        const [, res] = await Promise.all([refreshSummary(), api<T>(endpoint)]);
         if (id !== reqIdRef.current) return;
         setData(res);
         setLoadError('');
@@ -32,7 +32,7 @@ export function useAdminPageData<T>(action: string, errorFallback: string) {
         setRefreshing(false);
       }
     },
-    [action, errorFallback, modal.open, refreshSummary, setErrorBanner, setRefreshing]
+    [endpoint, errorFallback, modal.open, refreshSummary, setErrorBanner, setRefreshing]
   );
 
   useEffect(() => {

@@ -102,16 +102,16 @@ export function LotDetailModal({ data }: LotDetailModalProps) {
 
       <div className="mb-4 flex flex-wrap gap-3.5 text-xs text-slate-600">
         <span className="inline-flex items-center gap-1.5">
-          <i className="inline-block h-3 w-3 rounded-[3px] bg-green-500" /> Trống (available)
+          <i className="inline-block h-3 w-3 rounded-[3px] bg-green-500" /> Trống
         </span>
         <span className="inline-flex items-center gap-1.5">
-          <i className="inline-block h-3 w-3 rounded-[3px] bg-yellow-400" /> Đang giữ chỗ (holding)
+          <i className="inline-block h-3 w-3 rounded-[3px] bg-yellow-400" /> Đang giữ chỗ
         </span>
         <span className="inline-flex items-center gap-1.5">
-          <i className="inline-block h-3 w-3 rounded-[3px] bg-red-500" /> Đã có xe đỗ (occupied)
+          <i className="inline-block h-3 w-3 rounded-[3px] bg-red-500" /> Đã có xe đỗ
         </span>
         <span className="inline-flex items-center gap-1.5">
-          <i className="inline-block h-3 w-3 rounded-[3px] bg-slate-400" /> Ngưng sử dụng (unavailable)
+          <i className="inline-block h-3 w-3 rounded-[3px] bg-slate-400" /> Ngưng sử dụng
         </span>
       </div>
 

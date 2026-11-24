@@ -29,8 +29,6 @@ export const backendRoot = path.resolve(__dirname, '../..');
 export const adminRoot = path.resolve(backendRoot, '..');
 
 const envCandidates = [
-  path.resolve(adminRoot, '../../backend/.env'),
-  path.resolve(adminRoot, '../backend/.env'),
   path.join(adminRoot, '.env'),
   path.join(adminRoot, '.env.local'),
   path.join(backendRoot, '.env'),

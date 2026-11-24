@@ -15,8 +15,8 @@ admin/
 │   │   ├── app.ts                  # Express, CORS, localhost guard & error handler
 │   │   ├── config/env.ts           # Đọc .env / .env.local
 │   │   ├── db/pool.ts              # PostgreSQL Pool, transaction, audit log & auto-seed
-│   │   ├── routes/admin.routes.ts  # /api/admin & /api/health, session cookie & CSRF
-│   │   ├── controllers/            # Truy vấn SQL tách theo 7 nghiệp vụ (15 bảng)
+│   │   ├── routes/admin.routes.ts  # RESTful /api/admin/* & /api/health, cookie & CSRF
+│   │   ├── controllers/            # Truy vấn SQL tách theo 6 nghiệp vụ
 │   │   └── shared/                 # date-range.ts (UTC+7), revenue-math.ts (5%)
 │   └── tests/                      # Unit & verification tests
 ├── frontend/                       # Next.js + React + Tailwind CSS + TypeScript
@@ -24,11 +24,11 @@ admin/
 │   ├── tailwind.config.ts          # Cấu hình Tailwind CSS
 │   ├── postcss.config.js           # Cấu hình PostCSS + Autoprefixer
 │   └── src/
-│       ├── app/                    # 7 trang App Router: /, /lots, /users, /revenue, /logs, /data, /settings
+│       ├── app/                    # 6 trang App Router: /, /lots, /users, /revenue, /logs, /settings
 │       ├── context/                # AdminContext (auth, CSRF, summary, modal, toast)
 │       ├── components/             # AdminShell, RangeFilter, ConfirmDialog, Modals, Tables
 │       └── lib/                    # api, types, constants, format, date-range, csv, hooks
-├── sql/                            # schema.sql (15 bảng) & seed.sql (tự nạp nếu DB trống)
+├── sql/                            # schema.sql (15 bảng) & seed.sql chuẩn của Admin (đồng bộ từ database/)
 └── scripts/run-all.cjs             # Chạy đồng thời Backend + Frontend
 ```
 
@@ -42,11 +42,13 @@ npm run dev
 ```
 
 - **Frontend (Next.js + React + Tailwind CSS)**: http://127.0.0.1:3001/
-- **Backend (Node.js + Express)**: http://127.0.0.1:8000/api/admin (Health: `/api/health`)
+- **Backend (Node.js + Express — RESTful API)**: http://127.0.0.1:8000/api/admin/* (Health: `/api/health`)
 
 Các lệnh khác: `npm run build`, `npm run start`, `npm run typecheck`, `npm run dev:backend`, `npm run dev:frontend`.
 
-## 3. Doanh thu Admin (5%) & Lọc thời gian
+## 3. Đồng bộ nghiệp vụ & API với App
 
-- Admin nhận **5% tiền thực thu sau hoàn tiền** của mỗi lượt đặt ô (`cọc thành công + tất toán thành công − hoàn tiền`); chủ bãi nhận **95%** còn lại.
-- Bộ lọc **Thời gian** tính trọn ngày kết thúc theo múi giờ Việt Nam (`Asia/Ho_Chi_Minh`) và chỉ thay đổi kỳ đang xem khi bấm **Áp dụng** và tải dữ liệu thành công.
+- **Mức tiền cọc mẫu**: **50.000 ₫ / lượt** (khấu trừ vào tổng phí đỗ khi tất toán tại Kiosk).
+- **Cổng thanh toán (Sandbox / Mô phỏng)**: `vnpay` (**VNPay Sandbox**, mặc định kèm IPN webhook), `momo` (**Ví MoMo**), `card` (**Thẻ quốc tế**) — không phát sinh giao dịch tiền thật.
+- **Kiểu thiết kế API**: RESTful JSON (`/api/platform-config`, `/api/admin/auth`, `/api/admin/summary`, `/api/admin/dashboard`, `/api/admin/lots`, `/api/admin/lots/:id`, `PATCH /api/admin/lots/:id/status`, `/api/admin/users`, `/api/admin/users/:id`, `PATCH /api/admin/users/:id/status`, `/api/admin/revenue`, `/api/admin/logs`, `/api/admin/settings`).
+- **Doanh thu Admin (5%) & Lọc thời gian**: Admin nhận **5% tiền thực thu sau hoàn tiền** của mỗi lượt đặt ô (`cọc thành công + tất toán thành công − hoàn tiền`); chủ bãi nhận **95%** còn lại. Bộ lọc **Thời gian** tính trọn ngày kết thúc theo múi giờ Việt Nam (`Asia/Ho_Chi_Minh`) và chỉ thay đổi kỳ đang xem khi bấm **Áp dụng** và tải dữ liệu thành công.

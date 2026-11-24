@@ -52,8 +52,8 @@ const AdminContext = createContext<AdminContextValue | null>(null);
 
 export function AdminProvider({ children }: { children: React.ReactNode }) {
   const [authReady, setAuthReady] = useState(false);
-  const [adminName, setAdminName] = useState('Admin Hệ Thống');
-  const [adminEmail, setAdminEmail] = useState('admin@ezspace.vn');
+  const [adminName, setAdminName] = useState('');
+  const [adminEmail, setAdminEmail] = useState('');
   const [summary, setSummary] = useState<SummaryResponse | null>(null);
   const [syncTime, setSyncTime] = useState('');
   const [refreshTick, setRefreshTick] = useState(0);
@@ -162,8 +162,8 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
         const auth = await api<AuthResponse>('auth');
         if (!active) return;
         setCsrfToken(auth.csrf);
-        setAdminName(auth.user || 'Admin Hệ Thống');
-        setAdminEmail(auth.email || 'admin@ezspace.vn');
+        setAdminName(auth.user || '');
+        setAdminEmail(auth.email || '');
         setAuthReady(true);
       } catch (err) {
         if (!active) return;

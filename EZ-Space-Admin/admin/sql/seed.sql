@@ -26,10 +26,10 @@ RESTART IDENTITY CASCADE;
 -- Mat khau mac dinh cho tat ca tai khoan: password123 (bcrypt hash)
 -- =============================================================
 INSERT INTO users (id, full_name, email, phone, password_hash, role, status) VALUES
-(1, 'Admin He Thong', 'admin@ezspace.vn', '0905000111', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'admin', 'active'),
-(2, 'Tran Van Quan Ly', 'manager@ezspace.vn', '0905987654', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'manager', 'active'),
-(3, 'Nguyen Van A', 'customer@ezspace.vn', '0905123456', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'customer', 'active'),
-(4, 'Le Thi B', 'lethib@gmail.com', '0905222333', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'customer', 'active');
+(1, 'Admin He Thong', 'admin@ezspace.vn', '0905000111', '$2a$10$NjvWcsX9ckEB/hyQ7.gKpePwdIjMtaGsdm7RreMXSCQmThpzHLH22', 'admin', 'active'),
+(2, 'Tran Van Quan Ly', 'manager@ezspace.vn', '0905987654', '$2a$10$NjvWcsX9ckEB/hyQ7.gKpePwdIjMtaGsdm7RreMXSCQmThpzHLH22', 'manager', 'active'),
+(3, 'Nguyen Van A', 'customer@ezspace.vn', '0905123456', '$2a$10$NjvWcsX9ckEB/hyQ7.gKpePwdIjMtaGsdm7RreMXSCQmThpzHLH22', 'customer', 'active'),
+(4, 'Le Thi B', 'lethib@gmail.com', '0905222333', '$2a$10$NjvWcsX9ckEB/hyQ7.gKpePwdIjMtaGsdm7RreMXSCQmThpzHLH22', 'customer', 'active');
 
 -- Reset sequence cho bang users
 SELECT setval('users_id_seq', (SELECT MAX(id) FROM users));
@@ -166,7 +166,7 @@ INSERT INTO reservations (
     1, 3, 1, 3, 1, -- Nguyen Van A dat o A-03 (slot id 3), xe Toyota Fortuner
     NOW(), NOW() + INTERVAL '2 hours', 'holding',
     NOW() + INTERVAL '8 minutes', NULL,
-    20000.00, 20000.00, NULL, NOW()
+    20000.00, 50000.00, NULL, NOW()
 );
 
 -- 6.2 Don 2: Da tra coc qua VNPay, dang cho den bai (paid, con 15 phut nua toi)
@@ -179,7 +179,7 @@ INSERT INTO reservations (
     2, 3, 1, 4, 2, -- Nguyen Van A dat o A-04 (slot id 4), xe Honda Civic
     NOW() - INTERVAL '5 minutes', NOW() + INTERVAL '3 hours', 'paid',
     NOW() + INTERVAL '5 minutes', NOW() + INTERVAL '15 minutes',
-    20000.00, 20000.00, NULL, NOW() - INTERVAL '5 minutes'
+    20000.00, 50000.00, NULL, NOW() - INTERVAL '5 minutes'
 );
 
 -- Giao dich coc cua Don 2
@@ -188,8 +188,8 @@ INSERT INTO payments (
     amount, status, response_code, raw_ipn_payload, paid_at
 ) VALUES (
     2, 'vnpay', 'VNP_TRANS_20261013001', 'deposit',
-    20000.00, 'success', '00', 
-    '{"vnp_ResponseCode": "00", "vnp_TransactionNo": "14589230", "vnp_BankCode": "NCB", "vnp_Amount": "2000000"}'::jsonb,
+    50000.00, 'success', '00', 
+    '{"vnp_ResponseCode": "00", "vnp_TransactionNo": "14589230", "vnp_BankCode": "NCB", "vnp_Amount": "5000000"}'::jsonb,
     NOW() - INTERVAL '4 minutes'
 );
 
@@ -214,12 +214,12 @@ INSERT INTO reservations (
     3, 3, 1, 1, 1,
     NOW() - INTERVAL '1 day', NOW() - INTERVAL '22 hours', 'completed',
     NOW() - INTERVAL '1 day', NOW() - INTERVAL '1 day' + INTERVAL '20 minutes',
-    20000.00, 20000.00, 40000.00, NOW() - INTERVAL '1 day'
+    20000.00, 50000.00, 70000.00, NOW() - INTERVAL '1 day'
 );
 
 -- Thanh toan coc va thanh toan sau cua Don 3
 INSERT INTO payments (reservation_id, provider, transaction_ref, payment_type, amount, status, response_code, paid_at) VALUES 
-(3, 'vnpay', 'VNP_DEP_PREV01', 'deposit', 20000.00, 'success', '00', NOW() - INTERVAL '1 day'),
+(3, 'vnpay', 'VNP_DEP_PREV01', 'deposit', 50000.00, 'success', '00', NOW() - INTERVAL '1 day'),
 (3, 'momo', 'MOMO_FINAL_PREV01', 'final', 20000.00, 'success', '00', NOW() - INTERVAL '22 hours');
 
 -- Phien do xe thuc te cua Don 3
@@ -229,7 +229,7 @@ INSERT INTO parking_sessions (
     3,
     NOW() - INTERVAL '1 day' + INTERVAL '10 minutes',
     NOW() - INTERVAL '22 hours',
-    2, 2, 40000.00, 'completed'
+    2, 2, 70000.00, 'completed'
 );
 
 SELECT setval('reservations_id_seq', (SELECT MAX(id) FROM reservations));
@@ -240,4 +240,3 @@ SELECT setval('reservations_id_seq', (SELECT MAX(id) FROM reservations));
 INSERT INTO audit_logs (user_id, parking_lot_id, action, entity_type, entity_id, note) VALUES
 (1, 1, 'APPROVE_LOT', 'parking_lots', 1, 'Admin duyet mo bai Hai Chau A'),
 (2, 1, 'UPDATE_SLOT', 'slots', 4, 'Quan ly danh dau o A-04 thanh occupied');
-

@@ -1,6 +1,7 @@
 import { first, q, safeFirst } from '../db/pool';
 import { rangeDates, RangeQueryParams, viewRange } from '../shared/date-range';
 import { withRevenue } from '../shared/revenue-math';
+import { loadCurrentConfig } from './settings';
 
 export async function summary() {
   const users = await first(`
@@ -71,6 +72,8 @@ export async function summary() {
     { total: 0, user_msgs: 0, ai_msgs: 0 }
   );
 
+  const platform_config = await loadCurrentConfig();
+
   return {
     users,
     lots,
@@ -79,11 +82,15 @@ export async function summary() {
     tickets,
     vehicles,
     chat,
+    platform_config,
     server_time: new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' })
   };
 }
 
 export async function dashboard(params: RangeQueryParams = {}) {
+  const config = await loadCurrentConfig();
+  const commissionRate = config.commission_rate / 100;
+  const ownerPercent = Math.round((100 - config.commission_rate) * 10) / 10;
   const range = rangeDates(params.range || 'today', params);
   const a = [range.from, range.to];
 
@@ -158,6 +165,19 @@ export async function dashboard(params: RangeQueryParams = {}) {
     LIMIT 8
   `);
 
-  return { range: viewRange(range), books, payments: withRevenue(payments), hourly, recent, pending, logs };
+  return {
+    range: viewRange(range),
+    books,
+    payments: withRevenue(payments, commissionRate),
+    commission: {
+      rate: commissionRate,
+      percent: config.commission_rate,
+      owner_percent: ownerPercent
+    },
+    hourly,
+    recent,
+    pending,
+    logs
+  };
 }
 

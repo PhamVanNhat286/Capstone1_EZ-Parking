@@ -16,7 +16,7 @@ export function createApp() {
         }
       },
       credentials: true,
-      methods: ['GET', 'POST', 'OPTIONS'],
+      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Accept', 'X-CSRF-Token']
     })
   );
@@ -42,7 +42,24 @@ export function createApp() {
   app.get('/', (_req: Request, res: Response) => {
     res.json({
       service: 'EZ-Space Admin API (Node.js + Express + TypeScript)',
-      endpoints: ['/api/health', '/api/admin?action=auth', '/api/admin?action=summary']
+      architecture: 'RESTful JSON API',
+      endpoints: [
+        '/api/health',
+        '/api/platform-config',
+        '/api/admin/auth',
+        '/api/admin/summary',
+        '/api/admin/dashboard',
+        '/api/admin/lots',
+        '/api/admin/lots/:id',
+        '/api/admin/lots/:id/status',
+        '/api/admin/users',
+        '/api/admin/users/:id',
+        '/api/admin/users/:id/status',
+        '/api/admin/revenue',
+        '/api/admin/logs',
+        '/api/admin/settings',
+        '/api/admin/settings/cache-flush'
+      ]
     });
   });
 

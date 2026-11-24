@@ -7,13 +7,13 @@ import {
   withRevenue
 } from '../src/shared/revenue-math';
 
-test('5% of deposit plus final payment gives exact admin and owner split', () => {
-  const row = withRevenue({ deposits: 20000, finals: 20000, refunds: 0 });
+test('5% of 50,000 VND deposit plus final payment gives exact admin and owner split', () => {
+  const row = withRevenue({ deposits: 50000, finals: 10000, refunds: 0 });
   assert.equal(COMMISSION_RATE, 0.05);
-  assert.equal(row.received, 40000);
-  assert.equal(row.net_received, 40000);
-  assert.equal(row.admin_revenue, 2000);
-  assert.equal(row.owner_revenue, 38000);
+  assert.equal(row.received, 60000);
+  assert.equal(row.net_received, 60000);
+  assert.equal(row.admin_revenue, 3000);
+  assert.equal(row.owner_revenue, 57000);
 });
 
 test('refunds reduce admin revenue; failed and pending payments do not count', () => {
@@ -74,4 +74,31 @@ test('currency rounding is symmetric for a payment and its refund', () => {
   assert.equal(withRevenue({ received: '123.45', refunds: 0 }).admin_revenue, 6.17);
   assert.equal(withPaymentRevenue({ payment_type: 'deposit', amount: 0.1, status: 'success' }).admin_revenue, 0.01);
   assert.equal(withPaymentRevenue({ payment_type: 'refund', amount: 0.1, status: 'refunded' }).admin_revenue, -0.01);
+});
+
+test('custom platform commission rate applies consistently to revenue and report calculations', () => {
+  const row = withRevenue({ deposits: 50000, finals: 10000, refunds: 0 }, 0.1);
+  assert.equal(row.admin_revenue, 6000);
+  assert.equal(row.owner_revenue, 54000);
+
+  const report = withReportRevenue(
+    {
+      range: { from: '2026-11-01 00:00:00', to: '2026-11-30 23:59:59' },
+      totals: { received: 60000, refunds: 0 },
+      byLot: [{ id: 1, received: 60000, refunds: 0 }],
+      byProvider: [{ provider: 'vnpay', received: 60000, refunds: 0 }],
+      byVehicle: [{ vehicle_type: 'Sedan', received: 60000, refunds: 0 }],
+      byDay: [{ day: '2026-11-24', deposits: 50000, finals: 10000, refunds: 0 }],
+      recent: [
+        { id: 1, payment_type: 'deposit', amount: 50000, status: 'success' },
+        { id: 2, payment_type: 'final', amount: 10000, status: 'success' }
+      ]
+    },
+    0.1
+  );
+  assert.equal(report.commission.rate, 0.1);
+  assert.equal(report.totals.admin_revenue, 6000);
+  assert.equal(report.totals.owner_revenue, 54000);
+  assert.equal(report.byLot[0].admin_revenue, 6000);
+  assert.equal(report.recent.reduce((sum, p) => sum + p.admin_revenue, 0), 6000);
 });

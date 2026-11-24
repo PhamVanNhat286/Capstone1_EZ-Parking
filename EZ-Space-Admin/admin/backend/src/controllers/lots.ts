@@ -106,11 +106,18 @@ export async function lotStatus(input: Record<string, unknown>) {
        RETURNING id, name, status, approved_by, approved_at`,
       [to, actor, id]
     );
-    const actionCode = old.status === 'pending' && to === 'active' ? 'APPROVE_LOT' : 'LOT_STATUS_CHANGED';
+    const actionCode =
+      old.status === 'pending' && to === 'active'
+        ? 'APPROVE_LOT'
+        : old.status === 'pending' && to === 'rejected'
+          ? 'REJECT_LOT'
+          : 'LOT_STATUS_CHANGED';
     const defaultNote =
       actionCode === 'APPROVE_LOT'
         ? `Admin duyệt mở bãi ${old.name}`
-        : `Cập nhật trạng thái bãi ${old.name} sang ${to}`;
+        : actionCode === 'REJECT_LOT'
+          ? `Admin từ chối hồ sơ bãi ${old.name}`
+          : `Cập nhật trạng thái bãi ${old.name} sang ${to}`;
     await audit(client, actor, id, actionCode, 'parking_lots', id, old, upd.rows[0], reason || defaultNote);
     return { ok: true, item: upd.rows[0] };
   });

@@ -74,29 +74,33 @@ export default function LotsPage() {
 
   return (
     <>
-      <div className="grid grid-cols-1 gap-[18px] sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard
           label="Tổng số bãi đỗ"
           value={nf(items.length)}
           icon="apartment"
+          tone="brand"
           sub={`Tổng sức chứa ${nf(items.reduce((s, x) => s + n(x.capacity), 0))} chỗ`}
         />
         <KpiCard
           label="Đang hoạt động"
           value={nf(count('active'))}
           icon="check_circle"
+          tone="ok"
           sub="Đang mở nhận đặt chỗ"
         />
         <KpiCard
           label="Chờ phê duyệt"
           value={nf(count('pending'))}
           icon="pending_actions"
+          tone="warn"
           sub="Cần quản trị viên thẩm định"
         />
         <KpiCard
           label="Tạm ngừng / Từ chối"
           value={nf(count('inactive') + count('rejected'))}
           icon="block"
+          tone="bad"
           sub={`${nf(count('inactive'))} tạm ngừng · ${nf(count('rejected'))} từ chối`}
         />
       </div>
@@ -104,6 +108,7 @@ export default function LotsPage() {
       <SectionCard
         title="Danh sách bãi đỗ xe trên hệ thống"
         subtitle={`Hiển thị ${filtered.length} trên tổng số ${items.length} bãi đỗ xe`}
+        icon="apartment"
       >
         <FilterToolbar
           tabs={LOT_TABS}

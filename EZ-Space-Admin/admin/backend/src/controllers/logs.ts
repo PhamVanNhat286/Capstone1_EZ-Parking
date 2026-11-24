@@ -11,7 +11,7 @@ export async function logs() {
   `);
 
   const manager_history = await q(`
-    SELECT h.*, u.full_name actor, u.email actor_email, l.name lot_name
+    SELECT h.*, u.full_name actor, u.email actor_email, u.role actor_role, l.name lot_name
     FROM manager_history h
     JOIN users u ON u.id = h.manager_id
     JOIN parking_lots l ON l.id = h.parking_lot_id

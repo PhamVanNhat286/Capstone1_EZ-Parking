@@ -24,11 +24,11 @@ export function err(message: string, status = 400): never {
 }
 
 export const pool = new Pool({
-  host: cfg.DB_HOST || '127.0.0.1',
+  host: cfg.DB_HOST || 'localhost',
   port: Number(cfg.DB_PORT || 5432),
   database: cfg.DB_NAME || 'ez_space',
   user: cfg.DB_USER || 'postgres',
-  password: cfg.DB_PASSWORD || '',
+  password: cfg.DB_PASSWORD || 'postgres',
   connectionTimeoutMillis: 3500,
   max: 7,
   idleTimeoutMillis: 20000,
@@ -167,7 +167,17 @@ async function runDatabaseSeedCheck(): Promise<boolean> {
 
 export function ensureDatabaseSeeded(): Promise<boolean> {
   if (!dbSeedPromise) {
-    dbSeedPromise = runDatabaseSeedCheck();
+    dbSeedPromise = runDatabaseSeedCheck()
+      .then(ok => {
+        if (!ok) {
+          dbSeedPromise = null;
+        }
+        return ok;
+      })
+      .catch(() => {
+        dbSeedPromise = null;
+        return false;
+      });
   }
   return dbSeedPromise;
 }

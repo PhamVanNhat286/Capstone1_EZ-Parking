@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { DataTable } from '@/components/DataTable';
+import { Icon } from '@/components/Icon';
 import { KpiCard } from '@/components/KpiCard';
 import { ErrorCard, LoadingCard } from '@/components/PageState';
 import { Pill } from '@/components/Pill';
@@ -22,7 +23,7 @@ import {
 import { dt, money, n, nf } from '@/lib/format';
 import { RevenueLotRow, RevenueResponse } from '@/lib/types';
 
-function LotRevenueChart({ lots }: { lots: RevenueLotRow[] }) {
+function LotRevenueChart({ lots, commPct }: { lots: RevenueLotRow[]; commPct: number }) {
   if (!lots.length) {
     return (
       <div className="px-4 py-7 text-center text-slate-400">
@@ -53,7 +54,7 @@ function LotRevenueChart({ lots }: { lots: RevenueLotRow[] }) {
         <span>Đơn vị: VNĐ</span>
         <span className="inline-flex items-center gap-[7px]">
           <i className="h-2.5 w-2.5 rounded-[3px] bg-brand" />
-          Doanh thu Admin (5%)
+          Doanh thu Admin ({commPct}%)
         </span>
         {lowest < 0 ? (
           <span className="inline-flex items-center gap-[7px]">
@@ -273,11 +274,13 @@ export default function RevenuePage() {
 
   function handleExport() {
     if (!data?.recent?.length) return;
+    const exportCommPct = Math.round((data.commission?.rate ?? 0.05) * 1000) / 10;
+    const exportOwnerPct = Math.round((100 - exportCommPct) * 10) / 10;
     downloadCsv(
       [
         [
           'ID thanh toán', 'Mã đơn', 'Khách hàng', 'Biển số', 'Bãi đỗ', 'Ô đỗ',
-          'Cổng', 'Loại', 'Số tiền', 'Admin (5%)', 'Chủ bãi (95%)', 'Trạng thái', 'Thời gian'
+          'Cổng', 'Loại', 'Số tiền', `Admin (${exportCommPct}%)`, `Chủ bãi (${exportOwnerPct}%)`, 'Trạng thái', 'Thời gian'
         ],
         ...data.recent.map(x => [
           x.id, x.reservation_id, x.customer, x.license_plate, x.lot_name, x.slot_code,
@@ -297,6 +300,8 @@ export default function RevenuePage() {
   const t = data.totals;
   const cash = n(t.received);
   const adminRevenue = n(t.admin_revenue);
+  const commPct = Math.round((data.commission?.rate ?? 0.05) * 1000) / 10;
+  const ownerPct = Math.round((100 - commPct) * 10) / 10;
   const daily = data.byDay || [];
   const maxDay = Math.max(1, ...daily.map(x => Math.abs(n(x.admin_revenue))));
   const maxVehicle = Math.max(1, ...(data.byVehicle || []).map(x => Math.abs(n(x.admin_revenue))));
@@ -319,44 +324,50 @@ export default function RevenuePage() {
         }}
       />
 
-      <div className="grid grid-cols-1 gap-[18px] sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard
-          label="Doanh thu Admin (5%)"
+          label={`Doanh thu Admin (${commPct}%)`}
           value={money(adminRevenue)}
           icon="account_balance_wallet"
-          sub="5% tiền thực thu sau hoàn tiền của mỗi lượt đặt ô"
+          tone="brand"
+          sub={`${commPct}% tiền thực thu sau hoàn tiền của mỗi lượt đặt ô`}
         />
         <KpiCard
-          label="Phần của chủ bãi (95%)"
+          label={`Phần của chủ bãi (${ownerPct}%)`}
           value={money(t.owner_revenue)}
           icon="account_balance"
+          tone="ok"
           sub="Phần còn lại sau khi trừ doanh thu Admin"
         />
         <KpiCard
           label="Tổng tiền khách thanh toán"
           value={money(cash)}
           icon="payments"
+          tone="brand"
           sub={`Cọc: ${money(t.deposits)} · Tất toán: ${money(t.finals)}`}
         />
         <KpiCard
           label="Tiền hoàn cho khách"
           value={money(t.refunds)}
           icon="receipt_long"
+          tone="warn"
           sub={`Tiền thực thu sau hoàn: ${money(t.net_received)}`}
         />
       </div>
 
       <SectionCard
         title="Doanh thu Admin theo bãi đỗ"
-        subtitle="So sánh phần doanh thu 5% của từng bãi trong khoảng thời gian đang chọn."
+        subtitle={`So sánh phần doanh thu ${commPct}% của từng bãi trong khoảng thời gian đang chọn.`}
+        icon="analytics"
       >
-        <LotRevenueChart lots={data.byLot || []} />
+        <LotRevenueChart lots={data.byLot || []} commPct={commPct} />
       </SectionCard>
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
         <SectionCard
           title="Doanh thu Admin theo ngày"
-          subtitle="5% × (tiền cọc + tiền tất toán − tiền hoàn). Cột đỏ là khoản giảm do hoàn tiền."
+          subtitle={`${commPct}% × (tiền cọc + tiền tất toán − tiền hoàn). Cột đỏ là khoản giảm do hoàn tiền.`}
+          icon="calendar_today"
         >
           {daily.length ? (
             <div className="flex h-[225px] items-end gap-2 overflow-x-auto px-6 pb-[18px] pt-5">
@@ -395,7 +406,8 @@ export default function RevenuePage() {
 
         <SectionCard
           title="Doanh thu Admin theo loại phương tiện"
-          subtitle="Phần 5% Admin nhận từ mỗi lượt đặt ô của SUV, Sedan và EV."
+          subtitle={`Phần ${commPct}% Admin nhận từ mỗi lượt đặt ô của SUV, Sedan và EV.`}
+          icon="directions_car"
         >
           <div className="flex flex-col gap-[15px] px-6 pb-6 pt-[18px]">
             {(data.byVehicle || []).length ? (
@@ -431,11 +443,12 @@ export default function RevenuePage() {
       <SectionCard
         title="Đối soát tài chính theo từng bãi đỗ xe"
         subtitle={`Kỳ đối soát từ ${dt(data.range.from)} đến ${dt(data.range.to)}`}
+        icon="account_balance"
       >
         <DataTable
           headers={[
             'Bãi đỗ xe', 'Lượt cọc', 'Tiền đặt cọc', 'Thanh toán cuối',
-            'Cọc No-show', 'Tiền hoàn', 'Thực thu', 'Admin (5%)', 'Chủ bãi (95%)'
+            'Cọc No-show', 'Tiền hoàn', 'Thực thu', `Admin (${commPct}%)`, `Chủ bãi (${ownerPct}%)`
           ]}
           hasRows={(data.byLot || []).length > 0}
         >
@@ -461,9 +474,9 @@ export default function RevenuePage() {
       </SectionCard>
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-        <SectionCard title="Chi tiết doanh thu Admin theo loại xe">
+        <SectionCard title="Chi tiết doanh thu Admin theo loại xe" icon="directions_car">
           <DataTable
-            headers={['Loại xe', 'Số đơn', 'Admin (5%)', 'Tỷ trọng']}
+            headers={['Loại xe', 'Số đơn', `Admin (${commPct}%)`, 'Tỷ trọng']}
             hasRows={(data.byVehicle || []).length > 0}
           >
             {(data.byVehicle || []).map(x => (
@@ -481,9 +494,13 @@ export default function RevenuePage() {
           </DataTable>
         </SectionCard>
 
-        <SectionCard title="Thống kê theo cổng thanh toán">
+        <SectionCard
+          title="Thống kê theo cổng thanh toán"
+          subtitle="Tổng hợp số lượng giao dịch và doanh thu theo từng phương thức thanh toán."
+          icon="payments"
+        >
           <DataTable
-            headers={['Cổng thanh toán', 'Số giao dịch', 'Tiền khách trả', 'Admin (5%)']}
+            headers={['Cổng thanh toán', 'Số giao dịch', 'Tiền khách trả', `Admin (${commPct}%)`]}
             hasRows={(data.byProvider || []).length > 0}
           >
             {(data.byProvider || []).map(x => (
@@ -498,19 +515,21 @@ export default function RevenuePage() {
         </SectionCard>
       </div>
 
-      <SectionCard title="Danh sách giao dịch thanh toán gần nhất">
-        <div className="flex flex-wrap items-center justify-between gap-3.5 border-b border-slate-100 px-6 py-3">
-          <span className="text-xs text-slate-500">
-            Tối đa 200 giao dịch gần nhất. Hoàn tiền làm giảm tương ứng phần 5% của Admin.
-          </span>
-          <button type="button" className="btn btn-sm" onClick={handleExport}>
-            Xuất CSV giao dịch
+      <SectionCard
+        title="Danh sách giao dịch thanh toán gần nhất"
+        subtitle={`Tối đa 200 giao dịch gần nhất. Hoàn tiền làm giảm tương ứng phần ${commPct}% của Admin.`}
+        icon="receipt_long"
+        action={
+          <button type="button" className="btn btn-sm h-9" onClick={handleExport}>
+            <Icon name="download" sizeClass="h-4 w-4" />
+            <span>Xuất CSV giao dịch</span>
           </button>
-        </div>
+        }
+      >
         <DataTable
           headers={[
             'Mã GD / Đơn', 'Khách hàng', 'Bãi / Ô đỗ', 'Cổng / Mã tham chiếu',
-            'Loại', 'Số tiền', 'Admin (5%)', 'Trạng thái', 'Thời gian'
+            'Loại', 'Số tiền', `Admin (${commPct}%)`, 'Trạng thái', 'Thời gian'
           ]}
           hasRows={(data.recent || []).length > 0}
         >

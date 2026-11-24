@@ -141,6 +141,8 @@ export default function DashboardPage() {
   const chat = effectiveSummary?.chat;
   const books = data.books;
   const pay = data.payments;
+  const commPct =
+    data.commission?.percent ?? effectiveSummary?.platform_config?.commission_rate ?? 5;
 
   const slotTotal = n(s?.total);
   const slotAvail = n(s?.available);
@@ -149,8 +151,14 @@ export default function DashboardPage() {
   const slotUnavail = n(s?.unavailable);
   const pct = (val: number) => (slotTotal ? `${((val * 100) / slotTotal).toFixed(2)}%` : '0%');
 
-  const maxHourly = Math.max(1, ...(data.hourly || []).map(x => n(x.amount)));
-  const hours = Array.from({ length: 12 }, (_, i) => i * 2);
+  const hourlyBuckets = Array.from({ length: 12 }, (_, i) => {
+    const h = i * 2;
+    const total = (data.hourly || [])
+      .filter(x => Math.floor(n(x.hour) / 2) * 2 === h)
+      .reduce((sum, v) => sum + n(v.amount), 0);
+    return { hour: h, label: `${String(h).padStart(2, '0')}:00`, total };
+  });
+  const maxBucket = Math.max(1, ...hourlyBuckets.map(b => b.total));
 
   return (
     <>
@@ -170,59 +178,59 @@ export default function DashboardPage() {
         }}
       />
 
-      <div className="grid grid-cols-1 gap-[18px] sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard
           label="Tổng người dùng"
           value={nf(u?.total)}
           icon="groups"
+          tone="brand"
           sub={`${nf(u?.customers)} khách hàng · ${nf(u?.managers)} chủ bãi`}
         />
         <KpiCard
           label="Bãi đỗ vận hành"
           value={nf(l?.active)}
           icon="apartment"
+          tone="ok"
           sub={`${nf(l?.pending)} bãi chờ phê duyệt · Tổng ${nf(l?.total)} bãi`}
         />
         <KpiCard
           label="Đặt chỗ trong kỳ"
           value={nf(books?.total)}
           icon="event_available"
+          tone="warn"
           sub={`${nf(s?.occupied)} ô đang đỗ · ${nf(s?.holding)} ô giữ chỗ`}
         />
         <KpiCard
-          label="Doanh thu Admin (5%)"
+          label={`Doanh thu Admin (${commPct}%)`}
           value={money(pay?.admin_revenue)}
           icon="payments"
-          sub="5% tiền thực thu sau hoàn tiền của mỗi lượt đặt ô"
+          tone="brand"
+          sub={`${commPct}% tiền thực thu sau hoàn tiền của mỗi lượt đặt ô`}
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-[22px] xl:grid-cols-[minmax(0,1.7fr)_minmax(290px,1fr)]">
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1.7fr)_minmax(290px,1fr)]">
         <SectionCard
           title="Lưu lượng đặt chỗ theo khung giờ"
           subtitle={`Thống kê lượt đặt chỗ từ ${dt(data.range.from)} đến ${dt(data.range.to)}`}
+          icon="analytics"
           className="h-full"
         >
           <div className="mx-6 my-4 flex h-[205px] items-end gap-2 pt-4">
-            {hours.map(h => {
-              const inHours = (data.hourly || []).filter(
-                x => Math.floor(n(x.hour) / 2) * 2 === h
-              );
-              const total = inHours.reduce((z, v) => z + n(v.amount), 0);
-              const barPct = Math.round((total / Math.max(maxHourly * 2, 1)) * 100);
-              const label = `${String(h).padStart(2, '0')}:00`;
+            {hourlyBuckets.map(b => {
+              const barPct = Math.min(100, Math.round((b.total / maxBucket) * 100));
               return (
                 <div
-                  key={h}
+                  key={b.hour}
                   className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-[5px]"
-                  title={`${label} – ${nf(total)} lượt`}
+                  title={`${b.label} – ${nf(b.total)} lượt`}
                 >
-                  <div className="text-[11.5px] font-bold text-slate-700">{total || ''}</div>
+                  <div className="text-[11.5px] font-bold text-slate-700">{b.total || ''}</div>
                   <div
                     className="min-h-[1px] w-[min(38px,100%)] rounded-t-[5px] bg-gradient-to-b from-blue-400 to-blue-600"
-                    style={{ height: `${Math.max(barPct, total ? 8 : 0)}%` }}
+                    style={{ height: `${Math.max(barPct, b.total ? 8 : 0)}%` }}
                   />
-                  <small className="text-[10px] text-slate-500">{label}</small>
+                  <small className="text-[10px] text-slate-500">{b.label}</small>
                 </div>
               );
             })}
@@ -250,6 +258,7 @@ export default function DashboardPage() {
         <SectionCard
           title="Chỉ số Vận hành & Tiện ích"
           subtitle="Tổng hợp phiên đỗ xe, vé QR, phương tiện và trợ lý AI."
+          icon="schedule"
           className="h-full"
         >
           <div className="divide-y divide-slate-100 px-6 pb-5 pt-2">
@@ -319,6 +328,7 @@ export default function DashboardPage() {
       <SectionCard
         title="Tình trạng lấp đầy ô đỗ toàn hệ thống"
         subtitle={`Tổng sức chứa khai báo: ${nf(l?.capacity)} chỗ · Tổng ô trên sơ đồ 2D: ${nf(s?.total)} ô`}
+        icon="local_parking"
       >
         <div className="mx-6 mb-[22px] mt-[18px]">
           <div className="flex h-[18px] w-full overflow-hidden rounded-full bg-slate-200">
@@ -344,6 +354,8 @@ export default function DashboardPage() {
       <SectionCard
         title={`Bãi đỗ xe chờ phê duyệt (${nf(l?.pending)})`}
         subtitle="Kiểm duyệt các bãi đỗ xe mới đăng ký trước khi đưa vào vận hành."
+        icon="pending_actions"
+        iconTone="warn"
       >
         <DataTable
           headers={['Bãi đỗ & Địa chỉ', 'Chủ bãi', 'Sức chứa', 'Trạng thái', 'Thao tác']}
@@ -383,7 +395,7 @@ export default function DashboardPage() {
       </SectionCard>
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-        <SectionCard title="Nhật ký hoạt động mới nhất">
+        <SectionCard title="Nhật ký hoạt động mới nhất" icon="receipt_long">
           <DataTable
             headers={['Thời gian', 'Sự kiện', 'Tác nhân', 'Ghi chú']}
             hasRows={(data.logs || []).length > 0}
@@ -402,7 +414,7 @@ export default function DashboardPage() {
           </DataTable>
         </SectionCard>
 
-        <SectionCard title="Đơn đặt chỗ mới nhất">
+        <SectionCard title="Đơn đặt chỗ mới nhất" icon="event_available">
           <DataTable
             headers={['Mã đơn', 'Khách hàng', 'Bãi / Ô', 'Trạng thái', 'Tiền cọc', 'Ngày tạo']}
             hasRows={(data.recent || []).length > 0}

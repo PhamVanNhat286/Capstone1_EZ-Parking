@@ -140,7 +140,7 @@ export function useAdminActions(onSuccess?: () => void) {
   const openLotDetail = useCallback(
     async (id: number) => {
       try {
-        const d = await api<LotDetailResponse>('lot', 'GET', undefined, { id });
+        const d = await api<LotDetailResponse>(`lots/${id}`);
         openModal(`Chi tiết bãi đỗ: ${d.lot.name}`, <LotDetailModal data={d} />);
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Không thể tải chi tiết bãi đỗ.';
@@ -178,8 +178,7 @@ export function useAdminActions(onSuccess?: () => void) {
       if (!res) return;
 
       try {
-        await api('lot_status', 'POST', {
-          id: lot.id,
+        await api(`lots/${lot.id}/status`, 'PATCH', {
           status: cfg.to,
           reason: res.reason
         });
@@ -197,7 +196,7 @@ export function useAdminActions(onSuccess?: () => void) {
   const openUserDetail = useCallback(
     async (id: number) => {
       try {
-        const d = await api<UserDetailResponse>('user', 'GET', undefined, { id });
+        const d = await api<UserDetailResponse>(`users/${id}`);
         openModal(`Hồ sơ người dùng: ${d.user.full_name}`, <UserDetailModal data={d} />);
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Không thể tải hồ sơ người dùng.';
@@ -235,8 +234,7 @@ export function useAdminActions(onSuccess?: () => void) {
       if (!res) return;
 
       try {
-        await api('user_status', 'POST', {
-          id: user.id,
+        await api(`users/${user.id}/status`, 'PATCH', {
           status: cfg.to,
           reason: res.reason
         });

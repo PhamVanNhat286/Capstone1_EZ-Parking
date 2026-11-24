@@ -23,7 +23,7 @@ const NAV_ITEMS: NavMeta[] = [
     label: 'Tổng quan nền tảng',
     icon: 'dashboard',
     crumb: 'Tổng quan nền tảng',
-    heading: 'Tổng quan nền tảng (Platform Overview)',
+    heading: 'Tổng quan nền tảng',
     subtitle:
       'Giám sát hoạt động vận hành, lưu lượng đặt chỗ, tình trạng ô đỗ và phê duyệt đối tác bãi xe trên toàn hệ thống.'
   },
@@ -32,7 +32,7 @@ const NAV_ITEMS: NavMeta[] = [
     label: 'Quản lý bãi đỗ',
     icon: 'apartment',
     crumb: 'Quản lý & Phê duyệt bãi đỗ',
-    heading: 'Quản lý & Phê duyệt bãi đỗ (Lot Operations)',
+    heading: 'Quản lý & Phê duyệt bãi đỗ',
     subtitle:
       'Kiểm duyệt bãi đỗ mới đăng ký, theo dõi sơ đồ ô đỗ 2D và quản lý trạng thái vận hành trên toàn hệ thống.',
     hasPendingBadge: true
@@ -42,7 +42,7 @@ const NAV_ITEMS: NavMeta[] = [
     label: 'Quản lý người dùng',
     icon: 'group',
     crumb: 'Quản lý người dùng hệ thống',
-    heading: 'Quản lý người dùng hệ thống (User Management)',
+    heading: 'Quản lý người dùng',
     subtitle:
       'Quản lý hồ sơ khách hàng, chủ bãi đỗ xe, phương tiện cá nhân và trạng thái hoạt động của tài khoản.'
   },
@@ -51,36 +51,27 @@ const NAV_ITEMS: NavMeta[] = [
     label: 'Báo cáo doanh thu',
     icon: 'account_balance_wallet',
     crumb: 'Báo cáo doanh thu tổng',
-    heading: 'Báo cáo doanh thu Admin',
+    heading: 'Báo cáo doanh thu',
     subtitle:
       'Admin nhận 5% tiền thực thu của mỗi lượt đặt ô giữ xe sau hoàn tiền; chủ bãi nhận 95% còn lại.'
   },
   {
     href: '/logs',
     label: 'Nhật ký hệ thống',
-    icon: 'history',
+    icon: 'receipt_long',
     crumb: 'Nhật ký hệ thống & Đối soát',
-    heading: 'Nhật ký hệ thống & Đối soát (System Audit Logs)',
+    heading: 'Nhật ký hệ thống & Đối soát',
     subtitle:
-      'Theo dõi lịch sử thao tác quản trị hệ thống, phê duyệt bãi đỗ và lịch sử vận hành của chủ bãi.'
-  },
-  {
-    href: '/data',
-    label: 'Dữ liệu nghiệp vụ',
-    icon: 'database',
-    crumb: 'Dữ liệu nghiệp vụ',
-    heading: 'Dữ liệu nghiệp vụ (Operational Data)',
-    subtitle:
-      'Tra cứu chi tiết đơn đặt chỗ, phương tiện, ô đỗ 2D, thanh toán, vé QR, phiên đỗ xe, bảng giá, lịch sử Chat AI và OTP.'
+      'Theo dõi lịch sử thao tác quản trị hệ thống, phê duyệt bãi đỗ và lịch sử vận hành của chủ bãi trên toàn nền tảng EZ-Space.'
   },
   {
     href: '/settings',
     label: 'Cài đặt nền tảng',
     icon: 'settings',
     crumb: 'Cài đặt nền tảng',
-    heading: 'Cài đặt nền tảng (Platform Settings)',
+    heading: 'Cài đặt nền tảng',
     subtitle:
-      'Tổng hợp quy tắc giữ chỗ, bảng giá theo khung giờ, phân quyền quản lý bãi xe và cấu hình phương tiện hỗ trợ.'
+      'Thiết lập tham số giữ chỗ, mức tiền cọc, cổng thanh toán và chế độ bảo trì hệ thống.'
   }
 ];
 
@@ -109,6 +100,21 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   }, [current.heading]);
 
   const pendingCount = n(summary?.lots?.pending);
+  const commPct = summary?.platform_config?.commission_rate ?? 5;
+  const ownerPct = Math.round((100 - commPct) * 10) / 10;
+  const isMaintenance = Boolean(summary?.platform_config?.maintenance_mode);
+  const adminInitials = adminName
+    ? adminName
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map(part => part.charAt(0).toUpperCase())
+        .join('')
+    : '--';
+  const resolvedSubtitle =
+    current.href === '/revenue'
+      ? `Admin nhận ${commPct}% tiền thực thu của mỗi lượt đặt ô giữ xe sau hoàn tiền; chủ bãi nhận ${ownerPct}% còn lại.`
+      : current.subtitle;
 
   return (
     <>
@@ -175,17 +181,25 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         </div>
 
         <div className="shrink-0">
+          {isMaintenance ? (
+            <div className="mx-3 mb-3 flex items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11.5px] font-bold text-amber-800">
+              <span className="flex items-center gap-1.5">
+                <Icon name="warning" className="text-amber-600" sizeClass="h-4 w-4" />
+                <span>Chế độ bảo trì ĐANG BẬT</span>
+              </span>
+            </div>
+          ) : null}
           <div className="border-t border-slate-200 p-4">
             <div className="flex items-center gap-2.5">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand text-xs font-bold text-white">
-                AD
+                {adminInitials}
               </div>
               <div className="min-w-0">
                 <b id="admin-name" className="block truncate text-[13px] font-bold leading-tight">
-                  {adminName}
+                  {adminName || '—'}
                 </b>
                 <small id="admin-email" className="block truncate text-[11px] text-slate-500">
-                  {adminEmail}
+                  {adminEmail || '—'}
                 </small>
               </div>
             </div>
@@ -201,7 +215,14 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             <b className="font-bold text-slate-900">{current.crumb}</b>
           </div>
           <div className="flex w-full items-center justify-between gap-3.5 sm:w-auto sm:justify-end">
-            <span id="sync-time" className="text-xs font-medium text-slate-500">
+            <span
+              id="sync-time"
+              className={
+                syncTime
+                  ? 'rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600'
+                  : 'text-xs font-medium text-slate-500'
+              }
+            >
               {syncTime}
             </span>
             <button
@@ -211,7 +232,11 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
               disabled={refreshing}
               onClick={triggerRefresh}
             >
-              <Icon name="refresh" sizeClass="h-[17px] w-[17px]" /> Làm mới
+              <Icon
+                name="refresh"
+                sizeClass={`h-[17px] w-[17px] ${refreshing ? 'animate-spin text-brand' : ''}`}
+              />{' '}
+              Làm mới
             </button>
           </div>
         </div>
@@ -244,10 +269,32 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                 {current.heading}
               </h1>
               <p className="mt-1.5 max-w-[840px] text-[13px] leading-[1.65] text-slate-500">
-                {current.subtitle}
+                {resolvedSubtitle}
               </p>
             </div>
           </header>
+
+          {isMaintenance ? (
+            <div
+              className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-[12px] border border-amber-300 bg-amber-50 px-[18px] py-3 text-[13px] text-amber-900"
+              role="status"
+            >
+              <div className="flex items-center gap-2.5 font-semibold">
+                <Icon name="warning" className="shrink-0 text-amber-600" sizeClass="h-5 w-5" />
+                <span>
+                  Chế độ bảo trì hệ thống (Maintenance Mode) đang được kích hoạt trong Cài đặt nền tảng.
+                </span>
+              </div>
+              {pathname !== '/settings' ? (
+                <Link
+                  href="/settings"
+                  className="btn btn-sm border-amber-300 bg-white text-amber-900 hover:bg-amber-100"
+                >
+                  Quản lý trong Cài đặt
+                </Link>
+              ) : null}
+            </div>
+          ) : null}
 
           {errorBanner ? (
             <div
@@ -259,7 +306,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             </div>
           ) : null}
 
-          <div id="live-root" className="flex flex-col gap-[22px] pb-8" aria-live="polite">
+          <div id="live-root" className="flex flex-col gap-5 pb-8" aria-live="polite">
             {children}
           </div>
         </div>

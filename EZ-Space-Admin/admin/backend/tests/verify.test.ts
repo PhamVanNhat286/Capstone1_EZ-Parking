@@ -11,7 +11,7 @@ function walk(dir: string): string[] {
   );
 }
 
-test('schema.sql, seed.sql and all 15 database tables are covered in Express controllers', () => {
+test('schema.sql, seed.sql and core database tables are covered in Express controllers', () => {
   assert.ok(fs.existsSync(path.join(adminRoot, 'sql/schema.sql')), 'Thiếu sql/schema.sql');
   assert.ok(fs.existsSync(path.join(adminRoot, 'sql/seed.sql')), 'Thiếu sql/seed.sql');
 
@@ -34,7 +34,6 @@ test('schema.sql, seed.sql and all 15 database tables are covered in Express con
     'parking_sessions',
     'audit_logs',
     'manager_history',
-    'email_otps',
     'chat_messages'
   ];
 
@@ -43,16 +42,56 @@ test('schema.sql, seed.sql and all 15 database tables are covered in Express con
   }
 });
 
-test('Express server enforces localhost binding, strict CSRF protection and /api/admin route', () => {
+test('Express server enforces localhost binding, strict CSRF protection and RESTful /api/admin routes', () => {
   const serverSource = fs.readFileSync(path.join(backendRoot, 'src/server.ts'), 'utf8');
   const routesSource = fs.readFileSync(path.join(backendRoot, 'src/routes/admin.routes.ts'), 'utf8');
+  const frontendApiSource = fs.readFileSync(path.join(adminRoot, 'frontend/src/lib/api.ts'), 'utf8');
   assert.match(serverSource, /app\.listen\(port,\s*'127\.0\.0\.1'/);
   assert.match(routesSource, /x-csrf-token/);
   assert.doesNotMatch(routesSource, /ez-seed-csrf/);
-  assert.match(routesSource, /'\/admin'/);
+  assert.match(routesSource, /'\/platform-config'/);
+  assert.match(routesSource, /'\/admin\/auth'/);
+  assert.match(routesSource, /pruneExpiredSessions/);
+  assert.match(routesSource, /'\/admin\/lots\/:id\/status'/);
+  assert.match(routesSource, /'\/admin\/users\/:id\/status'/);
+  assert.match(routesSource, /'\/admin\/settings'/);
+  assert.match(routesSource, /'\/admin\/settings\/cache-flush'/);
+  assert.match(routesSource, /\.patch\(/);
+  assert.match(routesSource, /\.post\(/);
+  assert.doesNotMatch(frontendApiSource, /searchParams\.set\('action'/);
 });
 
-test('Next.js frontend has all 7 App Router pages and does not show DB connection pills or login.html', () => {
+test('Admin uses sql/schema.sql and sql/seed.sql and runs strictly from PostgreSQL without hardcoded mock secrets/profiles', () => {
+  const poolSource = fs.readFileSync(path.join(backendRoot, 'src/db/pool.ts'), 'utf8');
+  const lotsSource = fs.readFileSync(path.join(backendRoot, 'src/controllers/lots.ts'), 'utf8');
+  const seedSource = fs.readFileSync(path.join(adminRoot, 'sql/seed.sql'), 'utf8');
+  const settingsSource = fs.readFileSync(path.join(backendRoot, 'src/controllers/settings.ts'), 'utf8');
+  const utilsSource = fs.readFileSync(path.join(backendRoot, 'src/controllers/utils.ts'), 'utf8');
+  const dashboardSource = fs.readFileSync(path.join(backendRoot, 'src/controllers/dashboard.ts'), 'utf8');
+  const revenueSource = fs.readFileSync(path.join(backendRoot, 'src/controllers/revenue.ts'), 'utf8');
+
+  assert.match(poolSource, /sql\/schema\.sql/);
+  assert.match(poolSource, /sql\/seed\.sql/);
+  assert.match(poolSource, /dbSeedPromise\s*=\s*null/);
+  assert.match(lotsSource, /'REJECT_LOT'/);
+  assert.match(seedSource, /50000\.00/);
+  assert.doesNotMatch(seedSource, /\$2a\$10\$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy/);
+  assert.match(settingsSource, /DEPOSIT_AMOUNT/);
+  assert.match(settingsSource, /deposit_amount:\s*50000/);
+  assert.match(settingsSource, /PAYMENT_PROVIDERS/);
+  assert.match(settingsSource, /VNPay Sandbox/);
+  assert.match(settingsSource, /API_ARCHITECTURE/);
+  assert.match(settingsSource, /RESTful JSON API/);
+  assert.match(settingsSource, /enum_range/);
+  assert.match(settingsSource, /raw_ipn_payload/);
+  assert.doesNotMatch(settingsSource, /EZSPACE_SANDBOX_DEMO_HMAC_KEY/);
+  assert.doesNotMatch(utilsSource, /0905000111/);
+  assert.doesNotMatch(utilsSource, /admin@ezspace\.vn/);
+  assert.match(dashboardSource, /loadCurrentConfig/);
+  assert.match(revenueSource, /loadCurrentConfig/);
+});
+
+test('Next.js frontend has all 6 App Router pages and does not show DB connection pills or login.html', () => {
   const frontendAppDir = path.join(adminRoot, 'frontend/src/app');
   const pages = [
     'page.tsx',
@@ -60,13 +99,13 @@ test('Next.js frontend has all 7 App Router pages and does not show DB connectio
     'users/page.tsx',
     'revenue/page.tsx',
     'logs/page.tsx',
-    'data/page.tsx',
     'settings/page.tsx'
   ];
 
   for (const page of pages) {
     assert.ok(fs.existsSync(path.join(frontendAppDir, page)), `Thiếu trang Next.js: ${page}`);
   }
+  assert.ok(!fs.existsSync(path.join(frontendAppDir, 'data/page.tsx')), 'Trang /data phải được gỡ bỏ');
 
   const allFrontendSrc = walk(path.join(adminRoot, 'frontend/src'))
     .filter(f => /\.(ts|tsx)$/.test(f))

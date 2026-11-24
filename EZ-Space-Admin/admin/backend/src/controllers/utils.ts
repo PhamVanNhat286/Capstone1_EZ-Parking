@@ -1,5 +1,5 @@
 import { PoolClient } from 'pg';
-import { err, safeFirst } from '../db/pool';
+import { err, first } from '../db/pool';
 
 export const pass = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
 
@@ -21,34 +21,29 @@ export interface AdminProfile {
   id: number;
   full_name: string;
   email: string;
-  phone: string;
+  phone: string | null;
 }
 
 export async function getAdminProfile(): Promise<AdminProfile> {
-  try {
-    const row = await safeFirst<{
-      id?: number;
-      full_name?: string;
-      email?: string;
-      phone?: string;
-    }>(
-      `SELECT id, full_name, email, phone, role FROM users WHERE role = 'admin' AND status = 'active' ORDER BY id LIMIT 1`,
-      [],
-      {}
-    );
-    return {
-      id: Number(row.id) || 1,
-      full_name: row.full_name || 'Admin Hệ Thống',
-      email: row.email || 'admin@ezspace.vn',
-      phone: row.phone || '0905000111'
-    };
-  } catch {
-    return {
-      id: 1,
-      full_name: 'Admin Hệ Thống',
-      email: 'admin@ezspace.vn',
-      phone: '0905000111'
-    };
+  const row = await first<{
+    id?: number;
+    full_name?: string;
+    email?: string;
+    phone?: string | null;
+  }>(
+    `SELECT id, full_name, email, phone
+     FROM users
+     WHERE role = 'admin' AND status = 'active'
+     ORDER BY id
+     LIMIT 1`
+  );
+  if (!row.id || !row.full_name || !row.email) {
+    err('Không tìm thấy tài khoản quản trị viên đang hoạt động trong cơ sở dữ liệu.', 503);
   }
+  return {
+    id: Number(row.id),
+    full_name: String(row.full_name),
+    email: String(row.email),
+    phone: row.phone ? String(row.phone) : null
+  };
 }
-

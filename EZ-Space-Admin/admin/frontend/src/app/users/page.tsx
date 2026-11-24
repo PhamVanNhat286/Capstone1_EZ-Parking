@@ -79,29 +79,33 @@ export default function UsersPage() {
 
   return (
     <>
-      <div className="grid grid-cols-1 gap-[18px] sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard
           label="Tổng tài khoản"
           value={nf(items.length)}
           icon="groups"
+          tone="brand"
           sub={`${nf(items.filter(x => x.status === 'active').length)} đang hoạt động`}
         />
         <KpiCard
           label="Khách hàng (Tài xế)"
           value={nf(roleCount('customer'))}
           icon="person"
+          tone="ok"
           sub="Tài khoản đặt chỗ đỗ xe"
         />
         <KpiCard
           label="Chủ bãi / Quản lý"
           value={nf(roleCount('manager'))}
           icon="store"
+          tone="warn"
           sub="Quản lý vận hành bãi xe"
         />
         <KpiCard
           label="Quản trị viên"
           value={nf(roleCount('admin'))}
           icon="admin_panel_settings"
+          tone="brand"
           sub={`${nf(items.filter(x => x.status === 'banned').length)} tài khoản đang bị khóa`}
         />
       </div>
@@ -109,6 +113,7 @@ export default function UsersPage() {
       <SectionCard
         title="Danh sách người dùng hệ thống"
         subtitle={`Hiển thị ${filtered.length} trên tổng số ${items.length} tài khoản người dùng`}
+        icon="group"
       >
         <FilterToolbar
           tabs={USER_TABS}

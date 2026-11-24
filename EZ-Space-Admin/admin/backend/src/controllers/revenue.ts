@@ -1,8 +1,11 @@
 import { first, q } from '../db/pool';
 import { rangeDates, RangeQueryParams, viewRange } from '../shared/date-range';
 import { PaymentLike, withReportRevenue } from '../shared/revenue-math';
+import { loadCurrentConfig } from './settings';
 
 export async function revenue(params: RangeQueryParams = {}) {
+  const config = await loadCurrentConfig();
+  const commissionRate = config.commission_rate / 100;
   const range = rangeDates(params.range || 'month', params);
   const a = [range.from, range.to];
 
@@ -91,6 +94,9 @@ export async function revenue(params: RangeQueryParams = {}) {
     )
   ).reverse();
 
-  return withReportRevenue({ range: viewRange(range), totals, byLot, byProvider, byVehicle, recent, byDay });
+  return withReportRevenue(
+    { range: viewRange(range), totals, byLot, byProvider, byVehicle, recent, byDay },
+    commissionRate
+  );
 }
 

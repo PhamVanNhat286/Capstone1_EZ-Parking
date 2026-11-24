@@ -5,13 +5,13 @@ export function setCsrfToken(token: string): void {
 }
 
 export async function api<T = unknown>(
-  action: string,
-  method: 'GET' | 'POST' = 'GET',
+  endpoint: string,
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' = 'GET',
   data?: Record<string, unknown>,
   params: Record<string, string | number | undefined> = {}
 ): Promise<T> {
-  const url = new URL('/api/admin', window.location.origin);
-  url.searchParams.set('action', action);
+  const cleanEndpoint = endpoint.replace(/^\/+/, '');
+  const url = new URL(`/api/admin/${cleanEndpoint}`, window.location.origin);
   for (const [k, v] of Object.entries(params)) {
     if (v !== undefined && v !== '') {
       url.searchParams.set(k, String(v));

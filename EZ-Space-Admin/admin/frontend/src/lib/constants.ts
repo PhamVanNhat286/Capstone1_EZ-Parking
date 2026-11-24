@@ -42,9 +42,9 @@ export const RES: Record<string, string> = {
 };
 
 export const PAY_PROVIDER: Record<string, string> = {
-  vnpay: 'VNPay',
-  momo: 'MoMo',
-  card: 'Thẻ (Card)'
+  vnpay: 'VNPay (Sandbox)',
+  momo: 'Ví MoMo',
+  card: 'Thẻ quốc tế'
 };
 
 export const PAY_TYPE: Record<string, string> = {
@@ -60,19 +60,6 @@ export const PAY_STATUS: Record<string, string> = {
   refunded: 'Đã hoàn'
 };
 
-export const QR_STATUS: Record<string, string> = {
-  active: 'Còn hiệu lực',
-  used: 'Đã quét vào',
-  expired: 'Hết hạn',
-  cancelled: 'Đã hủy'
-};
-
-export const SESSION_STATUS: Record<string, string> = {
-  active: 'Xe đang đỗ',
-  completed: 'Đã rời bãi',
-  abandoned: 'Không ra đúng cách'
-};
-
 export const MANAGER_ACTION: Record<string, string> = {
   lot_created: 'Tạo bãi đỗ',
   lot_updated: 'Cập nhật bãi',
@@ -81,23 +68,15 @@ export const MANAGER_ACTION: Record<string, string> = {
   reservation_cancelled: 'Hủy đặt chỗ',
   report_viewed: 'Xem báo cáo',
   APPROVE_LOT: 'Duyệt mở bãi đỗ',
+  REJECT_LOT: 'Từ chối mở bãi đỗ',
   UPDATE_SLOT: 'Cập nhật trạng thái ô đỗ',
   LOT_STATUS_CHANGED: 'Đổi trạng thái bãi đỗ',
   USER_STATUS_CHANGED: 'Đổi trạng thái tài khoản',
   HOLD_SPOT: 'Giữ chỗ đặt lịch',
   AUTO_CANCEL_HOLD_EXPIRED: 'Tự động hủy giữ chỗ quá hạn',
-  AUTO_FORFEIT_ARRIVAL_EXPIRED: 'Tự động thu cọc quá hạn đến bãi'
-};
-
-export const OTP_PURPOSE: Record<string, string> = {
-  FORGOT_PASSWORD: 'Quên mật khẩu',
-  VERIFY_EMAIL: 'Xác thực email',
-  REGISTER: 'Đăng ký tài khoản'
-};
-
-export const CHAT_ROLE: Record<string, string> = {
-  user: 'Khách hàng',
-  ai: 'Trợ lý AI'
+  AUTO_FORFEIT_ARRIVAL_EXPIRED: 'Tự động thu cọc quá hạn đến bãi',
+  PLATFORM_SETTINGS_UPDATED: 'Cập nhật cấu hình nền tảng',
+  CACHE_FLUSHED: 'Làm mới bộ nhớ đệm hệ thống'
 };
 
 export const COLORS: Record<string, string> = {
