@@ -1,15 +1,14 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
-import { DataTable } from '@/components/DataTable';
 import { Icon } from '@/components/Icon';
 import { ErrorCard, LoadingCard } from '@/components/PageState';
 import { Pill } from '@/components/Pill';
 import { SectionCard } from '@/components/SectionCard';
 import { useAdmin } from '@/context/AdminContext';
 import { api } from '@/lib/api';
-import { LOT, PAY_PROVIDER } from '@/lib/constants';
-import { dt, money, n, timeOnly } from '@/lib/format';
+import { PAY_PROVIDER } from '@/lib/constants';
+import { money } from '@/lib/format';
 import { PlatformConfig, SettingsResponse } from '@/lib/types';
 import { useAdminPageData } from '@/lib/useAdminPageData';
 
@@ -24,7 +23,6 @@ export default function SettingsPage() {
   const lastServerSnapshotRef = useRef<string>('');
   const [saving, setSaving] = useState(false);
   const [pinging, setPinging] = useState(false);
-  const [flushing, setFlushing] = useState(false);
   const [pingState, setPingState] = useState<{
     ok: boolean;
     label: string;
@@ -68,7 +66,6 @@ export default function SettingsPage() {
   const gatewayStatsMap = new Map(
     (data.gateway_stats || []).map(item => [item.provider, item])
   );
-  const latestIpn = data.latest_ipn;
   const ownerShare = Math.round((100 - (Number(draft.commission_rate) || 0)) * 10) / 10;
 
   async function handleCopyTerminal() {
@@ -172,83 +169,8 @@ export default function SettingsPage() {
     }
   }
 
-  async function handleFlushCache() {
-    const confirmed = await confirmAction({
-      title: 'Làm sạch & đồng bộ bộ nhớ đệm',
-      targetName: 'EZ-Space Platform Cache',
-      targetSub: 'Làm mới dữ liệu cấu hình trên máy chủ',
-      statusTone: 'warn',
-      statusLabel: 'HIGH PRIVILEGE',
-      description:
-        'Hệ thống sẽ tải lại toàn bộ cấu hình mới nhất và ghi nhận vào nhật ký.',
-      confirmText: 'Xác nhận làm sạch',
-      confirmStyle: 'btn-danger'
-    });
-    if (!confirmed) return;
-
-    setFlushing(true);
-    try {
-      const res = await api<{ ok: boolean; flushed_at: string; config: PlatformConfig }>(
-        'settings/cache-flush',
-        'POST',
-        {}
-      );
-      if (res.config) {
-        lastServerSnapshotRef.current = JSON.stringify(res.config);
-        setDraft({ ...res.config });
-      }
-      notice(`Đã làm mới bộ nhớ đệm lúc ${res.flushed_at}.`);
-      await reload(true);
-      triggerRefresh();
-    } catch (err) {
-      notice(err instanceof Error ? err.message : 'Không thể làm sạch bộ nhớ đệm.', 'bad');
-    } finally {
-      setFlushing(false);
-    }
-  }
-
   return (
     <>
-      {/* Top Action & Sync Strip */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-[14px] border border-slate-200 bg-white px-5 py-3.5 shadow-card">
-        <div className="flex flex-wrap items-center gap-2.5">
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-green-200 bg-green-100 px-3 py-1 text-xs font-bold text-green-700">
-            <span className="h-2 w-2 rounded-full bg-green-600" />
-            Live Synced
-          </span>
-          <span className="text-xs font-medium text-slate-500">
-            Đồng bộ cấu hình nền tảng lúc{' '}
-            <b className="font-mono text-slate-800">{data.server_time}</b>
-          </span>
-          {isDirty ? (
-            <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-bold text-amber-800">
-              Có thay đổi chưa lưu
-            </span>
-          ) : null}
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2.5">
-          <button
-            type="button"
-            disabled={saving}
-            onClick={() => void handleResetDefaults()}
-            className="btn btn-sm h-9"
-          >
-            <Icon name="restore" sizeClass="h-4 w-4" />
-            <span>Khôi phục mặc định</span>
-          </button>
-          <button
-            type="button"
-            disabled={!isDirty || saving}
-            onClick={() => void handleSaveChanges()}
-            className="btn btn-sm btn-primary h-9"
-          >
-            <Icon name="save" sizeClass="h-4 w-4" />
-            <span>{saving ? 'Đang lưu...' : 'Lưu thay đổi cấu hình'}</span>
-          </button>
-        </div>
-      </div>
-
       {/* KHỐI A: THAM SỐ THỜI GIAN, TIỀN CỌC & VÒNG ĐỜI NGHIỆP VỤ */}
       <section className="space-y-5 rounded-[14px] border border-slate-200 bg-white p-6 shadow-card">
         <div className="flex flex-col justify-between gap-3 border-b border-slate-100 pb-4 sm:flex-row sm:items-center">
@@ -265,9 +187,6 @@ export default function SettingsPage() {
               </p>
             </div>
           </div>
-          <span className="self-start rounded-md border border-slate-200 bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-600 sm:self-auto">
-            BUSINESS RULES
-          </span>
         </div>
 
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
@@ -528,55 +447,29 @@ export default function SettingsPage() {
             </p>
           </div>
 
-          {/* Latest IPN Record */}
+          {/* IPN Callback */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <span className="text-[13.5px] font-bold text-slate-800">
-                Giao dịch IPN gần nhất
-              </span>
+              <label htmlFor="ipnUrlInput" className="text-[13.5px] font-bold text-slate-800">
+                IPN Callback / Thanh toán cọc
+              </label>
             </div>
-            {latestIpn ? (
-              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                  <span className="font-mono font-bold text-slate-900">
-                    #{n(latestIpn.id)} · Đơn #{n(latestIpn.reservation_id)} ·{' '}
-                    {PAY_PROVIDER[latestIpn.provider] || latestIpn.provider}
-                  </span>
-                  <span className="rounded bg-green-100 px-2 py-0.5 font-mono text-[11px] font-bold text-green-700">
-                    Code: {latestIpn.response_code || '—'}
-                  </span>
-                </div>
-                <div className="mt-1 font-mono text-[11.5px] text-slate-600">
-                  Ref: {latestIpn.transaction_ref || '—'} · {dt(latestIpn.paid_at)}
-                </div>
-                <pre className="mt-2 max-h-20 overflow-auto rounded border border-slate-200 bg-white p-2 font-mono text-[11px] text-slate-700">
-                  {JSON.stringify(latestIpn.raw_ipn_payload)}
-                </pre>
-              </div>
-            ) : (
-              <div className="flex h-11 items-center rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3.5 text-xs text-slate-500">
-                Chưa có bản ghi đối soát IPN nào.
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* IPN & Test Ping */}
-        <div className="flex flex-col justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 md:flex-row md:items-center">
-          <div className="flex-1 space-y-2">
-            <div className="flex flex-wrap items-center gap-2 text-[13px] font-bold text-slate-800">
-              <Icon name="webhook" className="text-slate-500" sizeClass="h-[18px] w-[18px]" />
-              <label htmlFor="ipnUrlInput">IPN Callback / Thanh toán cọc:</label>
+            <div className="relative flex items-center">
+              <Icon
+                name="webhook"
+                className="pointer-events-none absolute left-3.5 text-slate-400"
+                sizeClass="h-[18px] w-[18px]"
+              />
+              <input
+                id="ipnUrlInput"
+                type="text"
+                value={draft.ipn_webhook_url}
+                onChange={e =>
+                  setDraft(prev => (prev ? { ...prev, ipn_webhook_url: e.target.value } : prev))
+                }
+                className="h-11 w-full rounded-lg border border-slate-300 bg-slate-50 pl-10 pr-3 font-mono text-[13px] font-semibold text-brand focus:border-brand focus:bg-white focus:outline-none"
+              />
             </div>
-            <input
-              id="ipnUrlInput"
-              type="text"
-              value={draft.ipn_webhook_url}
-              onChange={e =>
-                setDraft(prev => (prev ? { ...prev, ipn_webhook_url: e.target.value } : prev))
-              }
-              className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 font-mono text-xs font-semibold text-brand focus:border-brand focus:outline-none"
-            />
             <p className="text-xs text-slate-500">
               Địa chỉ nhận phản hồi trạng thái thanh toán tự động.
               {pingState.detail ? (
@@ -590,18 +483,20 @@ export default function SettingsPage() {
               ) : null}
             </p>
           </div>
+        </div>
 
+        <div className="flex justify-end border-t border-slate-100 pt-3">
           <button
             type="button"
             disabled={pinging}
             onClick={() => void handleTestPing()}
-            className="btn btn-sm h-10 self-end whitespace-nowrap md:self-auto"
+            className="btn btn-sm h-9 whitespace-nowrap"
           >
             <Icon
               name="sync"
               sizeClass={`h-4 w-4 ${pinging ? 'animate-spin text-brand' : ''}`}
             />
-            <span>{pinging ? 'Đang kiểm tra...' : 'Kiểm tra kết nối (Test Ping)'}</span>
+            <span>{pinging ? 'Đang kiểm tra...' : 'Kiểm tra kết nối'}</span>
           </button>
         </div>
       </section>
@@ -618,239 +513,97 @@ export default function SettingsPage() {
                 Quản lý hệ thống &amp; Bảo trì
               </h2>
               <p className="text-xs font-medium text-slate-500">
-                Kiểm soát trạng thái bảo trì trên toàn Admin Portal và thao tác làm mới bộ nhớ đệm cấu hình.
+                Kiểm soát trạng thái bảo trì trên toàn hệ thống EZ-Space.
               </p>
             </div>
           </div>
-          <span className="self-start rounded-md border border-red-200 bg-red-100 px-2.5 py-1 text-[11px] font-bold text-red-700 sm:self-auto">
-            HIGH PRIVILEGE
-          </span>
         </div>
 
-        <div className="space-y-4">
-          {/* Maintenance Mode Toggle */}
-          <div
-            className={`flex flex-col justify-between gap-4 rounded-xl border p-4 transition-colors md:flex-row md:items-center ${
-              draft.maintenance_mode
-                ? 'border-amber-300 bg-amber-50/40'
-                : 'border-slate-200 bg-slate-50/60'
-            }`}
-          >
-            <div className="space-y-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[14.5px] font-bold text-slate-900">
-                  Chế độ bảo trì hệ thống (Maintenance Mode)
-                </span>
-                <span
-                  className={`rounded px-2 py-0.5 text-[10px] font-extrabold ${
-                    draft.maintenance_mode
-                      ? 'border border-amber-200 bg-amber-100 text-amber-800'
-                      : 'bg-slate-200 text-slate-700'
-                  }`}
-                >
-                  {draft.maintenance_mode ? 'ĐANG BẬT' : 'ĐANG TẮT'}
-                </span>
-              </div>
-              <p className="max-w-2xl text-[13px] leading-relaxed text-slate-500">
-                Tạm ngưng nhận lượt đặt chỗ mới trên hệ thống trong thời gian bảo trì hoặc nâng cấp.
-              </p>
-              {draft.maintenance_mode ? (
-                <div className="mt-2 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-100/80 p-3 text-amber-900">
-                  <Icon name="warning" className="mt-0.5 shrink-0 text-amber-700" sizeClass="h-[18px] w-[18px]" />
-                  <span className="text-xs font-semibold">
-                    {serverConfig?.maintenance_mode
-                      ? 'Cảnh báo: Chế độ bảo trì đang được kích hoạt trên hệ thống.'
-                      : 'Chế độ bảo trì đang ở bản nháp — bấm "Lưu thay đổi cấu hình" để áp dụng toàn hệ thống.'}
-                  </span>
-                </div>
-              ) : null}
-            </div>
-
-            <div className="flex shrink-0 items-center gap-3 self-end md:self-auto">
+        <div
+          className={`flex flex-col justify-between gap-4 rounded-xl border p-4 transition-colors md:flex-row md:items-center ${
+            draft.maintenance_mode
+              ? 'border-amber-300 bg-amber-50/40'
+              : 'border-slate-200 bg-slate-50/60'
+          }`}
+        >
+          <div className="space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[14.5px] font-bold text-slate-900">
+                Chế độ bảo trì hệ thống
+              </span>
               <span
-                className={`text-[13px] ${
-                  draft.maintenance_mode ? 'font-bold text-amber-700' : 'font-semibold text-slate-500'
+                className={`rounded px-2 py-0.5 text-[10px] font-extrabold ${
+                  draft.maintenance_mode
+                    ? 'border border-amber-200 bg-amber-100 text-amber-800'
+                    : 'bg-slate-200 text-slate-700'
                 }`}
               >
-                {draft.maintenance_mode ? 'Bật' : 'Tắt'}
+                {draft.maintenance_mode ? 'ĐANG BẬT' : 'ĐANG TẮT'}
               </span>
-              <label className="relative inline-flex cursor-pointer items-center">
-                <input
-                  type="checkbox"
-                  checked={draft.maintenance_mode}
-                  onChange={e =>
-                    setDraft(prev =>
-                      prev ? { ...prev, maintenance_mode: e.target.checked } : prev
-                    )
-                  }
-                  aria-label="Chế độ bảo trì hệ thống"
-                  className="peer sr-only"
-                />
-                <div className="h-6 w-12 rounded-full bg-slate-300 transition-colors after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-slate-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-amber-500 peer-checked:after:translate-x-6 peer-checked:after:border-white" />
-              </label>
             </div>
-          </div>
-
-          {/* Flush Cache & Sync */}
-          <div className="flex flex-col justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50/60 p-4 md:flex-row md:items-center">
-            <div className="space-y-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[14.5px] font-bold text-slate-900">
-                  Làm mới bộ nhớ đệm &amp; Đồng bộ dữ liệu (Cache Flush)
+            <p className="max-w-2xl text-[13px] leading-relaxed text-slate-500">
+              Tạm ngưng nhận lượt đặt chỗ mới trên hệ thống trong thời gian bảo trì hoặc nâng cấp.
+            </p>
+            {draft.maintenance_mode ? (
+              <div className="mt-2 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-100/80 p-3 text-amber-900">
+                <Icon name="warning" className="mt-0.5 shrink-0 text-amber-700" sizeClass="h-[18px] w-[18px]" />
+                <span className="text-xs font-semibold">
+                  {serverConfig?.maintenance_mode
+                    ? 'Cảnh báo: Chế độ bảo trì đang được kích hoạt trên hệ thống.'
+                    : 'Chế độ bảo trì đang ở bản nháp — bấm "Lưu thay đổi cấu hình" để áp dụng toàn hệ thống.'}
                 </span>
               </div>
-              <p className="max-w-2xl text-[13px] leading-relaxed text-slate-500">
-                Đồng bộ lại toàn bộ thông số cấu hình đang áp dụng trên hệ thống.
-              </p>
-            </div>
+            ) : null}
+          </div>
 
-            <button
-              type="button"
-              disabled={flushing}
-              onClick={() => void handleFlushCache()}
-              className="btn btn-sm btn-danger h-10 self-end whitespace-nowrap md:self-auto"
+          <div className="flex shrink-0 items-center gap-3 self-end md:self-auto">
+            <span
+              className={`text-[13px] ${
+                draft.maintenance_mode ? 'font-bold text-amber-700' : 'font-semibold text-slate-500'
+              }`}
             >
-              <Icon name="delete_sweep" sizeClass="h-[18px] w-[18px]" />
-              <span>{flushing ? 'Đang làm sạch...' : 'Làm sạch & Đồng bộ Cache'}</span>
-            </button>
+              {draft.maintenance_mode ? 'Bật' : 'Tắt'}
+            </span>
+            <label className="relative inline-flex cursor-pointer items-center">
+              <input
+                type="checkbox"
+                checked={draft.maintenance_mode}
+                onChange={e =>
+                  setDraft(prev =>
+                    prev ? { ...prev, maintenance_mode: e.target.checked } : prev
+                  )
+                }
+                aria-label="Chế độ bảo trì hệ thống"
+                className="peer sr-only"
+              />
+              <div className="h-6 w-12 rounded-full bg-slate-300 transition-colors after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-slate-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-amber-500 peer-checked:after:translate-x-6 peer-checked:after:border-white" />
+            </label>
           </div>
         </div>
       </section>
 
-      {/* KHỐI D: QUY CHUẨN VẬN HÀNH & THÔNG SỐ BÃI ĐỖ */}
-      <SectionCard
-        title="Quy chuẩn vận hành hệ thống"
-        subtitle="Tóm tắt các thông số nghiệp vụ đang áp dụng trên nền tảng."
-        icon="assignment"
-      >
-        <div className="grid grid-cols-1 gap-4 px-6 pb-6 pt-5 md:grid-cols-2 xl:grid-cols-3">
-          {(data.rules || []).map(r => (
-            <div
-              key={r.code}
-              className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-slate-50 px-[18px] py-4"
-            >
-              <div className="flex items-center justify-between gap-2">
-                <b className="text-[13.5px] text-slate-900">{r.name}</b>
-                <Pill tone="brand" label={r.code} mono />
-              </div>
-              <div className="text-[15px] font-extrabold text-brand">{r.value}</div>
-              <p className="text-xs leading-[1.55] text-slate-500">{r.desc}</p>
-            </div>
-          ))}
-        </div>
-      </SectionCard>
-
-      <SectionCard
-        title="Bảng giá theo khung giờ"
-        subtitle={`Hiện có ${(data.pricing || []).length} khung giá đang áp dụng tại các bãi đỗ.`}
-        icon="price_change"
-      >
-        <DataTable
-          headers={[
-            'Bãi đỗ xe',
-            'Tên khung giá',
-            'Khung giờ áp dụng',
-            'Đơn giá / giờ',
-            'Phụ phí giờ cao điểm',
-            'Thời hạn hiệu lực'
-          ]}
-          hasRows={(data.pricing || []).length > 0}
-        >
-          {(data.pricing || []).map(p => (
-            <tr key={p.id}>
-              <td>
-                <b>{p.lot_name}</b>
-                <div className="mt-0.5 font-mono text-[11.5px] text-slate-500">
-                  Bãi #{n(p.parking_lot_id)}
-                </div>
-              </td>
-              <td>
-                <b>{p.name || 'Khung giờ tiêu chuẩn'}</b>
-              </td>
-              <td>
-                {timeOnly(p.start_time)} – {timeOnly(p.end_time)}
-              </td>
-              <td>
-                <b>{money(p.hourly_rate)}</b>
-              </td>
-              <td>{money(p.surcharge)}</td>
-              <td>
-                {p.effective_from || '—'} → {p.effective_to || '—'}
-              </td>
-            </tr>
-          ))}
-        </DataTable>
-      </SectionCard>
-
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-        <SectionCard
-          title="Chủ bãi & Quản lý vận hành"
-          subtitle="Danh sách người phụ trách vận hành từng bãi đỗ xe."
-          icon="shield_person"
-        >
-          <DataTable
-            headers={['Bãi đỗ xe', 'Người quản lý', 'Điện thoại', 'Ngày phân công']}
-            hasRows={(data.managers || []).length > 0}
-          >
-            {(data.managers || []).map(m => (
-              <tr key={m.id}>
-                <td>
-                  <b>{m.lot_name}</b>
-                  <div className="mt-0.5 text-[11.5px] text-slate-500">
-                    <Pill tone={m.lot_status} label={LOT[m.lot_status] || m.lot_status} />
-                  </div>
-                </td>
-                <td>
-                  <b>{m.full_name}</b>
-                  <div className="mt-0.5 text-[11.5px] text-slate-500">
-                    #{n(m.manager_id)} · {m.email}
-                  </div>
-                </td>
-                <td>{m.phone || '—'}</td>
-                <td>{dt(m.assigned_at)}</td>
-              </tr>
-            ))}
-          </DataTable>
-        </SectionCard>
-
-        <SectionCard
-          title="Loại phương tiện theo bãi"
-          subtitle="Các dòng xe được phép đỗ tại từng bãi xe."
-          icon="directions_car"
-        >
-          <DataTable
-            headers={['Bãi đỗ xe', 'Loại xe được phép đỗ']}
-            hasRows={(data.lot_vehicles || []).length > 0}
-          >
-            {(data.lot_vehicles || []).map(v => (
-              <tr key={v.parking_lot_id}>
-                <td>
-                  <b>{v.lot_name}</b>
-                  <div className="mt-0.5 font-mono text-[11.5px] text-slate-500">
-                    Bãi #{n(v.parking_lot_id)}
-                  </div>
-                </td>
-                <td>
-                  <div className="flex flex-wrap gap-1.5">
-                    {(v.vehicle_types ? v.vehicle_types.split(', ') : []).map(t => (
-                      <Pill key={t} tone="brand" label={t} />
-                    ))}
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </DataTable>
-        </SectionCard>
-      </div>
-
       {/* Bottom Save Bar */}
       <div className="flex flex-col justify-between gap-4 rounded-[14px] border border-slate-200 bg-white px-5 py-4 shadow-card sm:flex-row sm:items-center">
-        <div className="flex items-center gap-2.5 text-[13px] text-slate-500">
+        <div className="flex flex-wrap items-center gap-2.5 text-[13px] text-slate-500">
           <Icon name="info" className="shrink-0 text-brand" sizeClass="h-5 w-5" />
           <span>Mọi thay đổi cấu hình sẽ được áp dụng ngay sau khi lưu.</span>
+          {isDirty ? (
+            <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-bold text-amber-800">
+              Có thay đổi chưa lưu
+            </span>
+          ) : null}
         </div>
 
-        <div className="flex items-center gap-3 self-end sm:self-auto">
+        <div className="flex flex-wrap items-center gap-2.5 self-end sm:self-auto">
+          <button
+            type="button"
+            disabled={saving}
+            onClick={() => void handleResetDefaults()}
+            className="btn btn-sm"
+          >
+            <Icon name="restore" sizeClass="h-4 w-4" />
+            <span>Khôi phục mặc định</span>
+          </button>
           <button
             type="button"
             disabled={!isDirty || saving}

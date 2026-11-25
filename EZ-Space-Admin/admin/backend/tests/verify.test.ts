@@ -33,8 +33,7 @@ test('schema.sql, seed.sql and core database tables are covered in Express contr
     'qr_tickets',
     'parking_sessions',
     'audit_logs',
-    'manager_history',
-    'chat_messages'
+    'manager_history'
   ];
 
   for (const table of schemaTables) {
@@ -55,9 +54,7 @@ test('Express server enforces localhost binding, strict CSRF protection and REST
   assert.match(routesSource, /'\/admin\/lots\/:id\/status'/);
   assert.match(routesSource, /'\/admin\/users\/:id\/status'/);
   assert.match(routesSource, /'\/admin\/settings'/);
-  assert.match(routesSource, /'\/admin\/settings\/cache-flush'/);
   assert.match(routesSource, /\.patch\(/);
-  assert.match(routesSource, /\.post\(/);
   assert.doesNotMatch(frontendApiSource, /searchParams\.set\('action'/);
 });
 
@@ -76,14 +73,11 @@ test('Admin uses sql/schema.sql and sql/seed.sql and runs strictly from PostgreS
   assert.match(lotsSource, /'REJECT_LOT'/);
   assert.match(seedSource, /50000\.00/);
   assert.doesNotMatch(seedSource, /\$2a\$10\$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy/);
-  assert.match(settingsSource, /DEPOSIT_AMOUNT/);
+  assert.match(settingsSource, /hold_timeout_minutes:\s*10/);
+  assert.match(settingsSource, /arrival_timeout_minutes:\s*20/);
   assert.match(settingsSource, /deposit_amount:\s*50000/);
-  assert.match(settingsSource, /PAYMENT_PROVIDERS/);
-  assert.match(settingsSource, /VNPay Sandbox/);
-  assert.match(settingsSource, /API_ARCHITECTURE/);
-  assert.match(settingsSource, /RESTful JSON API/);
+  assert.match(settingsSource, /commission_rate:\s*5/);
   assert.match(settingsSource, /enum_range/);
-  assert.match(settingsSource, /raw_ipn_payload/);
   assert.doesNotMatch(settingsSource, /EZSPACE_SANDBOX_DEMO_HMAC_KEY/);
   assert.doesNotMatch(utilsSource, /0905000111/);
   assert.doesNotMatch(utilsSource, /admin@ezspace\.vn/);

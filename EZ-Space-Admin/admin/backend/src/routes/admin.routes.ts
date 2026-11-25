@@ -5,7 +5,6 @@ import { logs } from '../controllers/logs';
 import { lot, lots, lotStatus } from '../controllers/lots';
 import { revenue } from '../controllers/revenue';
 import {
-  flushCache,
   loadCurrentConfig,
   settings,
   updateSettings
@@ -248,14 +247,6 @@ adminRouter.patch(
     if (!requireMutationGuards(req, res, ses)) return;
     const body = (req.body && typeof req.body === 'object' ? req.body : {}) as Record<string, unknown>;
     sendJson(res, 200, await updateSettings(body));
-  })
-);
-
-adminRouter.post(
-  '/admin/settings/cache-flush',
-  handleAdminRoute(async (req, res, ses) => {
-    if (!requireMutationGuards(req, res, ses)) return;
-    sendJson(res, 200, await flushCache());
   })
 );
 

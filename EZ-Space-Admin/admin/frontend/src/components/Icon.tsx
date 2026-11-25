@@ -25,7 +25,6 @@ const ICON_PATHS: Record<string, string> = {
   schedule: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
   directions_car: '<path d="m5 12 2-7h10l2 7M5 12h14v7H5v-7ZM7 19v2m10-2v2M7 15h2m6 0h2"/>',
   qr_code: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zm7 0v3m-4 4h4m-7-1v1"/>',
-  price_change: '<path d="M4 4h16v16H4zM8 9h8m-8 4h8m-4-7v11"/>',
   info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5m0-8h.01"/>',
   close: '<path d="M18 6 6 18M6 6l12 12"/>',
   sync: '<path d="M20 7a8 8 0 0 0-14-2L3 8m0-5v5h5m-4 9a8 8 0 0 0 14 2l3-3m0 5v-5h-5"/>',
@@ -55,8 +54,7 @@ const ICON_PATHS: Record<string, string> = {
   badge: '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="12" r="2"/><path d="M14 10h4m-4 4h4"/>',
   webhook: '<path d="M18 16.98h-5.99c-1.1 0-1.95.94-2.48 1.9A4 4 0 0 1 2 17c.01-.7.2-1.4.57-2"/><path d="m6 17 3.13-5.78c.53-.97.1-2.18-.5-3.1a4 4 0 1 1 6.89-4.06"/><path d="m12 6 3.13 5.73C15.66 12.7 16.9 13 18 13a4 4 0 0 1 0 8"/>',
   build_circle: '<circle cx="12" cy="12" r="9"/><path d="M14.7 8.3a3 3 0 0 0-4.2 4.2l-2.8 2.8 1.4 1.4 2.8-2.8a3 3 0 0 0 4.2-4.2l-1.8 1.8-1.4-1.4 1.8-1.8Z"/>',
-  warning: '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4m0 4h.01"/>',
-  delete_sweep: '<path d="M3 6h10M8 6V4h0a2 2 0 0 1 2-2h0a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6m11 6h6m-6 4h4"/>'
+  warning: '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4m0 4h.01"/>'
 };
 
 interface IconProps {

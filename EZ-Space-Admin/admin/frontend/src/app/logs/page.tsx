@@ -117,7 +117,7 @@ function getPageNumbers(current: number, totalPages: number): Array<number | '..
 }
 
 export default function LogsPage() {
-  const { notice, refreshing, triggerRefresh, openModal, summary } = useAdmin();
+  const { notice, openModal, summary } = useAdmin();
   const { data, loadError, reload } = useAdminPageData<LogsResponse>(
     'logs',
     'Không thể tải nhật ký hệ thống.'
@@ -410,67 +410,6 @@ export default function LogsPage() {
 
   return (
     <>
-      {/* Thanh trạng thái & hành động đầu trang */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-[14px] border border-slate-200 bg-white px-5 py-3.5 shadow-card">
-        <div className="flex flex-wrap items-center gap-2.5">
-          <span className="inline-flex items-center gap-2 rounded-full bg-green-100 px-3 py-1 text-xs font-bold text-green-700">
-            <span className="h-2 w-2 animate-pulse rounded-full bg-green-600" />
-            Giám sát nhật ký trực tiếp
-          </span>
-          <span className="text-xs font-medium text-slate-500">
-            Theo dõi lịch sử thao tác quản trị và vận hành bãi đỗ theo thời gian thực
-          </span>
-        </div>
-
-        <div className="flex items-center gap-2.5">
-          <button
-            type="button"
-            onClick={triggerRefresh}
-            disabled={refreshing}
-            className="btn btn-sm h-9"
-          >
-            <Icon
-              name="sync"
-              sizeClass={`h-4 w-4 ${refreshing ? 'animate-spin text-brand' : 'text-slate-600'}`}
-            />
-            <span>Đồng bộ</span>
-          </button>
-
-          <div className="relative inline-block text-left" ref={exportRef}>
-            <button
-              type="button"
-              onClick={() => setOpenMenu(prev => (prev === 'export' ? null : 'export'))}
-              className="btn btn-sm btn-primary h-9"
-            >
-              <Icon name="download" sizeClass="h-4 w-4" />
-              <span>Xuất file Logs</span>
-              <Icon name="expand_more" sizeClass="h-4 w-4" />
-            </button>
-
-            {openMenu === 'export' ? (
-              <div className="absolute right-0 z-20 mt-2 w-44 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl">
-                <button
-                  type="button"
-                  onClick={() => handleExport('CSV')}
-                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-bold text-slate-800 hover:bg-slate-100"
-                >
-                  <Icon name="table_view" className="text-green-600" sizeClass="h-4 w-4" />
-                  <span>Xuất dạng CSV</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleExport('JSON')}
-                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-bold text-slate-800 hover:bg-slate-100"
-                >
-                  <Icon name="data_object" className="text-brand" sizeClass="h-4 w-4" />
-                  <span>Xuất dạng JSON</span>
-                </button>
-              </div>
-            ) : null}
-          </div>
-        </div>
-      </div>
-
       {/* 4 KPI Cards */}
       <section className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard
@@ -506,8 +445,8 @@ export default function LogsPage() {
       {/* Main Surface Card */}
       <div className="flex flex-col rounded-[14px] border border-slate-200 bg-white shadow-card">
         {/* KHỐI A: TABS PHÂN LOẠI NHẬT KÝ */}
-        <div className="flex items-center justify-between overflow-x-auto rounded-t-[14px] border-b border-slate-200 bg-slate-50/80 px-6 pt-3">
-          <div className="flex items-center gap-2.5">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-t-[14px] border-b border-slate-200 bg-slate-50/80 px-6 pt-3">
+          <div className="flex items-center gap-2.5 overflow-x-auto">
             <button
               type="button"
               onClick={() => switchTab('common')}
@@ -541,9 +480,37 @@ export default function LogsPage() {
             </button>
           </div>
 
-          <div className="hidden items-center gap-2 pr-2 text-xs font-medium text-slate-400 sm:flex">
-            <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
-            <span>Sắp xếp mới nhất trước</span>
+          <div className="relative pb-2.5 text-left" ref={exportRef}>
+            <button
+              type="button"
+              onClick={() => setOpenMenu(prev => (prev === 'export' ? null : 'export'))}
+              className="btn btn-sm h-9"
+            >
+              <Icon name="download" sizeClass="h-4 w-4" />
+              <span>Xuất file Logs</span>
+              <Icon name="expand_more" sizeClass="h-4 w-4" />
+            </button>
+
+            {openMenu === 'export' ? (
+              <div className="absolute right-0 z-20 mt-2 w-44 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl">
+                <button
+                  type="button"
+                  onClick={() => handleExport('CSV')}
+                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-bold text-slate-800 hover:bg-slate-100"
+                >
+                  <Icon name="table_view" className="text-green-600" sizeClass="h-4 w-4" />
+                  <span>Xuất dạng CSV</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleExport('JSON')}
+                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-bold text-slate-800 hover:bg-slate-100"
+                >
+                  <Icon name="data_object" className="text-brand" sizeClass="h-4 w-4" />
+                  <span>Xuất dạng JSON</span>
+                </button>
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -838,27 +805,12 @@ export default function LogsPage() {
 
                       {/* Diff Preview */}
                       <td className="max-w-[220px] px-4 py-4 align-top">
-                        <div className="flex items-center gap-1.5">
-                          <span
-                            className="max-w-[165px] truncate rounded-md bg-slate-100 px-2 py-1 font-mono text-[11px] text-slate-800"
-                            title={diffText}
-                          >
-                            {diffText}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              openModal(
-                                `Chi tiết nhật ký: ${MANAGER_ACTION[log.action] || log.action}`,
-                                <LogDetailModal row={log} />
-                              )
-                            }
-                            title="Xem Diff JSON"
-                            className="rounded-lg p-1 text-brand hover:bg-brand-tint"
-                          >
-                            <Icon name="data_object" sizeClass="h-[17px] w-[17px]" />
-                          </button>
-                        </div>
+                        <span
+                          className="inline-block max-w-[195px] truncate rounded-md bg-slate-100 px-2 py-1 font-mono text-[11px] text-slate-800"
+                          title={diffText}
+                        >
+                          {diffText}
+                        </span>
                       </td>
 
                       {/* Lý do / Ghi chú */}

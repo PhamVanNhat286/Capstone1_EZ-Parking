@@ -10,18 +10,11 @@ export interface SummaryResponse {
     total: number;
     customers: number;
     managers: number;
-    admins: number;
-    active: number;
-    inactive: number;
-    banned: number;
   };
   lots: {
     total: number;
     active: number;
     pending: number;
-    inactive: number;
-    rejected: number;
-    capacity: number;
   };
   slots: {
     total: number;
@@ -38,25 +31,17 @@ export interface SummaryResponse {
     total: number;
     active: number;
     completed: number;
-    abandoned: number;
   };
   tickets: {
     total: number;
     active: number;
     used: number;
-    expired: number;
-    cancelled: number;
   };
   vehicles: {
     total: number;
     sedan: number;
     suv: number;
     ev: number;
-  };
-  chat: {
-    total: number;
-    user_msgs: number;
-    ai_msgs: number;
   };
   platform_config?: PlatformConfig;
   server_time: string;
@@ -252,7 +237,6 @@ export interface UserDetailResponse {
     expected_end_time: string;
     created_at: string;
   }>;
-  chat_count: number;
 }
 
 export interface RevenueLotRow {
@@ -383,61 +367,15 @@ export interface PlatformConfig {
 export interface SettingsResponse {
   config: PlatformConfig;
   defaults: PlatformConfig;
-  db_info: {
-    database_name: string;
-    db_user: string;
-    pg_version: string;
-  };
   enums: {
     payment_providers: string[];
-    vehicle_types: string[];
-    slot_types: string[];
   };
   gateway_stats: Array<{
     provider: string;
     total_transactions: number;
     success_transactions: number;
-    ipn_records: number;
     total_amount: number;
     last_paid_at: string | null;
-  }>;
-  latest_ipn: {
-    id: number;
-    reservation_id: number;
-    provider: string;
-    transaction_ref: string | null;
-    response_code: string | null;
-    raw_ipn_payload: unknown;
-    ipn_received_at: string | null;
-    paid_at: string | null;
-  } | null;
-  deposit_stats: {
-    total_reservations: number;
-    min_deposit: number | null;
-    max_deposit: number | null;
-  };
-  pricing: PricingRule[];
-  managers: Array<{
-    id: number;
-    parking_lot_id: number;
-    lot_name: string;
-    lot_status: string;
-    manager_id: number;
-    full_name: string;
-    email: string;
-    phone: string | null;
-    assigned_at: string;
-  }>;
-  lot_vehicles: Array<{
-    parking_lot_id: number;
-    lot_name: string;
-    vehicle_types: string | null;
-  }>;
-  rules: Array<{
-    code: string;
-    name: string;
-    value: string;
-    desc: string;
   }>;
   server_time: string;
 }

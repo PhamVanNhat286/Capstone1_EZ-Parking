@@ -175,8 +175,6 @@ function LotRevenueChart({ lots, commPct }: { lots: RevenueLotRow[]; commPct: nu
   );
 }
 
-const VEHICLE_COLORS = ['#2563EB', '#16A34A', '#D97706', '#7C3AED', '#0EA5E9'];
-
 export default function RevenuePage() {
   const {
     authReady,
@@ -304,7 +302,6 @@ export default function RevenuePage() {
   const ownerPct = Math.round((100 - commPct) * 10) / 10;
   const daily = data.byDay || [];
   const maxDay = Math.max(1, ...daily.map(x => Math.abs(n(x.admin_revenue))));
-  const maxVehicle = Math.max(1, ...(data.byVehicle || []).map(x => Math.abs(n(x.admin_revenue))));
 
   return (
     <>
@@ -363,82 +360,45 @@ export default function RevenuePage() {
         <LotRevenueChart lots={data.byLot || []} commPct={commPct} />
       </SectionCard>
 
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-        <SectionCard
-          title="Doanh thu Admin theo ngày"
-          subtitle={`${commPct}% × (tiền cọc + tiền tất toán − tiền hoàn). Cột đỏ là khoản giảm do hoàn tiền.`}
-          icon="calendar_today"
-        >
-          {daily.length ? (
-            <div className="flex h-[225px] items-end gap-2 overflow-x-auto px-6 pb-[18px] pt-5">
-              {daily.map(x => {
-                const total = n(x.admin_revenue);
-                return (
+      <SectionCard
+        title="Doanh thu Admin theo ngày"
+        subtitle={`${commPct}% × (tiền cọc + tiền tất toán − tiền hoàn). Cột đỏ là khoản giảm do hoàn tiền.`}
+        icon="calendar_today"
+      >
+        {daily.length ? (
+          <div className="flex h-[225px] items-end gap-2 overflow-x-auto px-6 pb-[18px] pt-5">
+            {daily.map(x => {
+              const total = n(x.admin_revenue);
+              return (
+                <div
+                  key={x.day}
+                  className="flex h-full min-w-[28px] flex-1 flex-col items-center justify-end gap-[5px]"
+                  title={`${x.day}: ${money(total)}${total < 0 ? ' (giảm do hoàn tiền)' : ''}`}
+                >
+                  <div className="whitespace-nowrap text-[10.5px] font-bold text-slate-700">
+                    {total ? nf(total) : ''}
+                  </div>
                   <div
-                    key={x.day}
-                    className="flex h-full min-w-[28px] flex-1 flex-col items-center justify-end gap-[5px]"
-                    title={`${x.day}: ${money(total)}${total < 0 ? ' (giảm do hoàn tiền)' : ''}`}
-                  >
-                    <div className="whitespace-nowrap text-[10.5px] font-bold text-slate-700">
-                      {total ? nf(total) : ''}
-                    </div>
-                    <div
-                      className={`min-h-[2px] w-[min(36px,100%)] rounded-t-[5px] ${
-                        total < 0
-                          ? 'bg-gradient-to-b from-red-300 to-red-600'
-                          : 'bg-gradient-to-b from-blue-400 to-blue-600'
-                      }`}
-                      style={{
-                        height: `${total ? Math.max(8, Math.round((100 * Math.abs(total)) / maxDay)) : 0}%`
-                      }}
-                    />
-                    <small className="text-[10px] text-slate-500">{String(x.day).slice(5)}</small>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="px-4 py-7 text-center text-slate-400">
-              Chưa có giao dịch thanh toán thành công trong kỳ được chọn.
-            </div>
-          )}
-        </SectionCard>
-
-        <SectionCard
-          title="Doanh thu Admin theo loại phương tiện"
-          subtitle={`Phần ${commPct}% Admin nhận từ mỗi lượt đặt ô của SUV, Sedan và EV.`}
-          icon="directions_car"
-        >
-          <div className="flex flex-col gap-[15px] px-6 pb-6 pt-[18px]">
-            {(data.byVehicle || []).length ? (
-              data.byVehicle.map((x, i) => (
-                <div key={x.vehicle_type} className="grid gap-2">
-                  <div className="flex justify-between gap-2.5 text-[12.5px]">
-                    <b className="font-bold text-slate-900">{x.vehicle_type}</b>
-                    <span>{money(x.admin_revenue)}</span>
-                  </div>
-                  <div className="h-2.5 overflow-hidden rounded-[9px] bg-slate-100">
-                    <i
-                      className="block h-full rounded-[9px]"
-                      style={{
-                        width: `${Math.min(100, (Math.abs(n(x.admin_revenue)) / maxVehicle) * 100)}%`,
-                        background:
-                          n(x.admin_revenue) < 0
-                            ? '#DC2626'
-                            : VEHICLE_COLORS[i % VEHICLE_COLORS.length]
-                      }}
-                    />
-                  </div>
+                    className={`min-h-[2px] w-[min(36px,100%)] rounded-t-[5px] ${
+                      total < 0
+                        ? 'bg-gradient-to-b from-red-300 to-red-600'
+                        : 'bg-gradient-to-b from-blue-400 to-blue-600'
+                    }`}
+                    style={{
+                      height: `${total ? Math.max(8, Math.round((100 * Math.abs(total)) / maxDay)) : 0}%`
+                    }}
+                  />
+                  <small className="text-[10px] text-slate-500">{String(x.day).slice(5)}</small>
                 </div>
-              ))
-            ) : (
-              <div className="px-4 py-7 text-center text-slate-400">
-                Chưa có dữ liệu doanh thu theo loại xe.
-              </div>
-            )}
+              );
+            })}
           </div>
-        </SectionCard>
-      </div>
+        ) : (
+          <div className="px-4 py-7 text-center text-slate-400">
+            Chưa có giao dịch thanh toán thành công trong kỳ được chọn.
+          </div>
+        )}
+      </SectionCard>
 
       <SectionCard
         title="Đối soát tài chính theo từng bãi đỗ xe"

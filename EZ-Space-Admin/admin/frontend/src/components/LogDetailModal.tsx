@@ -151,50 +151,37 @@ export function LogDetailModal({ row }: LogDetailModalProps) {
         </div>
       </div>
 
-      {/* So sánh Old Value vs New Value */}
+      {/* Chi tiết dữ liệu thay đổi */}
       <div>
         <div className="mb-2.5 flex items-center justify-between">
           <span className="text-[13px] font-extrabold text-slate-900">
-            So sánh giá trị (old_value vs new_value)
+            Chi tiết dữ liệu thay đổi
           </span>
-          <span className="text-[11px] font-semibold text-slate-400">JSONB Payload</span>
         </div>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div className="rounded-xl border border-red-200/80 bg-red-50/50 p-3.5">
-            <div className="mb-2 flex items-center justify-between text-xs font-bold text-red-700">
-              <span>Old Value (Trước khi sửa)</span>
-              <span className="font-mono text-[11px]">old_value</span>
+            <div className="mb-2 text-xs font-bold text-red-700">
+              Trước khi thay đổi
             </div>
             <pre className="max-h-60 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-red-100 bg-white p-3 font-mono text-xs leading-relaxed text-red-700">
               {row.old_value !== null && row.old_value !== undefined
                 ? JSON.stringify(row.old_value, null, 2)
-                : '/* [NULL] Không có dữ liệu trước (Bản ghi tạo mới) */'}
+                : 'Không có dữ liệu trước đó (Bản ghi mới)'}
             </pre>
           </div>
 
           <div className="rounded-xl border border-green-200/80 bg-green-50/50 p-3.5">
-            <div className="mb-2 flex items-center justify-between text-xs font-bold text-green-700">
-              <span>New Value (Sau khi sửa)</span>
-              <span className="font-mono text-[11px]">new_value</span>
+            <div className="mb-2 text-xs font-bold text-green-700">
+              Sau khi thay đổi
             </div>
             <pre className="max-h-60 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-green-100 bg-white p-3 font-mono text-xs leading-relaxed text-green-700">
               {row.new_value !== null && row.new_value !== undefined
                 ? JSON.stringify(row.new_value, null, 2)
-                : '/* [NULL] Không có dữ liệu mới */'}
+                : 'Không có dữ liệu mới'}
             </pre>
           </div>
         </div>
       </div>
-
-      {/* Raw JSON đầy đủ */}
-      <details className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-        <summary className="cursor-pointer select-none text-[13px] font-bold text-slate-800">
-          Xem bản ghi đầy đủ (Raw JSON)
-        </summary>
-        <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-slate-900 p-4 font-mono text-xs leading-relaxed text-slate-200">
-          {JSON.stringify(row, null, 2)}
-        </pre>
-      </details>
     </div>
   );
 }

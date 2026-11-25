@@ -1,4 +1,4 @@
-import { first, q, safeFirst } from '../db/pool';
+import { first, q } from '../db/pool';
 import { rangeDates, RangeQueryParams, viewRange } from '../shared/date-range';
 import { withRevenue } from '../shared/revenue-math';
 import { loadCurrentConfig } from './settings';
@@ -7,21 +7,14 @@ export async function summary() {
   const users = await first(`
     SELECT COUNT(*)::int total,
            COUNT(*) FILTER (WHERE role = 'customer')::int customers,
-           COUNT(*) FILTER (WHERE role = 'manager')::int managers,
-           COUNT(*) FILTER (WHERE role = 'admin')::int admins,
-           COUNT(*) FILTER (WHERE status = 'active')::int active,
-           COUNT(*) FILTER (WHERE status = 'inactive')::int inactive,
-           COUNT(*) FILTER (WHERE status = 'banned')::int banned
+           COUNT(*) FILTER (WHERE role = 'manager')::int managers
     FROM users
   `);
 
   const lots = await first(`
     SELECT COUNT(*)::int total,
            COUNT(*) FILTER (WHERE status = 'active')::int active,
-           COUNT(*) FILTER (WHERE status = 'pending')::int pending,
-           COUNT(*) FILTER (WHERE status = 'inactive')::int inactive,
-           COUNT(*) FILTER (WHERE status = 'rejected')::int rejected,
-           COALESCE(SUM(capacity), 0)::int capacity
+           COUNT(*) FILTER (WHERE status = 'pending')::int pending
     FROM parking_lots
   `);
 
@@ -41,17 +34,14 @@ export async function summary() {
   const sessions = await first(`
     SELECT COUNT(*)::int total,
            COUNT(*) FILTER (WHERE status = 'active')::int active,
-           COUNT(*) FILTER (WHERE status = 'completed')::int completed,
-           COUNT(*) FILTER (WHERE status = 'abandoned')::int abandoned
+           COUNT(*) FILTER (WHERE status = 'completed')::int completed
     FROM parking_sessions
   `);
 
   const tickets = await first(`
     SELECT COUNT(*)::int total,
            COUNT(*) FILTER (WHERE status = 'active')::int active,
-           COUNT(*) FILTER (WHERE status = 'used')::int used,
-           COUNT(*) FILTER (WHERE status = 'expired')::int expired,
-           COUNT(*) FILTER (WHERE status = 'cancelled')::int cancelled
+           COUNT(*) FILTER (WHERE status = 'used')::int used
     FROM qr_tickets
   `);
 
@@ -63,15 +53,6 @@ export async function summary() {
     FROM vehicles
   `);
 
-  const chat = await safeFirst(
-    `SELECT COUNT(*)::int total,
-            COUNT(*) FILTER (WHERE role = 'user')::int user_msgs,
-            COUNT(*) FILTER (WHERE role = 'ai')::int ai_msgs
-     FROM chat_messages`,
-    [],
-    { total: 0, user_msgs: 0, ai_msgs: 0 }
-  );
-
   const platform_config = await loadCurrentConfig();
 
   return {
@@ -81,7 +62,6 @@ export async function summary() {
     sessions,
     tickets,
     vehicles,
-    chat,
     platform_config,
     server_time: new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' })
   };

@@ -282,7 +282,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
               <div className="flex items-center gap-2.5 font-semibold">
                 <Icon name="warning" className="shrink-0 text-amber-600" sizeClass="h-5 w-5" />
                 <span>
-                  Chế độ bảo trì hệ thống (Maintenance Mode) đang được kích hoạt trong Cài đặt nền tảng.
+                  Chế độ bảo trì hệ thống đang được kích hoạt trong Cài đặt nền tảng.
                 </span>
               </div>
               {pathname !== '/settings' ? (

@@ -138,7 +138,6 @@ export default function DashboardPage() {
   const ses = effectiveSummary?.sessions;
   const tkt = effectiveSummary?.tickets;
   const veh = effectiveSummary?.vehicles;
-  const chat = effectiveSummary?.chat;
   const books = data.books;
   const todayBooks = data.today_books;
   const pay = data.payments;
@@ -262,7 +261,7 @@ export default function DashboardPage() {
 
         <SectionCard
           title="Chỉ số Vận hành & Tiện ích"
-          subtitle="Tổng hợp phiên đỗ xe, vé QR, phương tiện và trợ lý AI."
+          subtitle="Tổng hợp phiên đỗ xe thực tế, vé QR check-in và phương tiện đăng ký."
           icon="schedule"
           className="h-full"
         >
@@ -309,21 +308,6 @@ export default function DashboardPage() {
               </div>
               <span className="whitespace-nowrap rounded-[7px] bg-brand-tint px-2.5 py-[5px] text-[11px] font-extrabold text-brand">
                 {nf(veh?.total)} xe
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between gap-3 py-3.5">
-              <div className="flex items-center gap-2.5 text-[12.5px] font-bold text-slate-700">
-                <Icon name="info" className="text-brand" />
-                <div>
-                  Tương tác Trợ lý AI
-                  <small className="mt-0.5 block text-[11px] font-medium leading-snug text-slate-400">
-                    Khách hỏi: {nf(chat?.user_msgs)} · Phản hồi AI: {nf(chat?.ai_msgs)}
-                  </small>
-                </div>
-              </div>
-              <span className="whitespace-nowrap rounded-[7px] bg-brand-tint px-2.5 py-[5px] text-[11px] font-extrabold text-brand">
-                {nf(chat?.total)} tin nhắn
               </span>
             </div>
           </div>

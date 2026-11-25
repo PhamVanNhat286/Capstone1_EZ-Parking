@@ -41,9 +41,6 @@ export function UserDetailModal({ data }: UserDetailModalProps) {
           <p>
             <b>Ngày đăng ký:</b> {dt(u.created_at)}
           </p>
-          <p>
-            <b>Tin nhắn Trợ lý AI:</b> {nf(data.chat_count)} tin nhắn
-          </p>
         </div>
       </div>
 

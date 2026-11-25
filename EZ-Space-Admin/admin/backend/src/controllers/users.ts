@@ -1,4 +1,4 @@
-import { audit, err, first, q, safeFirst, withTx } from '../db/pool';
+import { audit, err, first, q, withTx } from '../db/pool';
 import { getActor, pass, validId } from './utils';
 
 export async function users() {
@@ -50,13 +50,7 @@ export async function user(params: Record<string, string>) {
     [id]
   );
 
-  const chat = await safeFirst<{ total: number }>(
-    `SELECT COUNT(*)::int total FROM chat_messages WHERE user_id = $1`,
-    [id],
-    { total: 0 }
-  );
-
-  return { user: profile, vehicles, lots, reservations, chat_count: chat.total || 0 };
+  return { user: profile, vehicles, lots, reservations };
 }
 
 export async function userStatus(input: Record<string, unknown>) {

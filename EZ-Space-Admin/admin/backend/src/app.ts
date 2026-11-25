@@ -57,8 +57,7 @@ export function createApp() {
         '/api/admin/users/:id/status',
         '/api/admin/revenue',
         '/api/admin/logs',
-        '/api/admin/settings',
-        '/api/admin/settings/cache-flush'
+        '/api/admin/settings'
       ]
     });
   });

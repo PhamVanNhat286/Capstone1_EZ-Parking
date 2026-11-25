@@ -65,7 +65,7 @@ export async function first<T extends Record<string, unknown> = Record<string, u
   return (rows[0] || {}) as T;
 }
 
-export async function safeQuery<T extends Record<string, unknown> = Record<string, unknown>>(
+async function safeQuery<T extends Record<string, unknown> = Record<string, unknown>>(
   sql: string,
   params: unknown[] = [],
   fallback: T[] = []
