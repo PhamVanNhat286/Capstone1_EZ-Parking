@@ -30,6 +30,8 @@ function Totals({ totals }: { totals: RevenueTotals }) {
   return <div className={`${styles.cards} ${reportStyles.totals}`} aria-label="Tổng doanh thu kỳ đang chọn">
     {[
       ['Thu thành công', money(totals.receipts), 'Tiền cọc và thanh toán cuối thành công'],
+      ['Phí Admin 5%', money(totals.adminFee), 'Trích 5% trên từng giao dịch thu thành công'],
+      ['Partner sau phí Admin', money(totals.partnerRevenue), 'Tiền thu trừ phí Admin; tiền hoàn hiển thị riêng'],
       ['Hoàn tiền thành công', money(totals.refunds), 'Các giao dịch hoàn tiền thành công'],
       ['Số giao dịch', String(totals.transactions), 'Trong kỳ và theo bộ lọc đang chọn'],
     ].map(([label, value, note]) => <article key={label} className={styles.card}><small>{label}</small><strong>{value}</strong><p>{note}</p></article>)}
@@ -74,8 +76,9 @@ export default function SqlRevenue({ onInspect }: { onInspect: (id: string) => v
     {report.error ? <p role="alert" className={styles.error}>{report.error}</p> : <>
       <div className={reportStyles.periodHeading} aria-live="polite"><h2>{report.period!.label}</h2><span>Tổng hợp theo {groupLabels[report.period!.group]}</span></div>
       <Totals totals={report.totals} />
+      <p className={styles.note}>Phí Admin = 5% tiền thu thành công, làm tròn đến 2 chữ số thập phân trên mỗi giao dịch. Partner sau phí Admin = tiền thu − phí Admin. Tiền hoàn được báo cáo riêng.</p>
       <section className={styles.panel} aria-label="Biểu đồ doanh thu">
-        <div className={styles.panelHead}><div><h2>Biểu đồ doanh thu theo thời gian</h2><small>Diễn biến tiền thu và hoàn tiền theo {groupLabels[report.period!.group]} trong kỳ đang chọn</small></div></div>
+        <div className={styles.panelHead}><div><h2>Biểu đồ doanh thu theo thời gian</h2><small>Tiền thu, phần Partner sau phí Admin 5% và tiền hoàn theo {groupLabels[report.period!.group]}</small></div></div>
         <RevenueLineChart key={tableKey} buckets={report.buckets} />
         {report.totals.transactions === 0 && <p className={styles.empty} role="status">Không có giao dịch trong kỳ theo bộ lọc đang chọn.</p>}
       </section>
@@ -83,7 +86,7 @@ export default function SqlRevenue({ onInspect }: { onInspect: (id: string) => v
       <section className={styles.panel}>
         <div className={styles.panelHead}><h2>Tổng hợp theo {groupLabels[report.period!.group]}</h2><button className={styles.secondary} onClick={() => exportCsv(`partner-tong-hop-${filename}.csv`, revenueSummaryRows(visibleBuckets))}><Download size={14} />Xuất tổng hợp</button></div>
         <label className={reportStyles.activeOnly}><input type="checkbox" checked={activeOnly} onChange={e => setActiveOnly(e.target.checked)} />Chỉ hiển thị kỳ có giao dịch</label>
-        <SqlTable key={`summary-${tableKey}`} name="Tổng hợp doanh thu" headers={['Kỳ', 'Thu thành công', 'Hoàn tiền', 'Số giao dịch']} rows={visibleBuckets.map(row => ({ id: row.key, cells: [row.label, money(row.receipts), money(row.refunds), row.transactions] }))} />
+        <SqlTable key={`summary-${tableKey}`} name="Tổng hợp doanh thu" headers={['Kỳ', 'Thu thành công', 'Phí Admin 5%', 'Partner sau phí Admin', 'Hoàn tiền', 'Số giao dịch']} rows={visibleBuckets.map(row => ({ id: row.key, cells: [row.label, money(row.receipts), money(row.adminFee), money(row.partnerRevenue), money(row.refunds), row.transactions] }))} />
       </section>
 
       <section className={styles.panel}>

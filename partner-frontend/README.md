@@ -85,10 +85,16 @@ là tiền hoàn. Không cộng lại tổng tiền đặt chỗ/phiên đỗ v�
 Ngày báo cáo theo `paid_at` giờ Việt Nam; giao dịch chưa có ngày thanh toán dùng `created_at`
 và có ghi chú. Provider gồm `vnpay`, `bank`, `momo`, `card` đúng SQL mới.
 
+Báo cáo trích phí Admin 5% trên từng giao dịch thu thành công, làm tròn đến 2 chữ số
+thập phân theo độ chính xác `payments.amount`. Phần Partner sau phí bằng tiền thu trừ
+phí Admin; tiền hoàn vẫn được báo cáo riêng. Cách tính dùng chung cho thẻ tổng,
+biểu đồ, bảng theo kỳ và CSV tổng hợp. Đây là số liệu tính từ giao dịch hiện có,
+không tạo khoản thanh toán mới và không sửa `schema.sql` hay `seed.sql`.
+
 ## Kiểm tra
 
 Trong `partner-frontend`: `npm test`, `npm run typecheck`, `npm run build`.
-36 kiểm tra frontend gồm hợp đồng SQL, seed fixtures dành cho test, loại ô/xe, báo cáo và API client.
+39 kiểm tra frontend gồm hợp đồng SQL, seed fixtures dành cho test, loại ô/xe, báo cáo và API client.
 Seed fixture không được dùng làm dữ liệu vận hành trong trình duyệt.
 
 Trong `backend`: `npm run build`, `npm run test:partner:unit`, `npm run test:partner`.

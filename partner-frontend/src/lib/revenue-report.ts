@@ -11,7 +11,7 @@ export type RevenueFilter = {
   status: Payment['status'] | 'all';
   query: string;
 };
-export type RevenueTotals = { receipts: number; refunds: number; transactions: number };
+export type RevenueTotals = { receipts: number; refunds: number; adminFee: number; partnerRevenue: number; transactions: number };
 export type RevenueBucket = RevenueTotals & { key: string; label: string; shortLabel: string };
 type Period = { from: string; to: string; label: string; group: 'hour' | 'day' | 'month' | 'year' };
 
@@ -20,7 +20,7 @@ const calendar = new Intl.DateTimeFormat('sv-SE', {
   hour: '2-digit', hourCycle: 'h23',
 });
 const pad = (n: number) => String(n).padStart(2, '0');
-const zero = (): RevenueTotals => ({ receipts: 0, refunds: 0, transactions: 0 });
+const zero = (): RevenueTotals => ({ receipts: 0, refunds: 0, adminFee: 0, partnerRevenue: 0, transactions: 0 });
 const normalize = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/gi, 'd').toLowerCase();
 
 export function revenueCalendar(stamp: string) {
@@ -118,16 +118,25 @@ export function buildRevenueReport(payments: readonly Payment[], filter: Revenue
     if (p.status !== 'success') continue;
     const amount = Math.round(p.amount * 100);
     if (p.payment_type === 'refund') { row.refunds += amount; totals.refunds += amount; }
-    else { row.receipts += amount; totals.receipts += amount; }
+    else {
+      // Round the 5% share once per successful receipt to SQL's two decimal places.
+      // Summing the same shares keeps day/month/year reports consistent.
+      const adminFee = Math.round(amount * 5 / 100);
+      row.receipts += amount; totals.receipts += amount;
+      row.adminFee += adminFee; totals.adminFee += adminFee;
+      row.partnerRevenue += amount - adminFee; totals.partnerRevenue += amount - adminFee;
+    }
   }
   for (const row of [...buckets, totals]) {
     row.receipts /= 100;
     row.refunds /= 100;
+    row.adminFee /= 100;
+    row.partnerRevenue /= 100;
   }
   return { error: '', period, payments: selected, buckets, totals, fallbackDates };
 }
 
 export function revenueSummaryRows(buckets: readonly RevenueBucket[]): unknown[][] {
-  return [['Kỳ', 'Thu thành công (VND)', 'Hoàn tiền thành công (VND)', 'Số giao dịch'],
-    ...buckets.map(b => [b.label, b.receipts, b.refunds, b.transactions])];
+  return [['Kỳ', 'Thu thành công (VND)', 'Phí Admin 5% (VND)', 'Partner sau phí Admin (VND)', 'Hoàn tiền thành công (VND)', 'Số giao dịch'],
+    ...buckets.map(b => [b.label, b.receipts, b.adminFee, b.partnerRevenue, b.refunds, b.transactions])];
 }

@@ -53,7 +53,7 @@ test('yearly reports group 12 months and keep January and December boundaries in
   assert.equal(result.buckets[0].receipts, 10000);
   assert.equal(result.buckets[5].receipts, 30000);
   assert.equal(result.buckets[11].receipts, 50000);
-  assert.deepEqual(result.totals, { receipts: 90000, refunds: 0, transactions: 3 });
+  assert.deepEqual(result.totals, { receipts: 90000, refunds: 0, adminFee: 4500, partnerRevenue: 85500, transactions: 3 });
   assert.equal(result.buckets.reduce((sum, row) => sum + row.receipts, 0), result.totals.receipts);
 });
 
@@ -67,7 +67,7 @@ test('pending, failed and refunded statuses never inflate receipts; successful r
     { ...base, id: '6', amount: 5000, payment_type: 'refund' },
   ];
   const result = report(rows);
-  assert.deepEqual(result.totals, { receipts: 0.3, refunds: 5000, transactions: 6 });
+  assert.deepEqual(result.totals, { receipts: 0.3, refunds: 5000, adminFee: 0.02, partnerRevenue: 0.28, transactions: 6 });
   assert.equal(result.buckets.find(b => b.key === '2026-11-16').refunds, 5000);
   const failed = report(rows, { status: 'failed' });
   assert.equal(failed.payments.length, 1);
@@ -131,6 +131,49 @@ test('custom ranges remain inclusive and large ranges use bounded month/year gro
 test('summary export contains the same period totals displayed by the report', () => {
   const result = report([base, { ...base, id: '2', payment_type: 'refund', amount: 5000 }], { mode: 'day' });
   const rows = revenueSummaryRows(result.buckets.filter(b => b.transactions));
-  assert.deepEqual(rows[1], ['00:00 – 00:59', 20000, 5000, 2]);
+  assert.deepEqual(rows[1], ['00:00 – 00:59', 20000, 1000, 19000, 5000, 2]);
   assert.equal(rows.length, 2);
+});
+
+test('5% Admin share applies only to successful receipts and preserves original payments', () => {
+  const payments = [
+    { ...base, amount: 40000 },
+    { ...base, id: '2', payment_type: 'final', amount: 20000 },
+    { ...base, id: '3', payment_type: 'refund', amount: 5000 },
+    { ...base, id: '4', amount: 90000, status: 'pending' },
+    { ...base, id: '5', amount: 80000, status: 'failed' },
+    { ...base, id: '6', amount: 70000, status: 'refunded' },
+  ];
+  const copy = structuredClone(payments);
+  const result = report(payments);
+  assert.deepEqual(result.totals, { receipts: 60000, refunds: 5000, adminFee: 3000, partnerRevenue: 57000, transactions: 6 });
+  assert.deepEqual(payments, copy);
+  assert.equal(report(payments, { status: 'failed' }).totals.adminFee, 0);
+  assert.equal(report(payments, { query: 'no-match' }).totals.partnerRevenue, 0);
+});
+
+test('rounding per transaction keeps Admin and Partner shares consistent across time groupings', () => {
+  const payments = [
+    { ...base, amount: 10.1, paid_at: '2026-11-16T00:00:00+07:00' },
+    { ...base, id: '2', amount: 10.1, paid_at: '2026-11-16T23:59:00+07:00' },
+  ];
+  for (const filter of [{ mode: 'day' }, { mode: 'month' }, { mode: 'year' }, { mode: 'range', from: '2026-11-16', to: '2026-11-16' }]) {
+    const result = report(payments, filter);
+    assert.equal(result.totals.adminFee, 1.02);
+    assert.equal(result.totals.partnerRevenue, 19.18);
+    for (const field of ['receipts', 'adminFee', 'partnerRevenue']) {
+      assert.equal(Math.round(result.buckets.reduce((sum, row) => sum + row[field], 0) * 100), Math.round(result.totals[field] * 100));
+    }
+    assert.equal(Math.round((result.totals.adminFee + result.totals.partnerRevenue) * 100), 2020);
+  }
+});
+
+test('refund-only and empty reports do not invent Admin fees or Partner income', () => {
+  for (const payments of [[], [{ ...base, payment_type: 'refund', amount: 5000 }]]) {
+    const result = report(payments);
+    assert.equal(result.totals.adminFee, 0);
+    assert.equal(result.totals.partnerRevenue, 0);
+    assert.ok(result.buckets.every(row => row.adminFee === 0 && row.partnerRevenue === 0));
+  }
+  assert.equal(report([base], { mode: 'day', day: '' }).totals.adminFee, 0);
 });

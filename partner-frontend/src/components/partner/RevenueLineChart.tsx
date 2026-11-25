@@ -22,7 +22,7 @@ export default function RevenueLineChart({ buckets }: { buckets: RevenueBucket[]
   const maximum = intervals * step;
   const x = (index: number) => margin.left + (buckets.length === 1 ? plotWidth / 2 : index / Math.max(1, buckets.length - 1) * plotWidth);
   const y = (amount: number) => margin.top + plotHeight * (1 - amount / maximum);
-  const line = (key: 'receipts' | 'refunds') => buckets.map((row, index) => `${x(index)},${y(row[key])}`).join(' ');
+  const line = (key: 'receipts' | 'refunds' | 'partnerRevenue') => buckets.map((row, index) => `${x(index)},${y(row[key])}`).join(' ');
   const area = buckets.length ? `${x(0)},${y(0)} ${line('receipts')} ${x(buckets.length - 1)},${y(0)}` : '';
   const labelEvery = Math.max(1, Math.ceil((buckets.length - 1) / 6));
   const current = active === null ? null : buckets[active];
@@ -33,7 +33,7 @@ export default function RevenueLineChart({ buckets }: { buckets: RevenueBucket[]
   };
 
   return <div className={styles.root}>
-    <div className={styles.legend}><span><i />Thu thành công</span><span><i />Hoàn tiền thành công</span><small>Đơn vị: VNĐ</small></div>
+    <div className={styles.legend}><span><i />Thu thành công</span><span><i />Hoàn tiền thành công</span><span><i />Partner sau phí Admin 5%</span><small>Đơn vị: VNĐ</small></div>
     <div className={styles.scroll}>
       <div className={styles.canvas}>
         <svg viewBox={`0 0 ${width} ${height}`} role="group" aria-label="Biểu đồ đường thu và hoàn tiền theo thời gian"
@@ -47,24 +47,26 @@ export default function RevenueLineChart({ buckets }: { buckets: RevenueBucket[]
           <polygon points={area} fill={`url(#${gradientId})`} aria-hidden="true" />
           <polyline points={line('receipts')} className={styles.receipts} aria-hidden="true" />
           <polyline points={line('refunds')} className={styles.refunds} aria-hidden="true" />
+          <polyline points={line('partnerRevenue')} className={styles.partner} aria-hidden="true" />
           {current && <line x1={x(active!)} x2={x(active!)} y1={margin.top} y2={y(0)} className={styles.cursor} aria-hidden="true" />}
           {buckets.map((row, index) => <g key={row.key} ref={node => { points.current[index] = node; }} role="button"
             tabIndex={index === (active ?? 0) ? 0 : -1}
-            aria-label={`${row.label}: thu ${money(row.receipts)}, hoàn ${money(row.refunds)}, ${row.transactions} giao dịch`}
+            aria-label={`${row.label}: thu ${money(row.receipts)}, phí Admin ${money(row.adminFee)}, Partner ${money(row.partnerRevenue)}, hoàn ${money(row.refunds)}, ${row.transactions} giao dịch`}
             onFocus={() => setActive(index)} onBlur={() => setActive(null)}
             onKeyDown={event => {
               if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setActive(index); return; }
               const next = event.key === 'ArrowRight' ? Math.min(buckets.length - 1, index + 1) : event.key === 'ArrowLeft' ? Math.max(0, index - 1) : event.key === 'Home' ? 0 : event.key === 'End' ? buckets.length - 1 : null;
               if (next !== null) { event.preventDefault(); points.current[next]?.focus(); }
             }}>
-            <title>{`${row.label}: thu ${money(row.receipts)}, hoàn ${money(row.refunds)}`}</title>
+            <title>{`${row.label}: thu ${money(row.receipts)}, phí Admin ${money(row.adminFee)}, Partner ${money(row.partnerRevenue)}, hoàn ${money(row.refunds)}`}</title>
             <circle cx={x(index)} cy={y(row.receipts)} r={active === index ? 5 : row.receipts > 0 || buckets.length === 1 ? 3 : 0} className={styles.receiptDot} />
             <circle cx={x(index)} cy={y(row.refunds)} r={active === index ? 4 : row.refunds > 0 ? 3 : 0} className={styles.refundDot} />
+            <circle cx={x(index)} cy={y(row.partnerRevenue)} r={active === index ? 4 : row.partnerRevenue > 0 ? 3 : 0} className={styles.partnerDot} />
           </g>)}
           {buckets.map((row, index) => (index % labelEvery === 0 || index === buckets.length - 1) && <text key={row.key} x={x(index)} y={height - 13} textAnchor={index === 0 ? 'start' : index === buckets.length - 1 ? 'end' : 'middle'} className={styles.axisLabel} aria-hidden="true">{row.shortLabel}</text>)}
         </svg>
         {current && <div className={styles.tooltip} style={{ left: `${Math.max(20, Math.min(80, x(active!) / width * 100))}%` }} role="status">
-          <b>{current.label}</b><span>Thu thành công<strong>{money(current.receipts)}</strong></span><span>Hoàn tiền<strong>{money(current.refunds)}</strong></span><small>{current.transactions} giao dịch</small>
+          <b>{current.label}</b><span>Thu thành công<strong>{money(current.receipts)}</strong></span><span>Hoàn tiền<strong>{money(current.refunds)}</strong></span><span>Phí Admin 5%<strong>{money(current.adminFee)}</strong></span><span>Partner sau phí Admin<strong>{money(current.partnerRevenue)}</strong></span><small>{current.transactions} giao dịch</small>
         </div>}
       </div>
     </div>

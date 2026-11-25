@@ -9,4 +9,8 @@
 .tooltip { position:absolute; top:16px; transform:translateX(-50%); min-width:205px; padding:12px 14px; border:1px solid #dbe6f5; border-radius:10px; background:#fff; box-shadow:0 8px 28px #172f501a; color:#172f50; font-size:11px; pointer-events:none; }
 .tooltip>b { display:block; margin-bottom:9px; font-size:12px; }.tooltip>span { display:flex; align-items:center; justify-content:space-between; gap:22px; margin-top:7px; color:#64748b; }.tooltip strong { color:#2563eb; font-weight:750; }.tooltip>span:nth-of-type(2) strong { color:#d97706; }.tooltip small { display:block; margin-top:8px; color:#94a3b8; font-size:10px; }
 .hint { margin-top:10px; color:#8190a7; font-size:10px; line-height:1.8; }
+.legend span:nth-child(3) i { background:#059669; }
+.partner { fill:none; stroke:#059669; stroke-width:2.5; stroke-linecap:round; stroke-linejoin:round; vector-effect:non-scaling-stroke; }
+.partnerDot { fill:#fff; stroke:#059669; stroke-width:2; }
+.tooltip>span:nth-of-type(3) strong { color:#64748b; }.tooltip>span:nth-of-type(4) strong { color:#059669; }
 @media(max-width:760px) { .legend { gap:12px; }.legend small { margin-left:0; } }

@@ -1,5 +1,6 @@
 .modes { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:20px; }
 .totals { grid-template-columns:repeat(3,minmax(0,1fr)); }
+.totals > article:nth-child(3) { background:#effcf6; border-color:#bce9d3; }.totals > article:nth-child(3) strong { color:#047857; }
 .filters { display:flex; flex-wrap:wrap; gap:14px; align-items:flex-end; margin-bottom:14px; }
 .filters > label { min-width:175px; }
 .filters > button { min-height:40px; }
