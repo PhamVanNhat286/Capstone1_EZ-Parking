@@ -84,6 +84,7 @@ export interface DashboardResponse {
     forfeited: number;
     refunded: number;
   };
+  today_books?: DashboardResponse['books'];
   payments: {
     transactions: number;
     received: number;

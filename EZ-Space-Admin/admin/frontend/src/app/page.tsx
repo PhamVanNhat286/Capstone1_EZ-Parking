@@ -140,6 +140,7 @@ export default function DashboardPage() {
   const veh = effectiveSummary?.vehicles;
   const chat = effectiveSummary?.chat;
   const books = data.books;
+  const todayBooks = data.today_books;
   const pay = data.payments;
   const commPct =
     data.commission?.percent ?? effectiveSummary?.platform_config?.commission_rate ?? 5;
@@ -194,11 +195,11 @@ export default function DashboardPage() {
           sub={`${nf(l?.pending)} bãi chờ phê duyệt · Tổng ${nf(l?.total)} bãi`}
         />
         <KpiCard
-          label="Đặt chỗ trong kỳ"
-          value={nf(books?.total)}
+          label="Đặt chỗ hôm nay"
+          value={nf(todayBooks?.total)}
           icon="event_available"
           tone="warn"
-          sub={`${nf(s?.occupied)} ô đang đỗ · ${nf(s?.holding)} ô giữ chỗ`}
+          sub={`${nf(n(todayBooks?.completed))} hoàn thành · ${nf(n(todayBooks?.holding) + n(todayBooks?.paid) + n(todayBooks?.entered))} đang xử lý · ${nf(n(todayBooks?.cancelled) + n(todayBooks?.forfeited) + n(todayBooks?.refunded))} đã hủy`}
         />
         <KpiCard
           label={`Doanh thu Admin (${commPct}%)`}
@@ -212,7 +213,11 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1.7fr)_minmax(290px,1fr)]">
         <SectionCard
           title="Lưu lượng đặt chỗ theo khung giờ"
-          subtitle={`Thống kê lượt đặt chỗ từ ${dt(data.range.from)} đến ${dt(data.range.to)}`}
+          subtitle={
+            appliedParams.range === 'all'
+              ? 'Phân bố khung giờ khách đặt chỗ trên toàn hệ thống'
+              : `Thống kê lượt đặt chỗ từ ${dt(data.range.from)} đến ${dt(data.range.to)}`
+          }
           icon="analytics"
           className="h-full"
         >
@@ -238,7 +243,7 @@ export default function DashboardPage() {
           <div className="grid grid-cols-3 divide-x divide-slate-100 border-t border-slate-100 px-6 py-4 text-center">
             <div className="min-w-0 px-2">
               <b className="block text-lg text-slate-900">{nf(books?.total)}</b>
-              <small className="text-[10.5px] text-slate-400">Tổng đơn trong kỳ</small>
+              <small className="text-[10.5px] text-slate-400">Tổng đơn đặt chỗ</small>
             </div>
             <div className="min-w-0 px-2">
               <b className="block text-lg text-slate-900">
@@ -248,7 +253,7 @@ export default function DashboardPage() {
             </div>
             <div className="min-w-0 px-2">
               <b className="block text-lg text-slate-900">
-                {nf(n(books?.cancelled) + n(books?.forfeited))}
+                {nf(n(books?.cancelled) + n(books?.forfeited) + n(books?.refunded))}
               </b>
               <small className="text-[10.5px] text-slate-400">Đã hủy / No-show</small>
             </div>
@@ -327,7 +332,7 @@ export default function DashboardPage() {
 
       <SectionCard
         title="Tình trạng lấp đầy ô đỗ toàn hệ thống"
-        subtitle={`Tổng sức chứa khai báo: ${nf(l?.capacity)} chỗ · Tổng ô trên sơ đồ 2D: ${nf(s?.total)} ô`}
+        subtitle={`Tổng số ô đặt chỗ trực tuyến trên toàn hệ thống: ${nf(slotTotal)} ô (${slotTotal ? Math.round(((slotOcc + slotHold) * 100) / slotTotal) : 0}% đang sử dụng)`}
         icon="local_parking"
       >
         <div className="mx-6 mb-[22px] mt-[18px]">
@@ -338,10 +343,22 @@ export default function DashboardPage() {
             <i className="block h-full bg-gray-400" style={{ width: pct(slotUnavail) }} title={`Ngưng sử dụng: ${nf(slotUnavail)}`} />
           </div>
           <div className="mb-2 mt-3.5 flex flex-wrap gap-x-6 gap-y-2.5 text-[13px] text-slate-700">
-            <span>Đang đỗ: <b>{nf(slotOcc)}</b></span>
-            <span>Đang giữ chỗ: <b>{nf(slotHold)}</b></span>
-            <span>Trống: <b>{nf(slotAvail)}</b></span>
-            <span>Ngưng sử dụng: <b>{nf(slotUnavail)}</b></span>
+            <span className="inline-flex items-center gap-2">
+              <i className="inline-block h-3 w-3 rounded-[3px] bg-red-500" />
+              <span>Đang đỗ: <b>{nf(slotOcc)}</b></span>
+            </span>
+            <span className="inline-flex items-center gap-2">
+              <i className="inline-block h-3 w-3 rounded-[3px] bg-yellow-500" />
+              <span>Đang giữ chỗ: <b>{nf(slotHold)}</b></span>
+            </span>
+            <span className="inline-flex items-center gap-2">
+              <i className="inline-block h-3 w-3 rounded-[3px] bg-green-500" />
+              <span>Trống: <b>{nf(slotAvail)}</b></span>
+            </span>
+            <span className="inline-flex items-center gap-2">
+              <i className="inline-block h-3 w-3 rounded-[3px] bg-gray-400" />
+              <span>Ngưng sử dụng: <b>{nf(slotUnavail)}</b></span>
+            </span>
           </div>
           <p className="text-xs text-slate-500">
             Phân loại ô đỗ: Tiêu chuẩn <b>{nf(s?.standard)}</b> · Trạm sạc EV{' '}

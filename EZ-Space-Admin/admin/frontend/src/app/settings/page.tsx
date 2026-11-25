@@ -432,7 +432,6 @@ export default function SettingsPage() {
               </div>
               <div className="mt-1.5 flex items-center justify-between text-[11px] text-slate-400">
                 <span>Chủ bãi nhận: {ownerShare}%</span>
-                <span>Chuẩn đối soát: 5%</span>
               </div>
             </div>
           </div>

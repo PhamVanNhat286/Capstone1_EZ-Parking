@@ -87,14 +87,8 @@ export async function summary() {
   };
 }
 
-export async function dashboard(params: RangeQueryParams = {}) {
-  const config = await loadCurrentConfig();
-  const commissionRate = config.commission_rate / 100;
-  const ownerPercent = Math.round((100 - config.commission_rate) * 10) / 10;
-  const range = rangeDates(params.range || 'today', params);
-  const a = [range.from, range.to];
-
-  const books = await first(
+async function reservationStats(range: { from: unknown; to: unknown }) {
+  return first(
     `SELECT COUNT(*)::int total,
             COUNT(*) FILTER (WHERE status = 'holding')::int holding,
             COUNT(*) FILTER (WHERE status = 'paid')::int paid,
@@ -105,8 +99,22 @@ export async function dashboard(params: RangeQueryParams = {}) {
             COUNT(*) FILTER (WHERE status = 'refunded')::int refunded
      FROM reservations
      WHERE created_at >= $1 AND created_at < $2`,
-    a
+    [range.from, range.to]
   );
+}
+
+export async function dashboard(params: RangeQueryParams = {}) {
+  const config = await loadCurrentConfig();
+  const commissionRate = config.commission_rate / 100;
+  const ownerPercent = Math.round((100 - config.commission_rate) * 10) / 10;
+  const range = rangeDates(params.range || 'today', params);
+  const todayRange = rangeDates('today');
+  const a = [range.from, range.to];
+
+  const [books, today_books] = await Promise.all([
+    reservationStats(range),
+    reservationStats(todayRange)
+  ]);
 
   const payments = await first(
     `SELECT COUNT(*)::int transactions,
@@ -168,6 +176,7 @@ export async function dashboard(params: RangeQueryParams = {}) {
   return {
     range: viewRange(range),
     books,
+    today_books,
     payments: withRevenue(payments, commissionRate),
     commission: {
       rate: commissionRate,
