@@ -6,7 +6,7 @@ import { csv, dateTime, labels, money, summarize, type Payment } from '@/lib/dat
 import { buildRevenueReport, defaultRevenueFilter, revenueSummaryRows, type RevenueMode, type RevenueTotals } from '@/lib/revenue-report';
 import { useSqlWorkspace } from './SqlWorkspace';
 import SqlTable from './SqlTable';
-import RevenueLineChart from './RevenueLineChart';
+import RevenueBarChart from './RevenueBarChart';
 import { Field } from './SqlForms';
 import styles from './sql-portal.module.css';
 import reportStyles from './sql-revenue.module.css';
@@ -78,8 +78,8 @@ export default function SqlRevenue({ onInspect }: { onInspect: (id: string) => v
       <Totals totals={report.totals} />
       <p className={styles.note}>Phí Admin = 5% tiền thu thành công, làm tròn đến 2 chữ số thập phân trên mỗi giao dịch. Partner sau phí Admin = tiền thu − phí Admin. Tiền hoàn được báo cáo riêng.</p>
       <section className={styles.panel} aria-label="Biểu đồ doanh thu">
-        <div className={styles.panelHead}><div><h2>Biểu đồ doanh thu theo thời gian</h2><small>Tiền thu, phần Partner sau phí Admin 5% và tiền hoàn theo {groupLabels[report.period!.group]}</small></div></div>
-        <RevenueLineChart key={tableKey} buckets={report.buckets} />
+        <div className={styles.panelHead}><div><h2>Biểu đồ cột doanh thu theo thời gian</h2><small>Tiền thu, phần Partner sau phí Admin 5% và tiền hoàn theo {groupLabels[report.period!.group]}</small></div></div>
+        <RevenueBarChart key={tableKey} buckets={report.buckets} />
         {report.totals.transactions === 0 && <p className={styles.empty} role="status">Không có giao dịch trong kỳ theo bộ lọc đang chọn.</p>}
       </section>
 

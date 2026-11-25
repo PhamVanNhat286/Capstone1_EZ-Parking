@@ -1,17 +1,19 @@
 "use client";
 
-import { useId, useRef, useState, type PointerEvent } from 'react';
+import { useRef, useState, type PointerEvent } from 'react';
 import { money } from '@/lib/database-model';
 import type { RevenueBucket } from '@/lib/revenue-report';
-import styles from './revenue-line-chart.module.css';
+import styles from './revenue-bar-chart.module.css';
 
-const width = 760, height = 300;
+const height = 300;
 const margin = { left: 76, right: 24, top: 24, bottom: 40 };
-const plotWidth = width - margin.left - margin.right;
 const plotHeight = height - margin.top - margin.bottom;
 
-export default function RevenueLineChart({ buckets }: { buckets: RevenueBucket[] }) {
-  const gradientId = useId().replaceAll(':', '');
+export default function RevenueBarChart({ buckets }: { buckets: RevenueBucket[] }) {
+  const width = Math.max(760, buckets.length * 28 + margin.left + margin.right);
+  const plotWidth = width - margin.left - margin.right;
+  const groupWidth = plotWidth / Math.max(1, buckets.length);
+  const barWidth = Math.min(16, groupWidth * .22);
   const [active, setActive] = useState<number | null>(null);
   const points = useRef<(SVGGElement | null)[]>([]);
   const peak = Math.max(0, ...buckets.flatMap(row => [row.receipts, row.refunds]));
@@ -20,35 +22,28 @@ export default function RevenueLineChart({ buckets }: { buckets: RevenueBucket[]
   const step = ([1, 2, 2.5, 5, 10].find(value => value * magnitude >= roughStep) ?? 10) * magnitude;
   const intervals = Math.max(1, Math.ceil((peak || 100000) / step));
   const maximum = intervals * step;
-  const x = (index: number) => margin.left + (buckets.length === 1 ? plotWidth / 2 : index / Math.max(1, buckets.length - 1) * plotWidth);
+  const x = (index: number) => margin.left + (index + .5) * groupWidth;
   const y = (amount: number) => margin.top + plotHeight * (1 - amount / maximum);
-  const line = (key: 'receipts' | 'refunds' | 'partnerRevenue') => buckets.map((row, index) => `${x(index)},${y(row[key])}`).join(' ');
-  const area = buckets.length ? `${x(0)},${y(0)} ${line('receipts')} ${x(buckets.length - 1)},${y(0)}` : '';
-  const labelEvery = Math.max(1, Math.ceil((buckets.length - 1) / 6));
+  const labelEvery = Math.max(1, Math.ceil(80 / groupWidth));
   const current = active === null ? null : buckets[active];
   const selectNearest = (event: PointerEvent<SVGSVGElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
     const chartX = (event.clientX - rect.left) / rect.width * width;
-    setActive(Math.max(0, Math.min(buckets.length - 1, Math.round((chartX - margin.left) / plotWidth * (buckets.length - 1)))));
+    setActive(Math.max(0, Math.min(buckets.length - 1, Math.floor((chartX - margin.left) / groupWidth))));
   };
 
   return <div className={styles.root}>
     <div className={styles.legend}><span><i />Thu thành công</span><span><i />Hoàn tiền thành công</span><span><i />Partner sau phí Admin 5%</span><small>Đơn vị: VNĐ</small></div>
     <div className={styles.scroll}>
-      <div className={styles.canvas}>
-        <svg viewBox={`0 0 ${width} ${height}`} role="group" aria-label="Biểu đồ đường thu và hoàn tiền theo thời gian"
+      <div className={styles.canvas} style={{ minWidth: width }}>
+        <svg viewBox={`0 0 ${width} ${height}`} role="group" aria-label="Biểu đồ cột doanh thu và hoàn tiền theo thời gian"
           onPointerMove={selectNearest} onPointerDown={selectNearest}
           onPointerLeave={() => { if (!points.current.some(point => point === document.activeElement)) setActive(null); }}>
-          <defs><linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#2563eb" stopOpacity=".16" /><stop offset="100%" stopColor="#2563eb" stopOpacity=".01" /></linearGradient></defs>
           {Array.from({ length: intervals + 1 }, (_, index) => {
             const value = index * step;
             return <g key={index} aria-hidden="true"><line x1={margin.left} x2={width - margin.right} y1={y(value)} y2={y(value)} className={styles.gridLine} /><text x={margin.left - 12} y={y(value) + 4} textAnchor="end" className={styles.axisLabel}>{value.toLocaleString('vi-VN', { maximumFractionDigits: 2 })}</text></g>;
           })}
-          <polygon points={area} fill={`url(#${gradientId})`} aria-hidden="true" />
-          <polyline points={line('receipts')} className={styles.receipts} aria-hidden="true" />
-          <polyline points={line('refunds')} className={styles.refunds} aria-hidden="true" />
-          <polyline points={line('partnerRevenue')} className={styles.partner} aria-hidden="true" />
-          {current && <line x1={x(active!)} x2={x(active!)} y1={margin.top} y2={y(0)} className={styles.cursor} aria-hidden="true" />}
+          <line x1={margin.left} x2={width - margin.right} y1={y(0)} y2={y(0)} className={styles.baseline} aria-hidden="true" />
           {buckets.map((row, index) => <g key={row.key} ref={node => { points.current[index] = node; }} role="button"
             tabIndex={index === (active ?? 0) ? 0 : -1}
             aria-label={`${row.label}: thu ${money(row.receipts)}, phí Admin ${money(row.adminFee)}, Partner ${money(row.partnerRevenue)}, hoàn ${money(row.refunds)}, ${row.transactions} giao dịch`}
@@ -59,9 +54,11 @@ export default function RevenueLineChart({ buckets }: { buckets: RevenueBucket[]
               if (next !== null) { event.preventDefault(); points.current[next]?.focus(); }
             }}>
             <title>{`${row.label}: thu ${money(row.receipts)}, phí Admin ${money(row.adminFee)}, Partner ${money(row.partnerRevenue)}, hoàn ${money(row.refunds)}`}</title>
-            <circle cx={x(index)} cy={y(row.receipts)} r={active === index ? 5 : row.receipts > 0 || buckets.length === 1 ? 3 : 0} className={styles.receiptDot} />
-            <circle cx={x(index)} cy={y(row.refunds)} r={active === index ? 4 : row.refunds > 0 ? 3 : 0} className={styles.refundDot} />
-            <circle cx={x(index)} cy={y(row.partnerRevenue)} r={active === index ? 4 : row.partnerRevenue > 0 ? 3 : 0} className={styles.partnerDot} />
+            <rect x={x(index) - groupWidth / 2 + 1} y={margin.top} width={Math.max(0, groupWidth - 2)} height={plotHeight} className={styles.selection} data-active={active === index} />
+            {(['receipts', 'refunds', 'partnerRevenue'] as const).map((key, series) => <rect key={key}
+              x={x(index) + (series - 1) * (barWidth + 1) - barWidth / 2}
+              y={y(row[key])} width={barWidth} height={Math.max(0, y(0) - y(row[key]))}
+              rx={1.5} className={styles[key]} aria-hidden="true" />)}
           </g>)}
           {buckets.map((row, index) => (index % labelEvery === 0 || index === buckets.length - 1) && <text key={row.key} x={x(index)} y={height - 13} textAnchor={index === 0 ? 'start' : index === buckets.length - 1 ? 'end' : 'middle'} className={styles.axisLabel} aria-hidden="true">{row.shortLabel}</text>)}
         </svg>
@@ -70,6 +67,6 @@ export default function RevenueLineChart({ buckets }: { buckets: RevenueBucket[]
         </div>}
       </div>
     </div>
-    <p className={styles.hint}>Di chuột hoặc chạm để xem số tiền tại từng mốc. Dùng phím ← → để di chuyển giữa các mốc.</p>
+    <p className={styles.hint}>Mỗi nhóm cột là một mốc thời gian. Di chuột hoặc chạm để xem số tiền; dùng phím ← → để chuyển mốc. Cuộn ngang để xem đủ các mốc.</p>
   </div>;
 }
