@@ -1,7 +1,7 @@
 import { Router, type Response } from 'express';
 import { pool } from '../config/db';
 import { authenticateToken, type AuthRequest } from '../middlewares/auth.middleware';
-import { PartnerError, id, requireManager, loadSnapshot, saveLot, toggleLot, saveSlot, savePricing, cancelHolding, saveProfile } from './partner.service';
+import { PartnerError, id, requireManager, loadSnapshot, saveLot, toggleLot, saveSlot, savePricing, cancelHolding, saveProfile, kioskLookup, kioskCheckIn, kioskCheckOut } from './partner.service';
 import type { PoolClient } from 'pg';
 
 const router = Router();
@@ -40,4 +40,7 @@ router.post('/pricing', endpoint(false, async (client, manager, req) => ({ id: a
 router.put('/pricing/:id', endpoint(false, async (client, manager, req) => ({ id: await savePricing(client, manager, req.body, id(req.params.id)) })));
 router.post('/reservations/:id/cancel', endpoint(false, async (client, manager, req) => ({ id: await cancelHolding(client, manager, id(req.params.id), req.body) })));
 router.patch('/profile', endpoint(false, async (client, manager, req) => ({ id: await saveProfile(client, manager, req.body) })));
+router.post('/kiosk/lookup', endpoint(true, (client, manager, req) => kioskLookup(client, manager, req.body)));
+router.post('/kiosk/check-in', endpoint(false, (client, manager, req) => kioskCheckIn(client, manager, req.body)));
+router.post('/kiosk/check-out', endpoint(false, (client, manager, req) => kioskCheckOut(client, manager, req.body)));
 export default router;

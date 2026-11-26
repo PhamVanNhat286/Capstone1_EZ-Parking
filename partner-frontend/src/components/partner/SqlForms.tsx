@@ -24,7 +24,7 @@ export default function SqlForm({ editor, onClose }: { editor: Editor; onClose: 
     const form = new FormData(e.currentTarget);
     try {
       if (editor.kind === 'lot') {
-        const input: LotInput = { name: field(form, 'name'), address: field(form, 'address'), description: optional(form, 'description'), latitude: lot?.latitude ?? null, longitude: lot?.longitude ?? null, open_time: optional(form, 'open_time'), close_time: optional(form, 'close_time'), capacity: Number(field(form, 'capacity')), vehicle_types: form.getAll('vehicle_types') as VehicleType[] };
+        const input: LotInput = { name: field(form, 'name'), address: field(form, 'address'), description: optional(form, 'description'), latitude: lot?.latitude ?? null, longitude: lot?.longitude ?? null, open_time: lot?.open_time ?? null, close_time: lot?.close_time ?? null, capacity: Number(field(form, 'capacity')), vehicle_types: form.getAll('vehicle_types') as VehicleType[] };
         await saveEditor(editor, { ...input, expected_updated_at: version });
       } else if (editor.kind === 'slot') {
         const input: SlotInput = { parking_lot_id: selectedId, code: field(form, 'code'), row_index: Number(field(form, 'row_index')), col_index: Number(field(form, 'col_index')), slot_type: field(form, 'slot_type') as SlotType, status: field(form, 'status') as SlotStatus, is_active: form.has('is_active') };
@@ -40,10 +40,9 @@ export default function SqlForm({ editor, onClose }: { editor: Editor; onClose: 
       <Field label="Tên bãi"><input name="name" required maxLength={150} defaultValue={lot?.name} /></Field>
       <Field label="Địa chỉ"><input name="address" required maxLength={255} defaultValue={lot?.address} /></Field>
       <Field label="Mô tả"><textarea name="description" rows={3} defaultValue={lot?.description ?? ''} /></Field>
-      <div className={styles.columns}><Field label="Giờ mở cửa"><input name="open_time" type="time" step={1} defaultValue={lot?.open_time ?? ''} /></Field><Field label="Giờ đóng cửa"><input name="close_time" type="time" step={1} defaultValue={lot?.close_time ?? ''} /></Field></div>
       <Field label="Sức chứa khai báo"><input name="capacity" type="number" required min={0} max={2147483647} step={1} defaultValue={lot?.capacity ?? 20} /></Field>
       <fieldset className={styles.choices}><legend>Loại xe tiếp nhận</legend>{vehicleTypes.map(type => <label key={type}><input type="checkbox" name="vehicle_types" value={type} defaultChecked={supported.includes(type)} />{type}</label>)}</fieldset>
-      <p className={styles.note}>{lot ? 'Trạng thái duyệt và người duyệt được giữ nguyên.' : 'Bãi mới ở trạng thái pending, chờ Admin duyệt; chưa có ô đỗ được tạo tự động.'}</p>
+      <p className={styles.note}>{lot ? 'Trạng thái duyệt và người duyệt được giữ nguyên.' : 'Bãi mới ở trạng thái chờ Admin duyệt; chưa có ô đỗ được tạo tự động.'}</p>
     </>}
     {editor.kind === 'slot' && <>
       <Field label="Mã ô"><input name="code" maxLength={10} required defaultValue={slot?.code} placeholder="A-01" /></Field>
@@ -58,7 +57,7 @@ export default function SqlForm({ editor, onClose }: { editor: Editor; onClose: 
       <div className={styles.columns}><Field label="Từ giờ"><input name="start_time" type="time" step={1} defaultValue={price?.start_time ?? ''} /></Field><Field label="Đến giờ"><input name="end_time" type="time" step={1} defaultValue={price?.end_time ?? ''} /></Field></div>
       <div className={styles.columns}><Field label="Giá theo giờ (đ)"><input name="hourly_rate" required type="number" min={0} max={9999999999.99} step="0.01" defaultValue={price?.hourly_rate ?? 0} /></Field><Field label="Phụ thu (đ)"><input name="surcharge" required type="number" min={0} max={9999999999.99} step="0.01" defaultValue={price?.surcharge ?? 0} /></Field></div>
       <div className={styles.columns}><Field label="Hiệu lực từ"><input name="effective_from" type="date" defaultValue={price?.effective_from ?? ''} /></Field><Field label="Hiệu lực đến"><input name="effective_to" type="date" defaultValue={price?.effective_to ?? ''} /></Field></div>
-      <p className={styles.note}>Giá dùng chung cho bãi. Khung giờ có thể qua đêm. Chưa áp dụng làm hóa đơn hay ghi nhận thanh toán.</p>
+      <p className={styles.note}>Giá dùng chung cho bãi và hiển thị ngay trên ứng dụng khách. Khung giờ qua đêm: đặt “Từ giờ” lớn hơn “Đến giờ” (ví dụ 22:00 → 06:00). Đặt chỗ đã tạo giữ nguyên giá đã chốt.</p>
     </>}
     {editor.kind === 'profile' && <>
       <Field label="Họ và tên"><input name="full_name" required maxLength={100} defaultValue={user.full_name} /></Field>

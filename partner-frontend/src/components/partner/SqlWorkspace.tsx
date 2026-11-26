@@ -9,6 +9,7 @@ type Workspace = {
   db: PartnerData; managerId: string; selectedId: string; select: (id: string) => void;
   refresh: () => Promise<void>; saveEditor: (editor: PartnerEditor, input: object) => Promise<void>;
   mutate: (path: string, input: object, method?: string) => Promise<void>;
+  call: <T>(path: string, input: object, write?: boolean) => Promise<T>;
   busy: boolean; syncError: string; syncedAt: string; signOut: () => void;
 };
 const Context = createContext<Workspace | null>(null);
@@ -76,6 +77,21 @@ export default function SqlWorkspace({ children }: { children: ReactNode }) {
       throw cause;
     } finally { writing.current = false; setBusy(false); }
   };
+  // POST that returns its data (Gate Kiosk). Writes are serialized like mutate and refresh the snapshot.
+  const call = async <T,>(path: string, input: object, write = false): Promise<T> => {
+    const currentToken = tokenRef.current;
+    if (!currentToken) throw new Error('Vui lòng đăng nhập lại.');
+    if (write && writing.current) throw new Error('Một thay đổi đang được lưu. Vui lòng chờ.');
+    if (write) { writing.current = true; setBusy(true); }
+    try {
+      const result = await partnerRequest<T>(`/partner${path}`, currentToken, 'POST', input);
+      if (write) await refresh().catch(() => {});
+      return result;
+    } catch (cause) {
+      if (cause instanceof PartnerApiError && cause.status === 401) signOut();
+      throw cause;
+    } finally { if (write) { writing.current = false; setBusy(false); } }
+  };
   const saveEditor = async (editor: PartnerEditor, input: object) => {
     if (editor.kind === 'profile') await mutate('/profile', input, 'PATCH');
     else {
@@ -91,7 +107,7 @@ export default function SqlWorkspace({ children }: { children: ReactNode }) {
     <h1>EZ-Space Partner</h1><p role={syncError ? 'alert' : 'status'}>{syncError || 'Đang lấy dữ liệu từ PostgreSQL…'}</p>
     {syncError && <><button onClick={() => void refresh().catch(() => {})}>Thử kết nối lại</button><span> · </span><button onClick={signOut}>Đăng nhập lại</button></>}
   </div>;
-  return <Context.Provider value={{ db: snapshot.data, managerId: snapshot.manager_id, selectedId, select, refresh, saveEditor, mutate, busy, syncError, syncedAt: snapshot.synced_at, signOut }}>{children}</Context.Provider>;
+  return <Context.Provider value={{ db: snapshot.data, managerId: snapshot.manager_id, selectedId, select, refresh, saveEditor, mutate, call, busy, syncError, syncedAt: snapshot.synced_at, signOut }}>{children}</Context.Provider>;
 }
 export function useSqlWorkspace() {
   const value = useContext(Context);

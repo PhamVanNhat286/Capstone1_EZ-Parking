@@ -185,3 +185,94 @@ export async function saveProfile(client: PoolClient, manager: string, input: an
   await log(client, manager, null, 'PROFILE_UPDATED', 'users', manager, before, after, 'Cập nhật hồ sơ quản lý');
   return manager;
 }
+
+// ---------- Gate Kiosk (Partner) ----------
+// Accepts "59", "EZ-59", the QR payload "EZPARKING-...|ID=59|..." or JSON {"reservation_id":59}.
+export function ticketReservationId(raw: unknown) {
+  const value = typeof raw === 'number' ? String(raw) : typeof raw === 'string' ? raw.trim() : '';
+  if (!value || value.length > 500) throw new PartnerError(400, 'Nhập mã vé, ví dụ EZ-59 hoặc 59.');
+  let found: string | undefined = (value.match(/^(?:EZ-?)?(\d+)$/i) ?? value.match(/(?:^|\|)ID=(\d+)(?:\||$)/i))?.[1];
+  if (!found) {
+    try {
+      const parsed = JSON.parse(value);
+      const candidate = parsed?.reservation_id ?? parsed?.id;
+      if (candidate !== undefined && candidate !== null) found = String(candidate);
+    } catch { /* not JSON */ }
+  }
+  if (!found) throw new PartnerError(400, 'Không đọc được mã vé. Dùng mã dạng EZ-59 hoặc 59.');
+  return id(found);
+}
+const ticketSql = `SELECT r.*, s.code AS slot_code, l.name AS lot_name, l.status AS lot_status,
+  v.license_plate, v.vehicle_type, u.full_name AS customer_name, u.phone AS customer_phone,
+  q.status AS qr_status, q.expires_at AS qr_expires_at, q.used_at AS qr_used_at,
+  ps.id AS session_id, ps.status AS session_status, ps.check_in_at, ps.check_out_at, ps.final_amount
+  FROM reservations r JOIN slots s ON s.id=r.slot_id JOIN parking_lots l ON l.id=r.parking_lot_id
+  LEFT JOIN vehicles v ON v.id=r.vehicle_id JOIN users u ON u.id=r.user_id
+  LEFT JOIN qr_tickets q ON q.reservation_id=r.id LEFT JOIN parking_sessions ps ON ps.reservation_id=r.id
+  WHERE r.id=$1`;
+function ticketView(row: any) {
+  const allowed = row.status === 'paid' ? 'check_in' : row.status === 'entered' ? 'check_out' : null;
+  return publicRows([{
+    reservation_id: row.id, code: `EZ-${row.id}`, status: row.status, parking_lot_id: row.parking_lot_id, lot_name: row.lot_name,
+    slot_code: row.slot_code, license_plate: row.license_plate, vehicle_type: row.vehicle_type,
+    customer_name: row.customer_name, customer_phone: row.customer_phone,
+    start_time: row.start_time, expected_end_time: row.expected_end_time, arrival_expires_at: row.arrival_expires_at,
+    hourly_rate: row.hourly_rate, deposit_amount: row.deposit_amount, total_amount: row.total_amount, paid_total: Number(row.paid_total ?? 0),
+    qr_status: row.qr_status, qr_expires_at: row.qr_expires_at, qr_used_at: row.qr_used_at,
+    session_id: row.session_id, session_status: row.session_status, check_in_at: row.check_in_at, check_out_at: row.check_out_at, final_amount: row.final_amount,
+    allowed_action: allowed,
+  }])[0];
+}
+async function loadTicket(client: PoolClient, manager: string, input: any, lock: boolean) {
+  const reservationId = ticketReservationId(input?.code);
+  const lookup = (await client.query('SELECT parking_lot_id FROM reservations WHERE id=$1', [reservationId])).rows[0];
+  if (!lookup) throw new PartnerError(404, `Không tìm thấy vé EZ-${reservationId}.`);
+  if (input?.parking_lot_id !== undefined && input.parking_lot_id !== null && String(input.parking_lot_id) !== String(lookup.parking_lot_id)) throw new PartnerError(409, `Vé EZ-${reservationId} không thuộc bãi đang xem.`);
+  if (lock) {
+    await ownLot(client, manager, lookup.parking_lot_id);
+    await client.query('SELECT id FROM reservations WHERE id=$1 FOR UPDATE', [reservationId]);
+  } else if (!(await client.query('SELECT 1 FROM parking_lot_managers WHERE parking_lot_id=$1 AND manager_id=$2', [lookup.parking_lot_id, manager])).rowCount) {
+    throw new PartnerError(403, 'Bạn không được phân công quản lý bãi của vé này.');
+  }
+  const row = (await client.query(ticketSql, [reservationId])).rows[0];
+  const paid = (await client.query(`SELECT COALESCE(SUM(CASE WHEN payment_type='refund' THEN -amount ELSE amount END),0) AS total FROM payments WHERE reservation_id=$1 AND status='success'`, [reservationId])).rows[0].total;
+  return { ...row, paid_total: paid };
+}
+export async function kioskLookup(client: PoolClient, manager: string, input: any) {
+  await requireManager(client, manager);
+  return ticketView(await loadTicket(client, manager, input, false));
+}
+export async function kioskCheckIn(client: PoolClient, manager: string, input: any) {
+  const r = await loadTicket(client, manager, input, true);
+  const code = `EZ-${r.id}`;
+  if (r.status === 'entered') throw new PartnerError(409, `Vé ${code} đã vào bãi, xe đang ở ô ${r.slot_code}.`);
+  if (r.status === 'holding') throw new PartnerError(409, `Vé ${code} chưa thanh toán tiền cọc.`);
+  if (r.status !== 'paid') throw new PartnerError(409, `Vé ${code} không còn hiệu lực để vào bãi.`);
+  if (r.lot_status !== 'active') throw new PartnerError(409, 'Bãi đang không hoạt động.');
+  if (r.arrival_expires_at && new Date(r.arrival_expires_at).getTime() < Date.now()) throw new PartnerError(409, `Vé ${code} đã quá hạn đến bãi.`);
+  if (r.qr_status && r.qr_status !== 'active') throw new PartnerError(409, `Vé QR ${code} đã sử dụng hoặc hết hạn.`);
+  if (r.session_id) throw new PartnerError(409, `Vé ${code} đã có phiên đỗ.`);
+  const slot = (await client.query('SELECT * FROM slots WHERE id=$1 FOR UPDATE', [r.slot_id])).rows[0];
+  if (!slot || !slot.is_active || slot.status === 'occupied') throw new PartnerError(409, `Ô ${r.slot_code} không sẵn sàng nhận xe.`);
+  await write(client, 'reservations', { status: 'entered' }, r.id);
+  await write(client, 'slots', { status: 'occupied' }, slot.id);
+  await client.query("UPDATE qr_tickets SET status='used', used_at=NOW() WHERE reservation_id=$1", [r.id]);
+  const session = (await client.query("INSERT INTO parking_sessions(reservation_id,check_in_at,checked_in_by,status) VALUES($1,NOW(),$2,'active') RETURNING *", [r.id, manager])).rows[0];
+  await log(client, manager, r.parking_lot_id, 'CHECK_IN', 'parking_sessions', session.id, null, session, `Xác nhận vào bãi vé ${code}`);
+  return ticketView(await loadTicket(client, manager, { code: String(r.id) }, false));
+}
+export async function kioskCheckOut(client: PoolClient, manager: string, input: any) {
+  const r = await loadTicket(client, manager, input, true);
+  const code = `EZ-${r.id}`;
+  if (r.status !== 'entered' || r.session_status !== 'active') throw new PartnerError(409, `Vé ${code} không có phiên đang đỗ để ra bãi.`);
+  const session = (await client.query('SELECT * FROM parking_sessions WHERE id=$1 FOR UPDATE', [r.session_id])).rows[0];
+  // Same rule as /api/kiosk/scan-out: round up to whole hours at the booked hourly rate.
+  const minutes = Math.max(1, Math.ceil((Date.now() - new Date(session.check_in_at ?? r.updated_at).getTime()) / 60000));
+  const total = Math.max(1, Math.ceil(minutes / 60)) * Number(r.hourly_rate);
+  const due = Math.max(0, total - Number(r.paid_total));
+  await write(client, 'slots', { status: 'available' }, r.slot_id);
+  await write(client, 'reservations', { status: 'completed', total_amount: total }, r.id);
+  const after = await write(client, 'parking_sessions', { check_out_at: new Date(), checked_out_by: manager, final_amount: total, status: 'completed' }, session.id);
+  await log(client, manager, r.parking_lot_id, 'CHECK_OUT', 'parking_sessions', session.id, session, after, `Xác nhận ra bãi vé ${code} · ${minutes} phút · cần thu thêm ${due}đ`);
+  return { ...ticketView(await loadTicket(client, manager, { code: String(r.id) }, false)), duration_minutes: minutes, amount_due: due };
+}

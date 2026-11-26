@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { id, publicJson, publicRows, assertVersion, PartnerError } from './partner.service';
+import { id, publicJson, publicRows, assertVersion, PartnerError, ticketReservationId } from './partner.service';
 
 test('record identifiers preserve PostgreSQL bigint precision and reject malformed input', () => {
   assert.equal(id('9007199254740993'), '9007199254740993');
@@ -22,4 +22,8 @@ test('stale and missing record versions cannot overwrite an existing update', ()
   assert.doesNotThrow(() => assertVersion(row, '2026-11-22T00:00:01.000Z'));
   assert.throws(() => assertVersion(row, '2026-11-22T00:00:00Z'), error => error instanceof PartnerError && error.status === 409);
   assert.throws(() => assertVersion(row, undefined), error => error instanceof PartnerError && error.status === 400);
+});
+test('gate kiosk accepts EZ-59, 59, the QR payload and JSON ticket codes', () => {
+  for (const code of ['59', 'EZ-59', 'ez59', ' EZ-59 ', 'EZPARKING-DEMO-TICKET|ID=59|LOT=1|SPOT=A-01|VEHICLE=43A', '{"reservation_id":59}', 59]) assert.equal(ticketReservationId(code), '59');
+  for (const invalid of ['', 'EZ-', 'abc', 'EZ-0', 'XID=59', null]) assert.throws(() => ticketReservationId(invalid), PartnerError);
 });

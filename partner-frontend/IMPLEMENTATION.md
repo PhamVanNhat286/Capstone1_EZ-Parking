@@ -42,8 +42,11 @@ Pricing changes preserve booked prices and existing payment records.
 Cancellation updates the holding reservation and slot in one transaction and creates no refund/payment.
 Profile updates only affect the authenticated manager's full_name and phone.
 
-Gate Kiosk reads the real reservation, QR metadata and session. The former preview mutations are removed
-from live screens; signed QR verification and device control require their own integration.
+Gate Kiosk scans the ticket QR with the device camera (BarcodeDetector, jsQR fallback) or accepts a typed code
+EZ-59 / 59. POST /api/partner/kiosk/lookup, /check-in and /check-out verify the lot assignment, lock the
+reservation and update reservation, slot, QR ticket and parking session together with an audit entry. Check-out
+rounds up to whole hours at the booked rate and reports the amount still due; it does not create a payment.
+The QR scan reads a reservation identifier. Staff verify the displayed ticket and vehicle before confirming the operation.
 The shared expiration worker now preserves slots attached to paid/entered reservations, preventing a
 paid deposit from making its position appear available before the arrival deadline.
 

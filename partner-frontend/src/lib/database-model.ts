@@ -27,7 +27,21 @@ export type AuditLog = { id: Id; user_id: Id | null; parking_lot_id: Id | null; 
 export type ManagerAction = 'lot_created' | 'lot_updated' | 'slot_updated' | 'pricing_updated' | 'reservation_cancelled' | 'report_viewed';
 export type ManagerHistory = { id: Id; manager_id: Id; parking_lot_id: Id; action_type: ManagerAction; old_value: unknown; new_value: unknown; note: string | null; created_at: string };
 export type PartnerData = { users: User[]; vehicles: Vehicle[]; parking_lots: ParkingLot[]; parking_lot_vehicle_types: LotVehicleType[]; parking_lot_managers: LotManager[]; slots: Slot[]; pricing_rules: PricingRule[]; reservations: Reservation[]; payments: Payment[]; qr_tickets: QrTicket[]; parking_sessions: ParkingSession[]; audit_logs: AuditLog[]; manager_history: ManagerHistory[] };
-export const labels: Record<string, string> = { pending: 'Chờ duyệt', active: 'Hoạt động', inactive: 'Tạm ngưng', rejected: 'Từ chối', available: 'Trống', holding: 'Giữ chỗ, chưa cọc', occupied: 'Có xe đỗ', unavailable: 'Không khả dụng', standard: 'Tiêu chuẩn', ev_charging: 'Sạc điện', large: 'Ô lớn', disabled: 'Ưu tiên', paid: 'Đã cọc, chờ đến', entered: 'Đã vào bãi', completed: 'Hoàn thành', cancelled: 'Đã hủy', forfeited: 'Mất cọc / hết hạn', refunded: 'Đã hoàn tiền', success: 'Thành công', failed: 'Thất bại', deposit: 'Tiền cọc', final: 'Thanh toán cuối', refund: 'Hoàn tiền', used: 'Đã sử dụng', expired: 'Hết hạn', abandoned: 'Chưa kết thúc đúng cách', customer: 'Khách hàng', manager: 'Quản lý', admin: 'Quản trị viên', lot_created: 'Đăng ký bãi', lot_updated: 'Cập nhật bãi', slot_updated: 'Cập nhật ô', pricing_updated: 'Cập nhật giá', reservation_cancelled: 'Hủy giữ chỗ', report_viewed: 'Xem báo cáo' };
+export const labels: Record<string, string> = { pending: 'Chờ duyệt', active: 'Hoạt động', inactive: 'Tạm ngưng', rejected: 'Từ chối', available: 'Trống', holding: 'Giữ chỗ, chưa cọc', occupied: 'Có xe đỗ', unavailable: 'Không khả dụng', standard: 'Sedan', ev_charging: 'EV', large: 'SUV', disabled: 'Ưu tiên', paid: 'Đã cọc, chờ đến', entered: 'Đã vào bãi', completed: 'Hoàn thành', cancelled: 'Đã hủy', forfeited: 'Mất cọc / hết hạn', refunded: 'Đã hoàn tiền', success: 'Thành công', failed: 'Thất bại', deposit: 'Tiền cọc', final: 'Thanh toán cuối', refund: 'Hoàn tiền', used: 'Đã sử dụng', expired: 'Hết hạn', abandoned: 'Chưa kết thúc đúng cách', customer: 'Khách hàng', manager: 'Quản lý', admin: 'Quản trị viên', lot_created: 'Đăng ký bãi', lot_updated: 'Cập nhật bãi', slot_updated: 'Cập nhật ô', pricing_updated: 'Cập nhật giá', reservation_cancelled: 'Hủy giữ chỗ', report_viewed: 'Xem báo cáo' };
+const actionNames: Record<string, string> = {
+  HOLD_SPOT: 'Giữ chỗ', AUTO_CANCEL_HOLD_EXPIRED: 'Tự hủy giữ chỗ quá hạn', AUTO_FORFEIT_ARRIVAL_EXPIRED: 'Mất cọc do quá hạn đến bãi',
+  CHECK_IN: 'Xác nhận vào bãi', CHECK_OUT: 'Xác nhận ra bãi', PROFILE_UPDATED: 'Cập nhật hồ sơ', APPROVE_LOT: 'Duyệt bãi',
+  UPDATE_SLOT: 'Cập nhật ô', CANCEL_RESERVATION: 'Hủy đặt chỗ', PAYMENT_SUCCESS: 'Thanh toán thành công', REFUND: 'Hoàn tiền',
+};
+const entityNames: Record<string, string> = {
+  reservation: 'Đặt chỗ', reservations: 'Đặt chỗ', parking_lots: 'Bãi đỗ', slots: 'Ô đỗ', pricing_rules: 'Bảng giá',
+  parking_sessions: 'Phiên đỗ', users: 'Tài khoản', payments: 'Thanh toán', qr_tickets: 'Vé QR', audit_logs: 'Nhật ký', manager_history: 'Lịch sử quản lý',
+};
+/** Vietnamese name for an audit action such as HOLD_SPOT or lot_updated. Unknown codes stay readable. */
+export const actionLabel = (action: string) => actionNames[action] ?? labels[action] ?? action.replaceAll('_', ' ').toLowerCase().replace(/^./, c => c.toUpperCase());
+export const entityLabel = (entity: string | null) => entity ? entityNames[entity] ?? entity : '—';
+/** Newest first by created_at, then by numeric id, so every list uses the same order. */
+export const newestFirst = <T extends { id: Id; created_at: string }>(rows: readonly T[]) => [...rows].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at) || (BigInt(b.id) > BigInt(a.id) ? 1 : BigInt(b.id) < BigInt(a.id) ? -1 : 0));
 export const money = (n: number) => `${n.toLocaleString('vi-VN', { maximumFractionDigits: 2 })}đ`;
 export const dateTime = (s: string | null) => s ? new Date(s).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }) : '—';
 export const reportingDay = (stamp: string) => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(stamp));
@@ -132,7 +146,12 @@ export function consistencyWarnings(db: PartnerData, lotId: Id) {
     const s = db.slots.find(s => s.id === r.slot_id);
     const expected = r.status === 'entered' ? 'occupied' : 'holding';
     if (!s || s.parking_lot_id !== lotId || s.status !== expected || !s.is_active) warnings.push(`Reservation #${r.id}: ${r.status} nhưng ô ${s?.code ?? r.slot_id} là ${s?.status ?? 'không tồn tại'} (cần ${expected}).`);
-    if (r.status === 'entered' && !db.parking_sessions.some(s => s.reservation_id === r.id && s.status === 'active')) warnings.push(`Reservation #${r.id} đã vào bãi nhưng thiếu parking_session active.`);
+    if (r.status === 'entered' && !db.parking_sessions.some(s => s.reservation_id === r.id && s.status === 'active')) warnings.push(`Đặt chỗ #${r.id} đã vào bãi nhưng chưa có phiên đỗ đang mở.`);
+  }
+  // The layout counts slot.status; "Phiên đang đỗ" counts open parking sessions. Flag slots where the two disagree.
+  for (const s of db.slots.filter(s => s.parking_lot_id === lotId && s.status === 'occupied')) {
+    const open = db.reservations.some(r => r.slot_id === s.id && r.status === 'entered' && db.parking_sessions.some(p => p.reservation_id === r.id && p.status === 'active'));
+    if (!open) warnings.push(`Ô ${s.code} đang báo có xe nhưng không có phiên đỗ nào đang mở.`);
   }
   return warnings;
 }

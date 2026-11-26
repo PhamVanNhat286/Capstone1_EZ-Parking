@@ -136,6 +136,19 @@ export function buildRevenueReport(payments: readonly Payment[], filter: Revenue
   return { error: '', period, payments: selected, buckets, totals, fallbackDates };
 }
 
+/**
+ * All-time totals with the same rule as the revenue report: successful deposit/final payments are receipts,
+ * Admin keeps 5% of each receipt (rounded per transaction), Partner keeps the rest; refunds are shown separately.
+ */
+export function revenueTotals(payments: readonly Payment[]) {
+  const counted = payments.filter(p => p.status === 'success' && p.payment_type !== 'refund')
+    .sort((a, b) => Date.parse(b.paid_at ?? b.created_at) - Date.parse(a.paid_at ?? a.created_at));
+  let receipts = 0, adminFee = 0, refunds = 0;
+  for (const p of counted) { const cents = Math.round(p.amount * 100); receipts += cents; adminFee += Math.round(cents * 5 / 100); }
+  for (const p of payments) if (p.status === 'success' && p.payment_type === 'refund') refunds += Math.round(p.amount * 100);
+  return { counted, receipts: receipts / 100, adminFee: adminFee / 100, partnerRevenue: (receipts - adminFee) / 100, refunds: refunds / 100 };
+}
+
 export function revenueSummaryRows(buckets: readonly RevenueBucket[]): unknown[][] {
   return [['Kỳ', 'Thu thành công (VND)', 'Phí Admin 5% (VND)', 'Partner sau phí Admin (VND)', 'Hoàn tiền thành công (VND)', 'Số giao dịch'],
     ...buckets.map(b => [b.label, b.receipts, b.adminFee, b.partnerRevenue, b.refunds, b.transactions])];

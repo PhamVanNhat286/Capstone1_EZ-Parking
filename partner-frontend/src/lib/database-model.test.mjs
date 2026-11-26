@@ -112,7 +112,11 @@ test('cancelling an unpaid hold releases only its slot, records audit and does n
 });
 test('seed conflicts are reported instead of being silently repaired or counted as parking sessions', () => {
   const db = seed(); const warnings = consistencyWarnings(db, '1');
-  assert.equal(warnings.length, 1); assert.match(warnings[0], /#2.*paid.*A-04.*occupied/);
+  assert.match(warnings[0], /#2.*paid.*A-04.*occupied/);
+  // Every occupied slot without an open parking session is reported, so the layout and "Phiên đang đỗ" can be reconciled.
+  const occupiedWithoutSession = db.slots.filter(s => s.parking_lot_id === '1' && s.status === 'occupied');
+  assert.equal(warnings.length, 1 + occupiedWithoutSession.length);
+  assert.ok(occupiedWithoutSession.every(s => warnings.some(w => w.includes(`Ô ${s.code} đang báo có xe`))));
   assert.equal(db.slots[3].status, 'occupied');
   assert.throws(() => previewGateIn(db, '2', '2', now), /holding hợp lệ/);
   assert.throws(() => previewGateIn(db, '2', '1', now), /paid/);

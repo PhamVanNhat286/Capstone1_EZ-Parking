@@ -61,7 +61,7 @@ sau đó khởi động lại Next.js. Các cổng thanh toán và Partner cùng
 - Thay đổi được đọc lại sau khi lưu và tự làm mới mỗi 15 giây hoặc khi quay lại cửa sổ.
 - Bản ghi đã được người khác sửa sẽ trả về xung đột thay vì ghi đè âm thầm.
 - Mất backend/database sẽ hiển thị lỗi và thời điểm đồng bộ gần nhất; không thay bằng seed.
-- Gate Kiosk tra cứu vé/phiên thật; tích hợp xác thực QR và thiết bị barie chưa nằm trong phần này.
+- Gate Kiosk đọc QR hoặc mã vé để tra cứu và xác nhận xe vào/ra. Hệ thống cập nhật phiên đỗ, trạng thái ô và nhật ký thao tác.
 - Token QR, password hash, OTP và raw IPN không được gửi trong snapshot Partner.
 
 | Đường dẫn | Nội dung |
