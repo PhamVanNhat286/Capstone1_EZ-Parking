@@ -50,10 +50,20 @@ test('Express server enforces localhost binding, strict CSRF protection and REST
   assert.doesNotMatch(routesSource, /ez-seed-csrf/);
   assert.match(routesSource, /'\/platform-config'/);
   assert.match(routesSource, /'\/admin\/auth'/);
+  assert.match(routesSource, /'\/admin\/login'/);
+  assert.match(routesSource, /'\/admin\/sso'/);
+  assert.match(routesSource, /'\/admin\/logout'/);
+  assert.match(routesSource, /requireAdminSession/);
+  assert.match(routesSource, /bcrypt\.compare/);
+  assert.match(routesSource, /jwt\.verify/);
+  assert.match(routesSource, /jwt\.sign/);
   assert.match(routesSource, /pruneExpiredSessions/);
+  assert.doesNotMatch(routesSource, /0905000111/);
+  assert.doesNotMatch(routesSource, /admin@ezspace\.vn/);
   assert.match(routesSource, /'\/admin\/lots\/:id\/status'/);
   assert.match(routesSource, /'\/admin\/users\/:id\/status'/);
   assert.match(routesSource, /'\/admin\/settings'/);
+  assert.match(routesSource, /\.post\(/);
   assert.match(routesSource, /\.patch\(/);
   assert.doesNotMatch(frontendApiSource, /searchParams\.set\('action'/);
 });
@@ -79,13 +89,14 @@ test('Admin uses sql/schema.sql and sql/seed.sql and runs strictly from PostgreS
   assert.match(settingsSource, /commission_rate:\s*5/);
   assert.match(settingsSource, /enum_range/);
   assert.doesNotMatch(settingsSource, /EZSPACE_SANDBOX_DEMO_HMAC_KEY/);
+  assert.match(utilsSource, /getAdminProfile/);
   assert.doesNotMatch(utilsSource, /0905000111/);
   assert.doesNotMatch(utilsSource, /admin@ezspace\.vn/);
   assert.match(dashboardSource, /loadCurrentConfig/);
   assert.match(revenueSource, /loadCurrentConfig/);
 });
 
-test('Next.js frontend has all 6 App Router pages and does not show DB connection pills or login.html', () => {
+test('Next.js frontend has AdminSignIn and all 6 core App Router pages and does not show DB connection pills or login.html', () => {
   const frontendAppDir = path.join(adminRoot, 'frontend/src/app');
   const pages = [
     'page.tsx',
@@ -96,10 +107,15 @@ test('Next.js frontend has all 6 App Router pages and does not show DB connectio
     'settings/page.tsx'
   ];
 
+  assert.ok(
+    fs.existsSync(path.join(adminRoot, 'frontend/src/components/AdminSignIn.tsx')),
+    'Thiếu AdminSignIn.tsx'
+  );
   for (const page of pages) {
     assert.ok(fs.existsSync(path.join(frontendAppDir, page)), `Thiếu trang Next.js: ${page}`);
   }
   assert.ok(!fs.existsSync(path.join(frontendAppDir, 'data/page.tsx')), 'Trang /data phải được gỡ bỏ');
+  assert.ok(!fs.existsSync(path.join(frontendAppDir, 'login/page.tsx')), 'Trang /login riêng phải được gỡ bỏ khi dùng AdminSignIn');
 
   const allFrontendSrc = walk(path.join(adminRoot, 'frontend/src'))
     .filter(f => /\.(ts|tsx)$/.test(f))

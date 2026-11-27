@@ -2,9 +2,10 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import React, { useEffect } from 'react';
+import { type ReactNode, useEffect } from 'react';
 import { useAdmin } from '@/context/AdminContext';
 import { n } from '@/lib/format';
+import { AdminSignIn } from './AdminSignIn';
 import { Icon } from './Icon';
 
 interface NavMeta {
@@ -75,19 +76,21 @@ const NAV_ITEMS: NavMeta[] = [
   }
 ];
 
-export function AdminShell({ children }: { children: React.ReactNode }) {
+export function AdminShell({ children }: { children: ReactNode }) {
   const pathname = usePathname() || '/';
   const {
+    authReady,
+    authenticated,
+    authMessage,
+    completeLogin,
+    logout,
     adminName,
     adminEmail,
     summary,
-    syncTime,
-    refreshing,
     errorBanner,
     toast,
     modal,
-    closeModal,
-    triggerRefresh
+    closeModal
   } = useAdmin();
 
   const current =
@@ -96,8 +99,45 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
     ) || NAV_ITEMS[0];
 
   useEffect(() => {
-    document.title = `EZ-Space Admin — ${current.heading}`;
-  }, [current.heading]);
+    document.title = !authenticated
+      ? 'EZ-Space Admin — Đăng nhập Quản trị & Đối tác'
+      : `EZ-Space Admin — ${current.heading}`;
+  }, [authenticated, current.heading]);
+
+  const toastNode = (
+    <div
+      className={`pointer-events-none fixed bottom-6 right-6 z-[10000] flex items-center gap-2.5 rounded-xl bg-slate-900 px-4 py-3 text-[13px] font-semibold text-white shadow-[0_10px_30px_rgba(0,0,0,0.25)] transition duration-300 ${
+        toast.visible ? 'translate-y-0 opacity-100' : 'translate-y-20 opacity-0'
+      }`}
+      role="status"
+    >
+      <Icon
+        name={toast.type === 'bad' ? 'error' : 'check_circle'}
+        className={toast.type === 'bad' ? 'text-red-400' : 'text-green-400'}
+      />
+      <span>{toast.message}</span>
+    </div>
+  );
+
+  if (!authReady) {
+    return (
+      <>
+        <div className="grid min-h-dvh place-items-center bg-slate-50 text-sm font-semibold text-slate-500">
+          Đang kiểm tra phiên đăng nhập...
+        </div>
+        {toastNode}
+      </>
+    );
+  }
+
+  if (!authenticated) {
+    return (
+      <>
+        <AdminSignIn onAdminSuccess={completeLogin} initialMessage={authMessage} />
+        {toastNode}
+      </>
+    );
+  }
 
   const pendingCount = n(summary?.lots?.pending);
   const commPct = summary?.platform_config?.commission_rate ?? 5;
@@ -167,10 +207,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                   />
                   <span>{item.label}</span>
                   {item.hasPendingBadge && pendingCount > 0 ? (
-                    <span
-                      className="ml-auto rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-700"
-                      data-pending-badge
-                    >
+                    <span className="ml-auto rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-700">
                       {pendingCount}
                     </span>
                   ) : null}
@@ -194,15 +231,23 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand text-xs font-bold text-white">
                 {adminInitials}
               </div>
-              <div className="min-w-0">
-                <b id="admin-name" className="block truncate text-[13px] font-bold leading-tight">
+              <div className="min-w-0 flex-1">
+                <b className="block truncate text-[13px] font-bold leading-tight">
                   {adminName || '—'}
                 </b>
-                <small id="admin-email" className="block truncate text-[11px] text-slate-500">
+                <small className="block truncate text-[11px] text-slate-500">
                   {adminEmail || '—'}
                 </small>
               </div>
             </div>
+            <button
+              type="button"
+              onClick={() => void logout()}
+              className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+            >
+              <Icon name="logout" sizeClass="h-4 w-4" />
+              <span>Đăng xuất</span>
+            </button>
           </div>
         </div>
       </aside>
@@ -214,31 +259,14 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             <Icon name="chevron_right" sizeClass="h-3.5 w-3.5" />
             <b className="font-bold text-slate-900">{current.crumb}</b>
           </div>
-          <div className="flex w-full items-center justify-between gap-3.5 sm:w-auto sm:justify-end">
-            <span
-              id="sync-time"
-              className={
-                syncTime
-                  ? 'rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600'
-                  : 'text-xs font-medium text-slate-500'
-              }
-            >
-              {syncTime}
-            </span>
-            <button
-              className="btn"
-              id="btn-refresh"
-              type="button"
-              disabled={refreshing}
-              onClick={triggerRefresh}
-            >
-              <Icon
-                name="refresh"
-                sizeClass={`h-[17px] w-[17px] ${refreshing ? 'animate-spin text-brand' : ''}`}
-              />{' '}
-              Làm mới
-            </button>
-          </div>
+          <button
+            className="btn ml-auto px-3 text-red-600 hover:bg-red-50 lg:hidden"
+            type="button"
+            onClick={() => void logout()}
+          >
+            <Icon name="logout" sizeClass="h-[17px] w-[17px]" />
+            <span>Đăng xuất</span>
+          </button>
         </div>
 
         <nav className="mx-5 mt-2.5 flex gap-[7px] overflow-x-auto pb-3 lg:hidden">
@@ -298,7 +326,6 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
 
           {errorBanner ? (
             <div
-              id="error-banner"
               className="my-3 rounded-[10px] border border-rose-200 bg-rose-50 px-[18px] py-[13px] text-[13px] text-red-700"
               role="alert"
             >
@@ -306,7 +333,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             </div>
           ) : null}
 
-          <div id="live-root" className="flex flex-col gap-5 pb-8" aria-live="polite">
+          <div className="flex flex-col gap-5 pb-8" aria-live="polite">
             {children}
           </div>
         </div>
@@ -319,7 +346,6 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
       {modal.open ? (
         <div
           className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/55 p-[18px] backdrop-blur-[2px]"
-          id="detail-modal"
           role="dialog"
           aria-modal="true"
           aria-labelledby="modal-title"
@@ -337,7 +363,6 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                 {modal.title}
               </h2>
               <button
-                id="modal-close"
                 className="btn btn-sm"
                 type="button"
                 onClick={closeModal}
@@ -345,24 +370,12 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                 Đóng <Icon name="close" sizeClass="h-[17px] w-[17px]" />
               </button>
             </div>
-            <div id="modal-content">{modal.content}</div>
+            <div>{modal.content}</div>
           </div>
         </div>
       ) : null}
 
-      <div
-        className={`pointer-events-none fixed bottom-6 right-6 z-[10000] flex items-center gap-2.5 rounded-xl bg-slate-900 px-4 py-3 text-[13px] font-semibold text-white shadow-[0_10px_30px_rgba(0,0,0,0.25)] transition duration-300 ${
-          toast.visible ? 'translate-y-0 opacity-100' : 'translate-y-20 opacity-0'
-        }`}
-        id="toast"
-        role="status"
-      >
-        <Icon
-          name={toast.type === 'bad' ? 'error' : 'check_circle'}
-          className={toast.type === 'bad' ? 'text-red-400' : 'text-green-400'}
-        />
-        <span id="toast-msg">{toast.message}</span>
-      </div>
+      {toastNode}
     </>
   );
 }

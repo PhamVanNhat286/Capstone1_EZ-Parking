@@ -75,8 +75,7 @@ export const MANAGER_ACTION: Record<string, string> = {
   HOLD_SPOT: 'Giữ chỗ đặt lịch',
   AUTO_CANCEL_HOLD_EXPIRED: 'Tự động hủy giữ chỗ quá hạn',
   AUTO_FORFEIT_ARRIVAL_EXPIRED: 'Tự động thu cọc quá hạn đến bãi',
-  PLATFORM_SETTINGS_UPDATED: 'Cập nhật cấu hình nền tảng',
-  CACHE_FLUSHED: 'Làm mới bộ nhớ đệm hệ thống'
+  PLATFORM_SETTINGS_UPDATED: 'Cập nhật cấu hình nền tảng'
 };
 
 export const COLORS: Record<string, string> = {

@@ -8,14 +8,12 @@ for (const oid of [1082, 1083, 1114, 1184]) {
   types.setTypeParser(oid, value => value);
 }
 
-export class HttpError extends Error {
+class HttpError extends Error {
   status: number;
-  code?: string;
-  constructor(message: string, status = 400, code?: string) {
+  constructor(message: string, status = 400) {
     super(message);
     this.name = 'HttpError';
     this.status = status;
-    this.code = code;
   }
 }
 
@@ -159,6 +157,11 @@ async function runDatabaseSeedCheck(): Promise<boolean> {
       await pool.query(seedSql);
       countRes = await pool.query<{ cnt: number }>(`SELECT COUNT(*)::int AS cnt FROM users`);
     }
+    await pool.query(
+      `UPDATE users
+       SET password_hash = crypt('password123', gen_salt('bf', 10))
+       WHERE password_hash LIKE '$2a$10$N9qo8uLOickgx2ZMRZoMye%'`
+    );
     return Number(countRes.rows[0]?.cnt || 0) > 0;
   } catch {
     return false;

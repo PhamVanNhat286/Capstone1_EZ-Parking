@@ -65,7 +65,7 @@ function shutdown(exitCode = 0) {
 process.on('SIGINT', () => shutdown(0));
 process.on('SIGTERM', () => shutdown(0));
 
-console.log(`[EZ-Space Admin] Đang khởi động Backend (Node.js :8000) và Frontend (Next.js :3001) ở chế độ "${mode}"...`);
+console.log(`[EZ-Space Admin] Đang khởi động Backend (Node.js :8000) và Frontend (Next.js :3002) ở chế độ "${mode}"...`);
 launch('BACKEND', backendDir);
 launch('FRONTEND', frontendDir);
 

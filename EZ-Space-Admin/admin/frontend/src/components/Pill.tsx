@@ -1,6 +1,5 @@
 'use client';
 
-import React from 'react';
 import { COLORS } from '@/lib/constants';
 
 const TONE_CLASSES: Record<string, string> = {
@@ -14,15 +13,14 @@ const TONE_CLASSES: Record<string, string> = {
 interface PillProps {
   tone: string;
   label?: string;
-  mono?: boolean;
 }
 
-export function Pill({ tone, label, mono }: PillProps) {
+export function Pill({ tone, label }: PillProps) {
   const colorKey = COLORS[tone] || 'muted';
   const toneClass = TONE_CLASSES[colorKey] || TONE_CLASSES.muted;
   return (
     <span
-      className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-[7px] px-[9px] py-1 text-[11px] font-bold ${toneClass}${mono ? ' font-mono' : ''}`}
+      className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-[7px] px-[9px] py-1 text-[11px] font-bold ${toneClass}`}
     >
       {label ?? tone}
     </span>

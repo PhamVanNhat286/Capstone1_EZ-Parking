@@ -1,7 +1,8 @@
 'use client';
 
-import React, {
+import {
   createContext,
+  type ReactNode,
   useCallback,
   useContext,
   useEffect,
@@ -9,24 +10,26 @@ import React, {
   useState
 } from 'react';
 import { ConfirmDialog, ConfirmDialogOptions } from '@/components/ConfirmDialog';
-import { api, setCsrfToken } from '@/lib/api';
+import { api, setCsrfToken, setUnauthorizedHandler } from '@/lib/api';
 import { AuthResponse, SummaryResponse } from '@/lib/types';
 
-export interface ToastState {
+interface ToastState {
   visible: boolean;
   message: string;
   type: 'ok' | 'bad';
 }
 
-export interface ModalState {
+interface ModalState {
   open: boolean;
   title: string;
   isDialog: boolean;
-  content: React.ReactNode;
+  content: ReactNode;
 }
 
 interface AdminContextValue {
   authReady: boolean;
+  authenticated: boolean;
+  authMessage: string;
   adminName: string;
   adminEmail: string;
   summary: SummaryResponse | null;
@@ -39,19 +42,23 @@ interface AdminContextValue {
   toast: ToastState;
   modal: ModalState;
   notice: (message: string, type?: 'ok' | 'bad') => void;
-  openModal: (title: string, content: React.ReactNode, isDialog?: boolean) => void;
+  openModal: (title: string, content: ReactNode, isDialog?: boolean) => void;
   closeModal: () => void;
   confirmAction: (
     options: ConfirmDialogOptions
   ) => Promise<{ confirmed: true; reason: string } | null>;
   refreshSummary: () => Promise<SummaryResponse | null>;
   triggerRefresh: () => void;
+  completeLogin: (name: string, email: string, csrf?: string) => void;
+  logout: () => Promise<void>;
 }
 
 const AdminContext = createContext<AdminContextValue | null>(null);
 
-export function AdminProvider({ children }: { children: React.ReactNode }) {
+export function AdminProvider({ children }: { children: ReactNode }) {
   const [authReady, setAuthReady] = useState(false);
+  const [authenticated, setAuthenticated] = useState(false);
+  const [authMessage, setAuthMessage] = useState('');
   const [adminName, setAdminName] = useState('');
   const [adminEmail, setAdminEmail] = useState('');
   const [summary, setSummary] = useState<SummaryResponse | null>(null);
@@ -94,7 +101,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const openModal = useCallback(
-    (title: string, content: React.ReactNode, isDialog = false) => {
+    (title: string, content: ReactNode, isDialog = false) => {
       if (dialogResolverRef.current) {
         const resolve = dialogResolverRef.current;
         dialogResolverRef.current = null;
@@ -155,6 +162,56 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     setRefreshTick(prev => prev + 1);
   }, []);
 
+  const completeLogin = useCallback(
+    (name: string, email: string, csrf?: string) => {
+      if (csrf) setCsrfToken(csrf);
+      setAdminName(name);
+      setAdminEmail(email);
+      setAuthMessage('');
+      setErrorBanner('');
+      setAuthenticated(true);
+      setRefreshTick(prev => prev + 1);
+      notice('Đăng nhập thành công!');
+    },
+    [notice]
+  );
+
+  const logout = useCallback(async () => {
+    try {
+      await api('logout', 'POST');
+    } catch {
+      // ignore
+    }
+    setAuthenticated(false);
+    setAdminName('');
+    setAdminEmail('');
+    setSummary(null);
+    setSyncTime('');
+    setErrorBanner('');
+    setAuthMessage('');
+    closeModal();
+    notice('Đã đăng xuất khỏi hệ thống quản trị.');
+    try {
+      const auth = await api<AuthResponse>('auth');
+      setCsrfToken(auth.csrf);
+    } catch {
+      // ignore
+    }
+  }, [closeModal, notice]);
+
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      setAuthenticated(false);
+      setAdminName('');
+      setAdminEmail('');
+      setSummary(null);
+      setSyncTime('');
+      setAuthMessage('Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.');
+      closeModal();
+    });
+    return () => setUnauthorizedHandler(null);
+  }, [closeModal]);
+
   useEffect(() => {
     let active = true;
     (async () => {
@@ -162,12 +219,38 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
         const auth = await api<AuthResponse>('auth');
         if (!active) return;
         setCsrfToken(auth.csrf);
-        setAdminName(auth.user || '');
-        setAdminEmail(auth.email || '');
+
+        const url = new URL(window.location.href);
+        const ssoToken = url.searchParams.get('token');
+        if (ssoToken) {
+          url.searchParams.delete('token');
+          window.history.replaceState({}, '', url.pathname + url.search);
+          try {
+            const sso = await api<AuthResponse>('sso', 'POST', { token: ssoToken });
+            if (!active) return;
+            if (sso.csrf) setCsrfToken(sso.csrf);
+            setAdminName(sso.user || '');
+            setAdminEmail(sso.email || '');
+            setAuthenticated(true);
+            setAuthReady(true);
+            return;
+          } catch (ssoErr) {
+            if (!active) return;
+            setAuthMessage(
+              ssoErr instanceof Error ? ssoErr.message : 'Phiên SSO không hợp lệ.'
+            );
+          }
+        }
+
+        if (auth.authenticated) {
+          setAdminName(auth.user || '');
+          setAdminEmail(auth.email || '');
+          setAuthenticated(true);
+        }
         setAuthReady(true);
       } catch (err) {
         if (!active) return;
-        setErrorBanner(
+        setAuthMessage(
           err instanceof Error ? err.message : 'Không thể kết nối máy chủ quản trị.'
         );
         setAuthReady(true);
@@ -192,6 +275,8 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     <AdminContext.Provider
       value={{
         authReady,
+        authenticated,
+        authMessage,
         adminName,
         adminEmail,
         summary,
@@ -208,7 +293,9 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
         closeModal,
         confirmAction,
         refreshSummary,
-        triggerRefresh
+        triggerRefresh,
+        completeLogin,
+        logout
       }}
     >
       {children}
@@ -221,4 +308,3 @@ export function useAdmin() {
   if (!ctx) throw new Error('useAdmin must be used inside AdminProvider');
   return ctx;
 }
-

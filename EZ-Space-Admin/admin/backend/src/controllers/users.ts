@@ -3,7 +3,7 @@ import { getActor, pass, validId } from './utils';
 
 export async function users() {
   const items = await q(`
-    SELECT u.id, u.full_name, u.email, u.phone, u.role, u.status, u.avatar_url, u.created_at, u.updated_at,
+    SELECT u.id, u.full_name, u.email, u.phone, u.role, u.status, u.created_at,
            (SELECT COUNT(*)::int FROM vehicles v WHERE v.user_id = u.id) vehicles,
            (SELECT COUNT(*)::int FROM reservations r WHERE r.user_id = u.id) reservations,
            (SELECT COUNT(*)::int FROM parking_lot_managers m WHERE m.manager_id = u.id) lots
@@ -16,7 +16,7 @@ export async function users() {
 export async function user(params: Record<string, string>) {
   const id = validId(params.id);
   const profile = await first(
-    `SELECT id, full_name, email, phone, role, status, avatar_url, created_at, updated_at
+    `SELECT id, full_name, email, phone, role, status, created_at
      FROM users WHERE id = $1`,
     [id]
   );
@@ -60,7 +60,7 @@ export async function userStatus(input: Record<string, unknown>) {
     err('Trạng thái tài khoản không hợp lệ.');
   }
   return withTx(async client => {
-    const actor = await getActor(client);
+    const actor = await getActor(client, input._actorId);
     const lock = await client.query<{ id: number; full_name: string; role: string; status: string }>(
       'SELECT id, full_name, role, status FROM users WHERE id = $1 FOR UPDATE',
       [id]

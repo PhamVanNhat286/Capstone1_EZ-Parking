@@ -1,13 +1,13 @@
 'use client';
 
-import React from 'react';
+import type { ReactNode } from 'react';
 import { Icon } from './Icon';
 
 interface DataTableProps {
   headers: string[];
   empty?: string;
   hasRows: boolean;
-  children: React.ReactNode;
+  children: ReactNode;
 }
 
 export function DataTable({

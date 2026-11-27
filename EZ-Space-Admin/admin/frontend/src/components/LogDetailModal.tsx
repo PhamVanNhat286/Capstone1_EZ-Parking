@@ -1,6 +1,5 @@
 'use client';
 
-import React from 'react';
 import { Icon } from '@/components/Icon';
 import { useAdmin } from '@/context/AdminContext';
 import { MANAGER_ACTION, ROLE } from '@/lib/constants';
@@ -25,8 +24,7 @@ const ACTION_BADGE_MAP: Record<string, string> = {
   AUTO_FORFEIT_ARRIVAL_EXPIRED: 'bg-red-100 text-red-700',
   REJECT_LOT: 'bg-red-100 text-red-700',
   reservation_cancelled: 'bg-red-100 text-red-700',
-  PLATFORM_SETTINGS_UPDATED: 'bg-brand-tint text-brand',
-  CACHE_FLUSHED: 'bg-amber-100 text-amber-800'
+  PLATFORM_SETTINGS_UPDATED: 'bg-brand-tint text-brand'
 };
 
 export function LogDetailModal({ row }: LogDetailModalProps) {

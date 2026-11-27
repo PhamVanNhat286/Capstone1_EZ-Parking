@@ -5,7 +5,7 @@ import { useAdmin } from '@/context/AdminContext';
 import { api } from '@/lib/api';
 
 export function useAdminPageData<T>(endpoint: string, errorFallback: string) {
-  const { authReady, refreshSummary, refreshTick, setRefreshing, setErrorBanner, modal } =
+  const { authReady, authenticated, refreshSummary, refreshTick, setRefreshing, setErrorBanner, modal } =
     useAdmin();
 
   const [data, setData] = useState<T | null>(null);
@@ -36,15 +36,15 @@ export function useAdminPageData<T>(endpoint: string, errorFallback: string) {
   );
 
   useEffect(() => {
-    if (!authReady) return;
+    if (!authReady || !authenticated) return;
     void reload(true);
-  }, [authReady, refreshTick]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [authReady, authenticated, refreshTick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (!authReady) return;
+    if (!authReady || !authenticated) return;
     const timer = setInterval(() => void reload(false), 20000);
     return () => clearInterval(timer);
-  }, [authReady, reload]);
+  }, [authReady, authenticated, reload]);
 
   return { data, loadError, reload };
 }

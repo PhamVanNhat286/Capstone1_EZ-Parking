@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import { type FormEvent, useEffect, useRef, useState } from 'react';
 import { Icon } from './Icon';
 import {
   draftToRangeParams,
@@ -34,7 +34,6 @@ const MONTH_OPTIONS: SelectOption[] = Array.from({ length: 12 }, (_, i) => ({
 
 interface CustomSelectProps {
   id: string;
-  name: string;
   value: string;
   options: SelectOption[];
   widthClass: string;
@@ -45,7 +44,6 @@ interface CustomSelectProps {
 
 function CustomSelect({
   id,
-  name,
   value,
   options,
   widthClass,
@@ -56,8 +54,7 @@ function CustomSelect({
   const current = options.find(o => o.value === String(value)) || options[0];
 
   return (
-    <div className="relative" data-range-select={name}>
-      <input type="hidden" name={name} value={current.value} />
+    <div className="relative">
       <button
         type="button"
         id={id}
@@ -185,7 +182,7 @@ export function RangeFilter({
       ? `Đang xem: ${formatVnDateShort(activeRange.from)} – ${formatVnDateShort(activeRange.to)}`
       : '';
 
-  function handleSubmit(ev: React.FormEvent) {
+  function handleSubmit(ev: FormEvent) {
     ev.preventDefault();
     setOpenMenu(null);
     try {
@@ -199,8 +196,6 @@ export function RangeFilter({
   return (
     <div
       className="rounded-[14px] border border-slate-200 bg-white px-5 py-4 shadow-card max-sm:p-3.5"
-      id="range-controls"
-      data-range-controls
       ref={containerRef}
     >
       <form
@@ -215,7 +210,6 @@ export function RangeFilter({
             </label>
             <CustomSelect
               id="range-mode"
-              name="mode"
               value={draft.mode}
               options={MODE_OPTIONS}
               widthClass="w-[184px]"
@@ -235,7 +229,6 @@ export function RangeFilter({
               </label>
               <CustomSelect
                 id="range-month"
-                name="month"
                 value={draft.month}
                 options={MONTH_OPTIONS}
                 widthClass="w-[136px]"
@@ -305,7 +298,6 @@ export function RangeFilter({
           <button
             type="submit"
             className="btn btn-sm btn-primary min-h-[38px] rounded-[10px] px-[18px]"
-            data-apply-range
             disabled={loading}
           >
             {loading ? 'Đang tải…' : 'Áp dụng'}

@@ -1,6 +1,6 @@
 export const COMMISSION_RATE = 0.05;
 
-export interface RevenueInputRow {
+interface RevenueInputRow {
   received?: number | string | null;
   deposits?: number | string | null;
   finals?: number | string | null;
@@ -8,7 +8,7 @@ export interface RevenueInputRow {
   [key: string]: unknown;
 }
 
-export type RevenueRow<T extends RevenueInputRow = RevenueInputRow> = T & {
+type RevenueRow<T extends RevenueInputRow = RevenueInputRow> = T & {
   received: number;
   net_received: number;
   admin_revenue: number;
@@ -58,7 +58,7 @@ export function withPaymentRevenue<T extends PaymentLike>(
   return withRevenue({ ...payment, received, refunds }, commissionRate);
 }
 
-export interface RawRevenueReport<
+interface RawRevenueReport<
   TTotals extends RevenueInputRow = RevenueInputRow,
   TLot extends RevenueInputRow = RevenueInputRow,
   TProvider extends RevenueInputRow = RevenueInputRow,

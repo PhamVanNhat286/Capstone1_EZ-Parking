@@ -1,7 +1,7 @@
 export interface AuthResponse {
   authenticated: boolean;
-  user: string;
-  email: string;
+  user?: string;
+  email?: string;
   csrf: string;
 }
 
@@ -118,7 +118,7 @@ export interface DashboardResponse {
   }>;
 }
 
-export interface LotListItem {
+interface LotListItem {
   id: number;
   name: string;
   address: string;
@@ -138,17 +138,14 @@ export interface LotListItem {
   slot_available: number;
   slot_occupied: number;
   slot_holding: number;
-  slot_unavailable: number;
   min_rate: number | null;
-  max_rate: number | null;
-  reservations: number;
 }
 
 export interface LotsResponse {
   items: LotListItem[];
 }
 
-export interface LotSlot {
+interface LotSlot {
   id: number;
   parking_lot_id: number;
   code: string;
@@ -159,10 +156,9 @@ export interface LotSlot {
   is_active: boolean;
 }
 
-export interface PricingRule {
+interface PricingRule {
   id: number;
   parking_lot_id: number;
-  lot_name?: string;
   name: string | null;
   start_time: string;
   end_time: string;
@@ -187,16 +183,14 @@ export interface LotDetailResponse {
   reservations: Array<{ status: string; amount: number }>;
 }
 
-export interface UserListItem {
+interface UserListItem {
   id: number;
   full_name: string;
   email: string;
   phone: string | null;
   role: string;
   status: string;
-  avatar_url?: string | null;
   created_at: string;
-  updated_at?: string;
   vehicles: number;
   reservations: number;
   lots: number;
@@ -254,7 +248,7 @@ export interface RevenueLotRow {
   owner_revenue: number;
 }
 
-export interface RevenueProviderRow {
+interface RevenueProviderRow {
   provider: string;
   transactions: number;
   received: number;
@@ -264,7 +258,7 @@ export interface RevenueProviderRow {
   owner_revenue: number;
 }
 
-export interface RevenueVehicleRow {
+interface RevenueVehicleRow {
   vehicle_type: string;
   bookings: number;
   received: number;
@@ -274,7 +268,7 @@ export interface RevenueVehicleRow {
   owner_revenue: number;
 }
 
-export interface RevenueDayRow {
+interface RevenueDayRow {
   day: string;
   deposits: number;
   finals: number;
@@ -285,7 +279,7 @@ export interface RevenueDayRow {
   owner_revenue: number;
 }
 
-export interface RevenuePaymentRow {
+interface RevenuePaymentRow {
   id: number;
   reservation_id: number;
   provider: string;
@@ -334,7 +328,6 @@ export interface LogRecord {
   id: number;
   source: 'admin' | 'manager';
   action: string;
-  category: string;
   user_id?: number | null;
   actor: string | null;
   actor_email?: string | null;
@@ -372,11 +365,8 @@ export interface SettingsResponse {
   };
   gateway_stats: Array<{
     provider: string;
-    total_transactions: number;
     success_transactions: number;
     total_amount: number;
-    last_paid_at: string | null;
   }>;
-  server_time: string;
 }
 

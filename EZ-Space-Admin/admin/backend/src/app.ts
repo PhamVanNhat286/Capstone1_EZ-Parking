@@ -16,7 +16,7 @@ export function createApp() {
         }
       },
       credentials: true,
-      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+      methods: ['GET', 'POST', 'PATCH', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Accept', 'X-CSRF-Token']
     })
   );
@@ -47,6 +47,9 @@ export function createApp() {
         '/api/health',
         '/api/platform-config',
         '/api/admin/auth',
+        '/api/admin/login',
+        '/api/admin/sso',
+        '/api/admin/logout',
         '/api/admin/summary',
         '/api/admin/dashboard',
         '/api/admin/lots',

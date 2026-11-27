@@ -1,7 +1,7 @@
 import { audit, err, q, safeFirst, withTx } from '../db/pool';
 import { getActor, pass } from './utils';
 
-export interface PlatformConfig {
+interface PlatformConfig {
   hold_timeout_minutes: number;
   arrival_timeout_minutes: number;
   deposit_amount: number;
@@ -78,13 +78,11 @@ export async function settings() {
     q<{ value: string }>(`SELECT unnest(enum_range(NULL::payment_provider))::text AS value`),
     q(`
       SELECT provider::text AS provider,
-             COUNT(*)::int AS total_transactions,
              COUNT(*) FILTER (WHERE status = 'success')::int AS success_transactions,
-             COALESCE(SUM(amount) FILTER (WHERE status = 'success' AND payment_type IN ('deposit', 'final')), 0)::float8 AS total_amount,
-             MAX(paid_at) AS last_paid_at
+             COALESCE(SUM(amount) FILTER (WHERE status = 'success' AND payment_type IN ('deposit', 'final')), 0)::float8 AS total_amount
       FROM payments
       GROUP BY provider
-      ORDER BY total_transactions DESC, provider
+      ORDER BY success_transactions DESC, provider
     `),
     loadCurrentConfig()
   ]);
@@ -95,8 +93,7 @@ export async function settings() {
     enums: {
       payment_providers: providerEnumRows.map(r => r.value)
     },
-    gateway_stats,
-    server_time: new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' })
+    gateway_stats
   };
 }
 
@@ -144,7 +141,7 @@ export async function updateSettings(input: Record<string, unknown>) {
   };
 
   return withTx(async client => {
-    const actor = await getActor(client);
+    const actor = await getActor(client, input._actorId);
     const prevRow = await client.query<{ new_value?: Record<string, unknown> }>(
       `SELECT new_value
        FROM audit_logs

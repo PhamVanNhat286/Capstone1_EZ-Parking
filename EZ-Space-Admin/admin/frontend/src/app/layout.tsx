@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import React from 'react';
+import type { ReactNode } from 'react';
 import { AdminShell } from '@/components/AdminShell';
 import { AdminProvider } from '@/context/AdminContext';
 import './globals.css';
@@ -10,7 +10,7 @@ export const metadata: Metadata = {
     'Hệ thống Quản trị Nền tảng EZ-Space Smart Parking (Node.js + Next.js + Tailwind CSS + PostgreSQL)'
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="vi">
       <head>

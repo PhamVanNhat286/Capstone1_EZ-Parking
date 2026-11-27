@@ -16,10 +16,7 @@ export async function lots() {
            (SELECT COUNT(*)::int FROM slots s WHERE s.parking_lot_id = l.id AND s.status = 'available' AND s.is_active) slot_available,
            (SELECT COUNT(*)::int FROM slots s WHERE s.parking_lot_id = l.id AND s.status = 'occupied' AND s.is_active) slot_occupied,
            (SELECT COUNT(*)::int FROM slots s WHERE s.parking_lot_id = l.id AND s.status = 'holding' AND s.is_active) slot_holding,
-           (SELECT COUNT(*)::int FROM slots s WHERE s.parking_lot_id = l.id AND (s.status = 'unavailable' OR NOT s.is_active)) slot_unavailable,
-           (SELECT MIN(hourly_rate) FROM pricing_rules p WHERE p.parking_lot_id = l.id) min_rate,
-           (SELECT MAX(hourly_rate) FROM pricing_rules p WHERE p.parking_lot_id = l.id) max_rate,
-           (SELECT COUNT(*)::int FROM reservations r WHERE r.parking_lot_id = l.id) reservations
+           (SELECT MIN(hourly_rate) FROM pricing_rules p WHERE p.parking_lot_id = l.id) min_rate
     FROM parking_lots l
     ORDER BY CASE l.status::text
                WHEN 'pending' THEN 1
@@ -81,7 +78,7 @@ export async function lotStatus(input: Record<string, unknown>) {
     rejected: ['pending']
   };
   return withTx(async client => {
-    const actor = await getActor(client);
+    const actor = await getActor(client, input._actorId);
     const lock = await client.query<{
       id: number;
       name: string;

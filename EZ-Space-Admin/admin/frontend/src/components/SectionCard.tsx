@@ -1,15 +1,13 @@
 'use client';
 
-import React from 'react';
+import type { ReactNode } from 'react';
 import { Icon } from './Icon';
 
-export type SectionIconTone = 'brand' | 'ok' | 'warn' | 'bad';
+type SectionIconTone = 'brand' | 'warn';
 
 const ICON_TONE_CLASSES: Record<SectionIconTone, string> = {
   brand: 'bg-brand-tint text-brand',
-  ok: 'bg-green-100 text-green-600',
-  warn: 'bg-amber-100 text-amber-700',
-  bad: 'bg-red-50 text-red-600'
+  warn: 'bg-amber-100 text-amber-700'
 };
 
 interface SectionCardProps {
@@ -17,9 +15,9 @@ interface SectionCardProps {
   subtitle?: string;
   icon?: string;
   iconTone?: SectionIconTone;
-  action?: React.ReactNode;
+  action?: ReactNode;
   className?: string;
-  children: React.ReactNode;
+  children: ReactNode;
 }
 
 export function SectionCard({

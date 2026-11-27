@@ -1,4 +1,4 @@
-export interface DateRangeBounds {
+interface DateRangeBounds {
   from: string;
   to: string;
 }

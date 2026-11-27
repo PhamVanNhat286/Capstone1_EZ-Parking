@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { DataTable } from '@/components/DataTable';
 import { Icon } from '@/components/Icon';
 import { KpiCard } from '@/components/KpiCard';
@@ -26,6 +26,7 @@ import { useAdminActions } from '@/lib/useAdminActions';
 export default function DashboardPage() {
   const {
     authReady,
+    authenticated,
     summary,
     refreshSummary,
     refreshTick,
@@ -115,15 +116,15 @@ export default function DashboardPage() {
   });
 
   useEffect(() => {
-    if (!authReady) return;
+    if (!authReady || !authenticated) return;
     void fetchData(true);
-  }, [authReady, refreshTick]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [authReady, authenticated, refreshTick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (!authReady) return;
+    if (!authReady || !authenticated) return;
     const timer = setInterval(() => void fetchData(false), 20000);
     return () => clearInterval(timer);
-  }, [authReady, fetchData]);
+  }, [authReady, authenticated, fetchData]);
 
   const effectiveSummary = localSummary || summary;
 

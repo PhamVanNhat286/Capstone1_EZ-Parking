@@ -1,10 +1,9 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Icon } from '@/components/Icon';
 import { ErrorCard, LoadingCard } from '@/components/PageState';
 import { Pill } from '@/components/Pill';
-import { SectionCard } from '@/components/SectionCard';
 import { useAdmin } from '@/context/AdminContext';
 import { api } from '@/lib/api';
 import { PAY_PROVIDER } from '@/lib/constants';

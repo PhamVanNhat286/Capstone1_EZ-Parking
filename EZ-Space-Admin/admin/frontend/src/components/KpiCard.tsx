@@ -1,16 +1,15 @@
 'use client';
 
-import React from 'react';
+import type { ReactNode } from 'react';
 import { Icon } from './Icon';
 
-export type KpiTone = 'brand' | 'ok' | 'warn' | 'bad' | 'muted';
+type KpiTone = 'brand' | 'ok' | 'warn' | 'bad';
 
 const TONE_CLASSES: Record<KpiTone, string> = {
   brand: 'bg-brand-tint text-brand',
   ok: 'bg-green-100 text-green-600',
   warn: 'bg-amber-100 text-amber-700',
-  bad: 'bg-red-100 text-red-600',
-  muted: 'bg-slate-100 text-slate-600'
+  bad: 'bg-red-100 text-red-600'
 };
 
 interface KpiCardProps {
@@ -18,7 +17,7 @@ interface KpiCardProps {
   value: string;
   icon?: string;
   tone?: KpiTone;
-  sub?: React.ReactNode;
+  sub?: ReactNode;
 }
 
 export function KpiCard({ label, value, icon = 'analytics', tone = 'brand', sub }: KpiCardProps) {

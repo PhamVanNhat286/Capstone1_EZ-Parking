@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { DataTable } from '@/components/DataTable';
 import { FilterToolbar } from '@/components/FilterToolbar';
 import { KpiCard } from '@/components/KpiCard';

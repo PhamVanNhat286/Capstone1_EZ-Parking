@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from '@/components/Icon';
 import { KpiCard } from '@/components/KpiCard';
 import { LogDetailModal } from '@/components/LogDetailModal';
@@ -23,8 +23,7 @@ const COMMON_ACTIONS = [
   'HOLD_SPOT',
   'AUTO_CANCEL_HOLD_EXPIRED',
   'AUTO_FORFEIT_ARRIVAL_EXPIRED',
-  'PLATFORM_SETTINGS_UPDATED',
-  'CACHE_FLUSHED'
+  'PLATFORM_SETTINGS_UPDATED'
 ];
 
 const MANAGER_ACTIONS = [
@@ -51,8 +50,7 @@ const ACTION_BADGE_MAP: Record<string, string> = {
   AUTO_FORFEIT_ARRIVAL_EXPIRED: 'bg-red-100 text-red-700',
   REJECT_LOT: 'bg-red-100 text-red-700',
   reservation_cancelled: 'bg-red-100 text-red-700',
-  PLATFORM_SETTINGS_UPDATED: 'bg-brand-tint text-brand',
-  CACHE_FLUSHED: 'bg-amber-100 text-amber-800'
+  PLATFORM_SETTINGS_UPDATED: 'bg-brand-tint text-brand'
 };
 
 const ROLE_BADGE_MAP: Record<string, string> = {
@@ -165,7 +163,6 @@ export default function LogsPage() {
       id: n(x.id),
       source: 'admin',
       action: String(x.action || ''),
-      category: String(x.action || ''),
       actor: x.actor ? String(x.actor) : null,
       actor_email: x.actor_email ? String(x.actor_email) : '',
       actor_role: x.actor_role ? String(x.actor_role) : '',
@@ -181,7 +178,6 @@ export default function LogsPage() {
       id: n(x.id),
       source: 'manager',
       action: String(x.action_type || ''),
-      category: String(x.action_type || ''),
       user_id: n(x.manager_id),
       actor: x.actor ? String(x.actor) : null,
       actor_email: x.actor_email ? String(x.actor_email) : '',
@@ -343,7 +339,6 @@ export default function LogsPage() {
       'USER_STATUS_CHANGED',
       'UPDATE_SLOT',
       'PLATFORM_SETTINGS_UPDATED',
-      'CACHE_FLUSHED',
       'lot_created',
       'lot_updated',
       'slot_updated',
@@ -781,9 +776,6 @@ export default function LogsPage() {
                           >
                             <span className="h-1.5 w-1.5 rounded-full bg-current" />
                             <span>{MANAGER_ACTION[log.action] || log.action}</span>
-                          </span>
-                          <span className="font-mono text-[11px] text-slate-400">
-                            {log.action}
                           </span>
                         </div>
                       </td>

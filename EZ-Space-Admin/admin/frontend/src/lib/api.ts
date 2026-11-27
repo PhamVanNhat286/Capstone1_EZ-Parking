@@ -1,12 +1,17 @@
 let csrfToken = '';
+let unauthorizedHandler: (() => void) | null = null;
 
 export function setCsrfToken(token: string): void {
   csrfToken = token;
 }
 
+export function setUnauthorizedHandler(fn: (() => void) | null): void {
+  unauthorizedHandler = fn;
+}
+
 export async function api<T = unknown>(
   endpoint: string,
-  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' = 'GET',
+  method: 'GET' | 'POST' | 'PATCH' = 'GET',
   data?: Record<string, unknown>,
   params: Record<string, string | number | undefined> = {}
 ): Promise<T> {
@@ -45,7 +50,13 @@ export async function api<T = unknown>(
   }
 
   const result = await response.json();
+  if (result && typeof result.csrf === 'string' && result.csrf) {
+    csrfToken = result.csrf;
+  }
   if (!response.ok) {
+    if (response.status === 401 && !['login', 'auth', 'sso'].includes(cleanEndpoint)) {
+      unauthorizedHandler?.();
+    }
     throw new Error(result?.error || `Lỗi HTTP ${response.status}`);
   }
   return result as T;

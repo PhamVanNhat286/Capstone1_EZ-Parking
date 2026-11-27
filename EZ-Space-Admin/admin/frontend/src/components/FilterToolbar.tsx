@@ -1,6 +1,5 @@
 'use client';
 
-import React from 'react';
 import { Icon } from './Icon';
 
 interface FilterToolbarProps {
@@ -10,7 +9,6 @@ interface FilterToolbarProps {
   search: string;
   onSearchChange: (val: string) => void;
   onExport?: () => void;
-  exportLabel?: string;
 }
 
 export function FilterToolbar({
@@ -19,8 +17,7 @@ export function FilterToolbar({
   onTabChange,
   search,
   onSearchChange,
-  onExport,
-  exportLabel = 'Xuất CSV'
+  onExport
 }: FilterToolbarProps) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3.5 border-b border-slate-200 bg-slate-50/60 px-6 py-3.5">
@@ -52,7 +49,6 @@ export function FilterToolbar({
           />
           <input
             className="h-9 min-w-[240px] rounded-xl border border-slate-200 bg-white pl-9 pr-8 text-[13px] text-slate-900 placeholder:text-slate-400 focus:border-brand focus:outline-none focus:ring-[3px] focus:ring-brand/15"
-            id="list-search"
             aria-label="Tìm kiếm"
             placeholder="Tìm theo tên, mã hoặc thông tin..."
             value={search}
@@ -72,7 +68,7 @@ export function FilterToolbar({
         {onExport ? (
           <button type="button" className="btn btn-sm h-9" onClick={onExport}>
             <Icon name="download" sizeClass="h-4 w-4" />
-            <span>{exportLabel}</span>
+            <span>Xuất CSV</span>
           </button>
         ) : null}
       </div>

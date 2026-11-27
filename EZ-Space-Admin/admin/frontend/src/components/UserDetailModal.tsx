@@ -1,6 +1,5 @@
 'use client';
 
-import React from 'react';
 import { LOT, RES, ROLE, USER } from '@/lib/constants';
 import { dt, money, n, nf } from '@/lib/format';
 import { UserDetailResponse } from '@/lib/types';

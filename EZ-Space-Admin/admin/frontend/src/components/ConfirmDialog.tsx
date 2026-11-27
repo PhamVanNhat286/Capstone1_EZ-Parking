@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import { type FormEvent, useEffect, useRef, useState } from 'react';
 import { Pill } from './Pill';
 
 export interface ConfirmDialogOptions {
@@ -39,7 +39,7 @@ export function ConfirmDialog({ options, onCancel, onConfirm }: ConfirmDialogPro
     return () => clearTimeout(timer);
   }, [options.withReason]);
 
-  function handleSubmit(ev: React.FormEvent) {
+  function handleSubmit(ev: FormEvent) {
     ev.preventDefault();
     const trimmed = reason.trim();
     if (options.requireReason && trimmed.length < 3) {

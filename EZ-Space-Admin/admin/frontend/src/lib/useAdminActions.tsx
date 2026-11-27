@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback } from 'react';
+import { useCallback } from 'react';
 import { LotDetailModal } from '@/components/LotDetailModal';
 import { UserDetailModal } from '@/components/UserDetailModal';
 import { useAdmin } from '@/context/AdminContext';
@@ -8,14 +8,14 @@ import { api } from '@/lib/api';
 import { LOT, USER } from '@/lib/constants';
 import { LotDetailResponse, UserDetailResponse } from '@/lib/types';
 
-export type LotActionKind =
+type LotActionKind =
   | 'lot-approve'
   | 'lot-activate'
   | 'lot-reconsider'
   | 'lot-reject'
   | 'lot-suspend';
 
-export type UserActionKind = 'user-lock' | 'user-inactive' | 'user-unlock';
+type UserActionKind = 'user-lock' | 'user-inactive' | 'user-unlock';
 
 const LOT_CONFIGS: Record<
   LotActionKind,

@@ -1,6 +1,5 @@
 'use client';
 
-import React from 'react';
 import { LOT, RES, SLOT_STATUS, SLOT_TYPE } from '@/lib/constants';
 import { dt, money, n, nf, timeOnly } from '@/lib/format';
 import { LotDetailResponse } from '@/lib/types';
